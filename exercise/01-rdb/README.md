@@ -30,10 +30,10 @@ A user can like a post
 A post can contain 1 to many media (images, videos, audios) and text
 
 ```mermaid
-graph TD;
+erDiagram
     USER ||--o| PROFILE : "has one"
     USER ||--o{ POST : "creates"
     POST ||--o{ MEDIA : "contains (0 to many)"
-    USER }|--|| USER : "follows"
-    USER }|--|| POST : "likes"
+    USER ||--o{ USER : "follows"
+    USER o{--|| POST : "likes"
 ```
