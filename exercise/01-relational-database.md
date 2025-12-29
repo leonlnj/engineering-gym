@@ -1,24 +1,29 @@
 # Exercise 1 - RDB
 
+This exercise aims to appreciate transaction and isolation in RDB. It uses a postgresql on minikube and helm for setup.
+
 1. Set up a SQL DB
 2. Create a schema for social network (user, post, profile, photos, following)
 3. Insert data (in user and profile) in one transaction
-
+4. Validate Isolation levels
 
 ## Setup
+
+- Install a bitnami postgresl helm chart
+- Run sql command via postgresql client
 
 Install postgresql helm 
 
 ```sh
-helm install my-release oci://registry-1.docker.io/bitnamicharts/postgresql
+helm install ex-1 oci://registry-1.docker.io/bitnamicharts/postgresql
 ```
 
 To execute PSQL commands
 
 ```sh
-export POSTGRES_PASSWORD=$(kubectl get secret --namespace default my-release-postgresql -o jsonpath="{.data.postgres-password}" | base64 -d)
-kubectl run my-release-postgresql-client --rm --tty -i --restart='Never' --namespace default --image registry-1.docker.io/bitnami/postgresql:latest --env="PGPASSWORD=$POSTGRES_PASSWORD" \
-      --command -- psql --host my-release-postgresql -U postgres -d postgres -p 5432
+export POSTGRES_PASSWORD=$(kubectl get secret ex-1-postgresql -o jsonpath="{.data.postgres-password}" | base64 -d)
+kubectl run ex-1-postgresql-client --rm --tty -i --restart='Never' --image registry-1.docker.io/bitnami/postgresql:latest --env="PGPASSWORD=$POSTGRES_PASSWORD" \
+      --command -- psql --host ex-1-postgresql -U postgres -d postgres -p 5432
 ```
 
 ## Schema Design
@@ -284,6 +289,76 @@ COMMIT;
 SELECT COUNT(*) FROM posts WHERE user_id = 1; 
 ```
 
+### Additional learning on isolation level
+
+Create table and add sample data
+
+```sql
+CREATE TABLE IF NOT EXISTS accounts (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50),
+    balance DECIMAL(10,2)
+);
+
+INSERT INTO accounts (name, balance) VALUES 
+    ('Alice', 1000),
+    ('Bob', 500);
+```
+
+Run two SQL sessions
+
+#### Repeatable read
+
+```sql
+-- Session 1, Assuming Alice balance is 1000
+SET default_transaction_isolation = 'repeatable read';
+BEGIN;
+SELECT balance FROM accounts WHERE name = 'Alice';
+-- Execute session 2 before continuing
+SELECT balance FROM accounts WHERE name = 'Alice'; -- Output: 1000, same value as start of txn
+COMMIT;
+SELECT balance FROM accounts WHERE name = 'Alice'; -- Output: 1500
+```
+
+```sql
+-- Session 2
+UPDATE accounts SET balance = 1500 WHERE name = 'Alice';
+```
+
+#### Repeatable committed
+
+```sql
+-- Session 1, Assuming Alice balance is 1500
+SET default_transaction_isolation = 'read committed';
+BEGIN;
+SELECT balance FROM accounts WHERE name = 'Alice';
+-- Execute session 2 before continuing
+SELECT balance FROM accounts WHERE name = 'Alice'; -- Output: 2000, read committed values from session 2
+COMMIT;
+SELECT balance FROM accounts WHERE name = 'Alice'; -- Output: 2000
+```
+
+```sql
+-- Session 2
+UPDATE accounts SET balance = 2000 WHERE name = 'Alice';
+```
+
+
+#### Serializable
+
+```sql
+-- Session 1, Assuming Alice balance is 2000
+SET default_transaction_isolation = 'serializable';
+BEGIN;
+SELECT balance FROM accounts WHERE name = 'Alice'; -- Output: 2000
+-- Execute session 2 before continuing
+UPDATE accounts SET balance = 1300 WHERE name = 'Alice'; -- Fails
+```
+
+```sql
+-- Session 2
+UPDATE accounts SET balance = 2500 WHERE name = 'Alice';
+```
 
 ## Cleanup
 
@@ -307,5 +382,6 @@ DROP FUNCTION IF EXISTS set_updated_at();
 ### PG
 
 ```sh
-helm uninstall my-release
+helm uninstall ex-1
+kubectl get pvc | grep 'postgres' | awk '{print $1}' | xargs kubectl delete pvc 
 ```
