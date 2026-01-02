@@ -5,12 +5,14 @@ Setup Redis, test realtime broadcast and persistency.
 ## Context
 
 Redis Pub/Sub is fire-and-forget. Messages vanish after delivery to current subscribers. The cli syntax follows:
+
 ```sh
 SUBSCRIBE {channel_name}
 PUBLISH {channel_name} {message}
 ```
 
 Redis Streams are Redis's persistent, append-only log data structure, and supports multiple consumer similar to Kafka. The cli syntax follows:
+
 ```sh
 XADD {stream_name} * {field1} {value1} {field2} {value2}
 XREAD [BLOCK {ms}] STREAMS {stream_name} {start_id}
@@ -22,7 +24,6 @@ Each stream contains an array of messages. A messages containes a dictionary(k-v
 ## Setup
 
 - Install a bitnami redis helm chart
-
 
 ```sh
 # Install Redis without auth

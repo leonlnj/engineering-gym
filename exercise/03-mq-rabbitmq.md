@@ -1,45 +1,6 @@
 # Exercise 3 - Message Queue
 
-Setup RabbitMQ and do some basic operations
-
-## Setup
-
-- Install a bitnami RabbitMQ helm chart
-- Portforward to RabbitMQ instance in k8
-- Download and configure `rabbitmqadmin` to communicate with broker
-
-
-```sh
-helm install ex-3 oci://registry-1.docker.io/bitnamicharts/rabbitmq \
-  --set auth.username=user \
-  --set auth.password=password \
-  --set persistence.enabled=false \
-  --set replicaCount=1 \
-  --set image.repository=bitnamilegacy/rabbitmq \
-  --set global.security.allowInsecureImages=true \
-  --wait
-```
-
-To view UI, portforward and visit localhost:15672.
-
-```sh
-kubectl port-forward svc/ex-3-rabbitmq-headless 15672:15672
-```
-
-Download the [rabbitmq python binary](https://github.com/rabbitmq/rabbitmqadmin-ng/releases) to local machine. This requires a python env.
-
-```sh
-chmod +x rabbitmqadmin
-# Create a config file
-cat <<EOF > admin.conf
-[default]
-username = "user"
-password = "password"
-EOF
-# The default config points to localhost:15672, with portforwarding no further args are required for host etc
-# Validate the cli tool
-./rabbitmqadmin -c admin.config list queues
-```
+Setup RabbitMQ and do some basic operations.
 
 ## Context
 
@@ -128,6 +89,45 @@ Kafka
 - Message remains even after commit
 
 RabbitMQ emphasizes on delivery gurantee while kafka ephasizes on replayability.
+
+## Setup
+
+- Install a bitnami RabbitMQ helm chart
+- Portforward to RabbitMQ instance in k8
+- Download and configure `rabbitmqadmin` to communicate with broker
+
+
+```sh
+helm install ex-3 oci://registry-1.docker.io/bitnamicharts/rabbitmq \
+  --set auth.username=user \
+  --set auth.password=password \
+  --set persistence.enabled=false \
+  --set replicaCount=1 \
+  --set image.repository=bitnamilegacy/rabbitmq \
+  --set global.security.allowInsecureImages=true \
+  --wait
+```
+
+To view UI, portforward and visit localhost:15672.
+
+```sh
+kubectl port-forward svc/ex-3-rabbitmq-headless 15672:15672
+```
+
+Download the [rabbitmq python binary](https://github.com/rabbitmq/rabbitmqadmin-ng/releases) to local machine. This requires a python env.
+
+```sh
+chmod +x rabbitmqadmin
+# Create a config file
+cat <<EOF > admin.conf
+[default]
+username = "user"
+password = "password"
+EOF
+# The default config points to localhost:15672, with portforwarding no further args are required for host etc
+# Validate the cli tool
+./rabbitmqadmin -c admin.config list queues
+```
 
 ## Test
 
