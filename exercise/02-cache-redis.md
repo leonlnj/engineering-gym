@@ -96,14 +96,11 @@ kubectl port-forward --namespace default svc/ex-2-redis-master 6379:6379
 
 ### Running interactive redis client
 
-```sh
-kubectl run --rm --tty -i --restart='Never' redis-client --image registry-1.docker.io/bitnami/redis:latest --command -- sh
-```
-
-Within the Redis client, set a key-value pair `test:hello`
+Use the server directly
 
 ```sh
-redis-cli -h ex-2-redis-master -p 6379;
+kubectl exec -it $(kubectl get pods -l app.kubernetes.io/name=redis -o jsonpath='{.items[0].metadata.name}') -- redis-cli
+# in the Redis pod terminal
 SET test "hello"
 GET test
 exit
