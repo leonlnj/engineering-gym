@@ -1,6 +1,6 @@
-# Exercise 2 - Cache
+# Exercise 3 - Message Queue
 
-Setup cache and do some measurement of performance gain
+Setup RabbitMQ and do some basic operations
 
 ## Setup
 
