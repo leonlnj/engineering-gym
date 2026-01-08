@@ -14,6 +14,8 @@ A circuit breaker tracks recent failures and moves between three states:
 
 ## Test
 
+Execute the shell command below to run a python container with inline python script to demo circuitbreaker with `pybreaker` library.
+
 ```python
 kubectl run pybreaker-demo \
   --image=python:3.12-slim \
