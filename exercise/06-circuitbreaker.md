@@ -50,3 +50,51 @@ for i in range(1, 30):
     time.sleep(1)
 "'
 ```
+
+Sample output
+
+```sh
+Call 1: ❌ fail
+⚡ CircuitClosedState → CircuitOpenState
+Call 2: ⛔ OPEN
+Call 3: ⛔ OPEN
+Call 4: ⛔ OPEN
+⚡ CircuitOpenState → CircuitHalfOpenState
+⚡ CircuitHalfOpenState → CircuitClosedState
+Call 5: ok
+Call 6: ok
+Call 7: ❌ fail
+Call 8: ok
+Call 9: ok
+Call 10: ❌ fail
+⚡ CircuitClosedState → CircuitOpenState
+Call 11: ⛔ OPEN
+Call 12: ⛔ OPEN
+Call 13: ⛔ OPEN
+⚡ CircuitOpenState → CircuitHalfOpenState
+⚡ CircuitHalfOpenState → CircuitClosedState
+Call 14: ok
+Call 15: ok
+Call 16: ❌ fail
+⚡ CircuitClosedState → CircuitOpenState
+Call 17: ⛔ OPEN
+Call 18: ⛔ OPEN
+Call 19: ⛔ OPEN
+⚡ CircuitOpenState → CircuitHalfOpenState
+⚡ CircuitHalfOpenState → CircuitOpenState
+Call 20: ⛔ OPEN
+Call 21: ⛔ OPEN
+Call 22: ⛔ OPEN
+⚡ CircuitOpenState → CircuitHalfOpenState
+⚡ CircuitHalfOpenState → CircuitOpenState
+Call 23: ⛔ OPEN
+Call 24: ⛔ OPEN
+Call 25: ⛔ OPEN
+⚡ CircuitOpenState → CircuitHalfOpenState
+⚡ CircuitHalfOpenState → CircuitClosedState
+Call 26: ok
+Call 27: ok
+Call 28: ❌ fail
+⚡ CircuitClosedState → CircuitOpenState
+Call 29: ⛔ OPEN
+```
