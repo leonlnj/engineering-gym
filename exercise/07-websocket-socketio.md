@@ -1,6 +1,6 @@
 # Exercise 7 - Webscoket
 
-Simple exercise running a python client and server locally to communicate with WebSocket, using [SocketIO](https://github.com/miguelgrinberg/python-socketio) library.
+Simple exercise running python clients and server locally to communicate via WebSocket, using [SocketIO](https://github.com/miguelgrinberg/python-socketio).
 
 ## Concept
 
