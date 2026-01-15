@@ -83,5 +83,6 @@ XREVRANGE order_stream + - COUNT 1
 ## Cleanup
 
 ```sh
-helm uninstall ex-4
+helm uninstall ex-5
+kubectl get pvc | grep 'redis-data-ex-5' | awk '{print $1}' | xargs kubectl delete pvc 
 ```
