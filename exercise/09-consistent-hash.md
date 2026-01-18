@@ -1,6 +1,6 @@
-# Exercise 8 - Consistent Hash
+# Exercise 9 - Consistent Hash
 
-Python example on Consistent Hash.
+Python imeplment of Consistent Hash using 2 array.
 
 ## Consistent Hash Concepts
 
