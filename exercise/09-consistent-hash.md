@@ -82,7 +82,7 @@ print(f'User A will be placed in {ch.get_node("User A")}')
 
 Sample output
 
-```
+```sh
 Added Server-A (Replica 0) at position 56
 Added Server-B (Replica 0) at position 93
 Key: User A has a hash value of 98
@@ -100,7 +100,7 @@ print(f'User A will be placed in {ch.get_node("User A")}')
 
 Sample output
 
-```
+```sh
 Added Server-A (Replica 0) at position 56
 Added Server-A (Replica 1) at position 63
 Added Server-A (Replica 2) at position 41
