@@ -1,0 +1,58 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: flink-job
+data:
+  job.py: |
+    import os
+    import sys
+    
+    # Ensure the internal zip is in the path for the runtime
+    sys.path.insert(0, '/opt/flink/opt/python/pyflink.zip')
+    
+    from pyflink.table import EnvironmentSettings, TableEnvironment
+
+    def run_kafka_job():
+        # 1. Setup Table Environment
+        env_settings = EnvironmentSettings.in_streaming_mode()
+        t_env = TableEnvironment.create(env_settings)
+
+        # 2. Define Source (Kafka)
+        # Note: 'kafka-service' should be your K8s service name for Kafka
+        t_env.execute_sql("""
+            CREATE TABLE kafka_source (
+                user_id STRING,
+                payload STRING
+            ) WITH (
+                'connector' = 'kafka',
+                'topic' = 'input-topic',
+                'properties.bootstrap.servers' = 'my-cluster-kafka-bootstrap:9092',
+                'properties.group.id' = 'flink-group',
+                'scan.startup.mode' = 'earliest-offset',
+                'format' = 'json'
+            )
+        """)
+
+        # 3. Define Sink (Kafka)
+        t_env.execute_sql("""
+            CREATE TABLE kafka_sink (
+                user_id STRING,
+                result_payload STRING
+            ) WITH (
+                'connector' = 'kafka',
+                'topic' = 'output-topic',
+                'properties.bootstrap.servers' = 'my-cluster-kafka-bootstrap:9092',
+                'format' = 'json'
+            )
+        """)
+
+        # 4. Define the Job logic
+        print("Submitting SQL transformation...")
+        t_env.execute_sql("""
+            INSERT INTO kafka_sink
+            SELECT user_id, UPPER(payload)
+            FROM kafka_source
+        """)
+
+    if __name__ == '__main__':
+        run_kafka_job()

@@ -1,0 +1,23 @@
+FROM flink:2.0.1-scala_2.12-java21
+
+USER root
+
+ENV JAVA_HOME=/opt/java/openjdk
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
+
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends python3 python3-pip wget && \
+    ln -s /usr/bin/python3 /usr/bin/python && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install --no-cache-dir \
+    py4j==0.10.9.7 \
+    ruamel.yaml \
+    python-dateutil
+
+RUN wget -P /opt/flink/lib/ https://repo1.maven.org/maven2/org/apache/flink/flink-sql-connector-kafka/4.0.1-2.0/flink-sql-connector-kafka-4.0.1-2.0.jar
+
+# Use the PyFlink library already inside the image
+ENV PYTHONPATH=/opt/flink/opt/python/pyflink.zip
+
+USER flink
