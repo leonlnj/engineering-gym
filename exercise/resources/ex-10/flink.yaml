@@ -17,22 +17,10 @@ spec:
       cpu: 0.3
   taskManager:
     resource:
-      memory: "768Mi"
+      memory: "800Mi"
       cpu: 0.3
-  podTemplate:
-    spec:
-      containers:
-        - name: flink-main-container
-          volumeMounts:
-            - name: python-scripts-volume
-              mountPath: /opt/flink/usrlib/job.py
-              subPath: job.py
-      volumes:
-        - name: python-scripts-volume
-          configMap:
-            name: flink-job
   job:
-    jarURI: /opt/flink/opt/flink-python-2.0.1.jar
+    jarURI: local:///opt/flink/opt/flink-python-2.0.1.jar
     entryClass: "org.apache.flink.client.python.PythonDriver"
     args: ["-py", "/opt/flink/usrlib/job.py"]
     parallelism: 1

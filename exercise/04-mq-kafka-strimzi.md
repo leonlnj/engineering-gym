@@ -36,5 +36,6 @@ K8
 ```sh
 kubectl delete -f https://strimzi.io/examples/latest/kafka/kafka-single-node.yaml -n kafka 
 kubectl delete -f 'https://strimzi.io/install/latest?namespace=kafka' -n kafka
+kubectl delete pvc data-0-my-cluster-dual-role-0 -n kafka
 kubectl delete namespace kafka
 ```
