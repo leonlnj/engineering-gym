@@ -1,24 +1,27 @@
 # Exercise 10 - Big Data Processing with Kafka and Flink
 
-This exercise demonstrates a real-time ETL pipeline. JSON data is ingested from a Kafka topic, transform it using a PyFlink job, and sink the results back into a different Kafka topic.
+This exercise demonstrates a real-time ETL pipeline. JSON data is ingested from a Kafka topic, transformed using a PyFlink job, and the results are sent back to a different Kafka topic.
 
 ## Flink Concept
 
 Apache Flink is a distributed processing engine designed for stateful computations over data streams. In a Kubernetes-native environment, the architecture is divided into a control plane and a data plane.
 
 ### Components
-JobManager (The Orchestrator): Acts as the master node. It coordinates the data flow graph, manages checkpoints, and handles recovery in the event of a failure.
 
-TaskManager (The Worker): Executes the actual data processing tasks. Each TaskManager provides "Task Slots," which represent the fixed resource capacity (CPU/Memory) available to execute parallel slices of the data.
+JobManager (The Orchestrator): Acts as the master node. It coordinates the data flow graph, manages checkpoints, and handles recovery in the event of failures.
+
+TaskManager (The Worker): Executes the actual data processing tasks. Each TaskManager provides "Task Slots," which represent fixed resource capacity (CPU/memory) available to execute parallel slices of data.
 
 ### Unified Stream Processing via Table API
-The exercise utilizes the Table API, a high-level relational abstraction. This allows the developer to treat a continuous Kafka stream as a "Dynamic Table."
 
-Concept: Instead of writing complex procedural code, SQL-like logic is applied to the stream.
+This exercise utilizes the Table API, a high-level relational abstraction that allows developers to treat a continuous Kafka stream as a "Dynamic Table."
+
+Concept: Instead of writing complex procedural code, SQL-like logic can be applied to the stream.
 
 Application: The transformation UPPER(payload) is treated as a continuous query that produces a new stream of data as soon as records arrive at the source.
 
 ### Deployment Mode
+
 The deployment follows the Application Mode pattern facilitated by the Flink Kubernetes Operator.
 
 Concept: Unlike Session Mode (where a cluster exists to run multiple jobs), Application Mode creates a 1-to-1 relationship between the Flink cluster and the specific Python job.
@@ -26,22 +29,24 @@ Concept: Unlike Session Mode (where a cluster exists to run multiple jobs), Appl
 Application: This ensures resource isolation and simplifies dependency management, as the Python environment and Kafka connectors are bundled directly into the container image.
 
 ### Connector Ecosystem and Deserialization
+
 Flink is inherently storage-agnostic and requires external libraries to interface with message brokers.
 
-Concept: The Kafka SQL Connector acts as the bridge. It handles the low-level polling of Kafka partitions and the "Serialization/Deserialization" (SerDe) process.
+Concept: The Kafka SQL Connector acts as the bridge. It handles low-level polling of Kafka partitions and the "Serialization/Deserialization" (SerDe) process.
 
 Application: In this exercise, the connector converts raw bytes from Kafka into structured Flink Rows based on the JSON schema defined in the CREATE TABLE DDL.
 
 ### Stateless ETL (Extract, Transform, Load)
+
 The pipeline performs a stateless transformation.
 
-Concept: A transformation is stateless if the processing of one event does not depend on any information from previous events.
+Concept: A transformation is stateless if processing one event does not depend on information from previous events.
 
-Application: Converting a string to uppercase is a classic stateless operation. Flink processes each record independently, which allows for high throughput and simple scaling.
+Application: Converting a string to uppercase is a classic stateless operation. Flink processes each record independently, which enables high throughput and simple scaling.
 
 ## Setup
 
-Required files are created under `./resources/ex-10`. Working dir will assumed to use that. The kafka namespace will be used for this exercise.
+Required files are created under ./resources/ex-10. The working directory is assumed to be this location. The kafka namespace will be used for this exercise.
 
 - Kafka
   - Install Strimzi Operator
@@ -49,7 +54,7 @@ Required files are created under `./resources/ex-10`. Working dir will assumed t
 - Flink
   - Create a Flink Python job
   - Create a container image with python job and kafka connector
-  - Build and tag the image as `flink-kafka:2.0.1`, load image into minikube
+  - Build and tag the image as `flink-kafka:2.0.1`, then load it into minikube
   - Install Flink Operator via Helm
   - Deploy a `FlinkDeployment` CRD
 
@@ -85,7 +90,7 @@ helm install flink-kubernetes-operator flink-operator-repo/flink-kubernetes-oper
 
 This script defines the source table (input topic), the sink table (output topic), and the transformation logic.
 
-It reads a json with `user_id` and `payload` key, does a transformation to uppercase the payload.
+It reads JSON with user_id and payload keys, and transforms the payload to uppercase.
 
 ```python
 import os
@@ -138,10 +143,10 @@ if __name__ == '__main__':
 
 #### Dockerfile 
 
-> Flink does not come with connector and must be built manually ([ref](https://nightlies.apache.org/flink/flink-docs-release-1.17/docs/deployment/resource-providers/standalone/docker))
+> Flink does not come with connectors and they must be built manually ([ref](https://nightlies.apache.org/flink/flink-docs-release-1.17/docs/deployment/resource-providers/standalone/docker))
 
 
-This dockerfile installs python, apache-flink and flink-kafka-connector.
+This dockerfile installs python, Apache-Flink and Flink-kafka-connector.
 
 ```docker
 FROM flink:2.0.1-scala_2.12-java21
@@ -157,14 +162,11 @@ RUN apt-get update -y && \
     wget -P /opt/flink/lib/ https://repo1.maven.org/maven2/org/apache/flink/flink-sql-connector-kafka/4.0.1-2.0/flink-sql-connector-kafka-4.0.1-2.0.jar && \
     rm -rf /var/lib/apt/lists/*
 
-# 2. Python Dependencies
 RUN pip3 install --no-cache-dir apache-flink
 
-# 3. App code and Permissions
 WORKDIR /opt/flink/usrlib
 COPY --chown=flink:flink job.py .
 
-# 4. Environment Variables (Required for PyFlink to locate Python)
 ENV PYFLINK_PYTHON=/usr/bin/python3
 ENV PYFLINK_CLIENT_PYTHON=/usr/bin/python3
 
@@ -228,7 +230,7 @@ kubectl -n kafka run kafka-consumer -ti --image=quay.io/strimzi/kafka:0.50.0-kaf
 kubectl -n kafka run kafka-producer -ti --image=quay.io/strimzi/kafka:0.50.0-kafka-4.0.1 --rm=true --restart=Never -- bin/kafka-console-producer.sh --bootstrap-server my-cluster-kafka-bootstrap:9092 --topic input-topic
 ```
 
-In the producer console, send the following Json:
+In the producer console, send the following JSON:
 
 ```json
 {"user_id": "user_123", "payload": "hello flink"}
