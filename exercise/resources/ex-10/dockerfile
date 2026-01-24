@@ -1,0 +1,25 @@
+FROM flink:2.0.1-scala_2.12-java21
+
+# Use root to install system packages
+USER root
+
+# Combine system updates, wget, and clean-up to keep the layer small
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends python3 python3-pip wget && \
+    ln -s /usr/bin/python3 /usr/bin/python && \
+    # Download Kafka Connector directly into flink lib
+    wget -P /opt/flink/lib/ https://repo1.maven.org/maven2/org/apache/flink/flink-sql-connector-kafka/4.0.1-2.0/flink-sql-connector-kafka-4.0.1-2.0.jar && \
+    rm -rf /var/lib/apt/lists/*
+
+# 2. Python Dependencies
+RUN pip3 install --no-cache-dir apache-flink
+
+# 3. App code and Permissions
+WORKDIR /opt/flink/usrlib
+COPY --chown=flink:flink job.py .
+
+# 4. Environment Variables (Required for PyFlink to locate Python)
+ENV PYFLINK_PYTHON=/usr/bin/python3
+ENV PYFLINK_CLIENT_PYTHON=/usr/bin/python3
+
+USER flink

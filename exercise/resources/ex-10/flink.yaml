@@ -1,0 +1,28 @@
+apiVersion: flink.apache.org/v1beta1
+kind: FlinkDeployment
+metadata:
+  name: flink-cluster
+spec:
+  image: flink-kafka:2.0.1
+  flinkVersion: v2_0
+  serviceAccount: flink
+  flinkConfiguration:
+    taskmanager.numberOfTaskSlots: "1"
+    taskmanager.memory.managed.fraction: "0.1"
+    taskmanager.network.memory.min: "16mb"
+    taskmanager.network.memory.max: "16mb"
+  jobManager:
+    resource:
+      memory: "800Mi"
+      cpu: 0.3
+  taskManager:
+    resource:
+      memory: "800Mi"
+      cpu: 0.3
+  job:
+    jarURI: local:///opt/flink/opt/flink-python-2.0.1.jar
+    entryClass: "org.apache.flink.client.python.PythonDriver"
+    args: ["-py", "/opt/flink/usrlib/job.py"]
+    parallelism: 1
+    upgradeMode: stateless
+    state: running
