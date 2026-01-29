@@ -8,3 +8,31 @@ This repo is setup to experiment/practice random exercises that I stumbled upon
   - [kubernetes-helm-minikube](https://github.com/devcontainers/templates/tree/main/src/kubernetes-helm-minikube) container.
 - Docker desktop
 - MacOS
+
+### Rust Setup
+
+### Install Rust
+
+```sh
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+source ~/.cargo/env
+```
+
+### Install VScode extension
+
+- rust-analyzer
+- CodeLLDB
+- Mirrod (by MetalBear)
+
+### Configure extension
+
+Update project path in `.vscode/settings.json`
+
+```json
+{
+    "mirrord.promptUsingBinary": false,
+    "rust-analyzer.linkedProjects": [
+        "./exercise/resources/ex-11/Cargo.toml"
+    ]
+}
+```
