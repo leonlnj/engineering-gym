@@ -190,6 +190,48 @@ Port-forward to allow accessing the db from local
 kubectl port-forward svc/my-ecommerce-db-rw 5432:5432
 ```
 
+## Rust Catalog Service
+
+Rust files are created under `./resources/ex-11`.
+
+This project is a high-performance backend service for an e-commerce platform. 
+
+### Overview
+
+The application follows a Read-Write Splitting architecture. This is a common production pattern used to scale database-heavy applications.
+
+
+#### 1. Dual Connection Pooling
+Instead of a single database connection, the app maintains two separate `PgPool` instances:
+* **RW (Read-Write) Pool:** Connects to the Primary database node. All state-changing operations (`INSERT`, `UPDATE`, `DELETE`) are routed here.
+* **RO (Read-Only) Pool:** Connects to Replica nodes. All data fetching (`GET`) is routed here to reduce the load on the Primary node.
+
+#### 2. Transactional Product Logic
+The API treats "Products" and "Variants" as a single unit. When adding a product, the code uses **PostgreSQL Transactions**. 
+* If the product is created but the variant fails (e.g., a duplicate SKU), the entire operation rolls back.
+* This ensures your database never ends up with "orphaned" products that have no pricing or stock information.
+
+
+#### 3. Strongly Typed Schemas
+Unlike interpreted languages, this API uses **compile-time verified queries**. 
+* **SQLx Macros:** The `query!` macro connects to your database during compilation to check if your SQL syntax and column types match your Rust structs.
+* **Serde Integration:** Automatically maps complex PostgreSQL `JSONB` data into Rust types, allowing for flexible product attributes (like size, color, or technical specs) without losing type safety.
+
+#### Libraries
+
+* **Axum:** A web framework that leverages `tokio` and `tower`. It treats routing like a state machine, making the API fast and memory-efficient.
+* **SQLx:** A "raw SQL" library that provides the safety of an ORM without the performance overhead or hidden magic.
+* **Tokio:** The industry-standard asynchronous runtime for Rust.
+
+
+#### Data Flow Lifecycle
+
+1.  **Request:** A JSON payload hits an Axum route.
+2.  **Extraction:** Axum validates the JSON structure into a Rust `struct` using `serde`.
+3.  **Database:** The app acquires a connection from the relevant pool (RW or RO).
+4.  **Transformation:** SQLx converts database rows into `ProductResponse` objects.
+5.  **Response:** The result is serialized back to JSON and returned to the client with appropriate HTTP status codes (e.g., `201 Created` or `404 Not Found`).
+
 ## Test
 
 ```sh

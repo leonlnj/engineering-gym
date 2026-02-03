@@ -46,7 +46,7 @@ Application: Converting a string to uppercase is a classic stateless operation. 
 
 ## Setup
 
-Required files are created under ./resources/ex-10. The working directory is assumed to be this location. The kafka namespace will be used for this exercise.
+Required files are created under `./resources/ex-10`. The working directory is assumed to be this location. The kafka namespace will be used for this exercise.
 
 - Kafka
   - Install Strimzi Operator
