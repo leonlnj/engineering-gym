@@ -11,6 +11,8 @@ This repo is setup to experiment/practice random exercises that I stumbled upon
 
 ### Rust Setup
 
+Rust official [book](https://doc.rust-lang.org/book/) to learn!
+
 ### Install Rust
 
 ```sh
@@ -22,7 +24,7 @@ source ~/.cargo/env
 
 - rust-analyzer
 - CodeLLDB
-- Mirrod (by MetalBear)
+- Mirrod (by MetalBear, to launch debug into cluster without portforward to access db)
 
 ### Configure extension
 
