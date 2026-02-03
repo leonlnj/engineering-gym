@@ -22,7 +22,9 @@ Task
 
 ### Architecture 
 
-Classic 3 tier architecture: Client -> Server -> DB
+Classic 3 tier architecture: Client -> Server -> DB.
+
+This exercise will only cover the backend and db.
 
 ```mermaid
 graph TD

@@ -57,7 +57,7 @@ async fn main() {
         .route(
             "/products/:id", 
             get(get_product)
-            .put(update_product) // Standard practice: use PUT for updates
+            .put(update_product)
             .delete(delete_product)
         )
         .with_state(state);
@@ -128,7 +128,6 @@ async fn add_product(
 ) -> Result<(StatusCode, Json<Value>), StatusCode> {
     let mut tx = state.rw_pool.begin().await.unwrap();
 
-    // Insert to products
     let product = sqlx::query!(
         "INSERT INTO products (name, description, category_id) VALUES ($1, $2, $3) RETURNING id",
         payload.name,
@@ -139,7 +138,6 @@ async fn add_product(
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Insert to variants
     let res = sqlx::query!(
         "INSERT INTO product_variants (product_id, sku, price, attributes) VALUES ($1, $2, $3, $4)",
         product.id,
@@ -153,7 +151,6 @@ async fn add_product(
     match res {
         Ok(_) => {
             tx.commit().await.unwrap();
-            // Return 201 Created and the ID
             Ok((StatusCode::CREATED, Json(json!({ "id": product.id }))))
         }
         Err(_) => {
