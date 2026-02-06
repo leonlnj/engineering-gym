@@ -9,9 +9,11 @@ use serde::Deserialize;
 use std::env;
 use std::sync::Arc;
 
+// Strategy for rate limiting
 #[derive(Debug, Deserialize, Clone, Copy)]
 enum Strategy { Fixed, Leaky, Sliding }
 
+// App Configuration
 #[derive(Clone)]
 struct AppConfig {
     redis_url: String,
@@ -20,11 +22,13 @@ struct AppConfig {
     window_secs: i64,
 }
 
+// Shared Application State
 struct AppState {
     config: AppConfig,
     redis_client: Client,
 }
 
+// Rate limiting logic with lua scripts
 impl AppState {
     async fn is_allowed(&self, key: &str) -> bool {
         let mut conn = self.redis_client
@@ -85,7 +89,7 @@ let (script_str, args) = match self.config.strategy {
             .key(key)
             .arg(args.0)
             .arg(args.1)
-            .invoke_async(&mut conn) // Ensure &mut conn is the only arg here
+            .invoke_async(&mut conn) 
             .await
             .unwrap_or(0);
 
@@ -93,6 +97,7 @@ let (script_str, args) = match self.config.strategy {
     }
 }
 
+// HTTP handler
 async fn handle_request(
     Path(user_id): Path<String>,
     State(state): State<Arc<AppState>>,
