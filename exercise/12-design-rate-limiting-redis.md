@@ -113,7 +113,7 @@ kubectl port-forward service/redis-stack 6379:6379
 
 ## Rust Code
 
-`resources/ex-12/src/main.rs` demnistrate how to build a high-performance Rate Limiting Service using Rust and Axum. The service acts as a "gatekeeper" for API, ensuring users stay within defined request limits to prevent abuse and server overload.
+`resources/ex-12/src/main.rs` demonstrate how to build a high-performance Rate Limiting Service using Rust and Axum. The service acts as a "gatekeeper" for API, ensuring users stay within defined request limits to prevent abuse and server overload.
 
 Core Highlights
 
@@ -128,17 +128,22 @@ High-Resolution Precision: Leverages Redis TIME (microsecond precision) to handl
 
 Modern Rust Concurrency: Built on the Tokio runtime with a Multiplexed Redis Connection, allowing thousands of concurrent users to share a single, efficient TCP pipeline.
 
-It adopt a strategy pattern and the configuration is hardcoded.
+It adopt a strategy pattern and the configuration is pass in via args.
 
 ```rust
 enum Strategy { Fixed, Leaky, Sliding }
 
 let cfg = AppConfig {
     redis_url: "redis://127.0.0.1/".into(),
-    strategy: Strategy::Sliding,    // Fixed, Leaky or Sliding
-    limit: 10,                      // Allowed request within window
-    window_secs: 60,                // Duration of window
+    strategy,
+    limit,
+    window_secs: window,
 };
+```
+
+```sh
+# Format: cargo run -- <strategy> <limit> <window_secs>
+cargo run -- fixed 3 10
 ```
 
 ## Test
