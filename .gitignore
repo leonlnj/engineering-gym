@@ -19,4 +19,8 @@ target
 # Editor/IDE
 .vscode/
 
+# debug logs
 minikube.log
+
+# ignore cargo.lock for this repo
+Cargo.lock
