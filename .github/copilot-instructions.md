@@ -141,13 +141,14 @@ Every `exercise/<number>-*.md` file follows this structure:
 - Need port-forwarding for local access
 - Must clean up PVCs and helm releases
 
-**Local development exercises** (7, 9):
+**Local Python development exercises** (7, 9):
 - Run on host without Kubernetes
 - Use local Python/virtual environments
 - No cluster resources to clean up
 
 **Rust exercises** (11, 12, 14):
 - Located in `exercise/resources/ex-<N>/`
+- Run locally without Kubernetes (no namespace / no K8s deployment)
 - Require sourcing `.cargo/env` before all commands
 - Need rust-analyzer configuration updates
 - May use dual binary pattern (server + client)
@@ -228,7 +229,6 @@ cargo run [--bin <name>] [-- <args>]
 
 ### Detailed Exercise Notes
 
-### Detailed Exercise Notes
 
 **Only reference this section for exercise-specific details not covered by the standard patterns above.**
 
