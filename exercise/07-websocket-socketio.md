@@ -1,8 +1,14 @@
-# Exercise 7 - Webscoket
+# Exercise 7 - WebSocket with Socket.IO
 
-Simple exercise running python clients and server locally to communicate via WebSocket, using [SocketIO](https://github.com/miguelgrinberg/python-socketio).
+Implement real-time bidirectional communication using Socket.IO with Python server and client.
 
-## Concept
+**Objectives**:
+1. Set up an asynchronous WebSocket server using Socket.IO and Uvicorn
+2. Implement event-driven messaging (connect, disconnect, broadcast)
+3. Track connected clients and handle real-time broadcasts
+4. Understand persistent connections and server-side async tasks
+
+## Context
 
 1. **WebSocket Basics**
    - WebSockets provide full-duplex, persistent communication between client and server.
@@ -175,6 +181,10 @@ Received Broadcast: Server Time: 21:49:45
 Received Broadcast: client-fca9 left the channel
 Received Broadcast: Server Time: 21:49:50
 ```
+
+## Cleanup
+
+Stop the server and client processes (Ctrl+C). No Kubernetes resources to clean up (runs locally).
 
 ```sh
 # Server

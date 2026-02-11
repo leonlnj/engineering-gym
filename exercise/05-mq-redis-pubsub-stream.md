@@ -1,6 +1,12 @@
-# Exercise 5 - Pubsub
+# Exercise 5 - Redis Pub/Sub vs Streams
 
-Setup Redis, test realtime broadcast and persistency.
+Compare Redis Pub/Sub (fire-and-forget) with Redis Streams (persistent, append-only log).
+
+**Objectives**:
+1. Deploy Redis on Kubernetes via Helm
+2. Test Pub/Sub for real-time broadcast (no persistence)
+3. Test Streams for persistent message queues with consumer groups
+4. Understand the trade-offs between ephemeral and durable messaging
 
 ## Context
 

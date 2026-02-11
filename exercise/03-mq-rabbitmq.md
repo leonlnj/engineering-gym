@@ -1,6 +1,12 @@
-# Exercise 3 - Message Queue
+# Exercise 3 - Message Queue (RabbitMQ)
 
-Setup RabbitMQ and do some basic operations.
+Explore RabbitMQ exchange types, routing patterns, and message acknowledgement semantics.
+
+**Objectives**:
+1. Deploy RabbitMQ on Kubernetes via Helm
+2. Understand exchange types (direct, fanout, topic, headers)
+3. Test producer/consumer patterns with routing keys
+4. Compare RabbitMQ's destructive reads vs Kafka's immutable log
 
 ## Context
 

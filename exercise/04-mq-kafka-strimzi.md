@@ -1,6 +1,12 @@
-# Exercise 4 - Message Stream
+# Exercise 4 - Message Streaming (Kafka)
 
-Setup Kafka and do some basic operations.
+Deploy Apache Kafka using the Strimzi operator and test producer/consumer patterns.
+
+**Objectives**:
+1. Install Strimzi operator to manage Kafka lifecycle
+2. Deploy a single-node Kafka cluster via CRD
+3. Test producer/consumer communication using console tools
+4. Understand Kafka's immutable log and offset-based consumption
 
 ## Setup
 

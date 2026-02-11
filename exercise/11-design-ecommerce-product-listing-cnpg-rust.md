@@ -1,24 +1,22 @@
-# Exercise 11 - Designing E-commerce product listing
+# Exercise 11 - E-commerce API with PostgreSQL Replication
 
-This exercise setup a CNPG database with local Rust app accessing the database via port-forwarding.
+Build a REST API in Rust (Axum) with read/write splitting using CloudNativePG for PostgreSQL replication.
 
-## Description
+**Objectives**:
+1. Deploy CloudNativePG operator to manage PostgreSQL clusters
+2. Design a product catalog schema with categories and variants
+3. Implement REST API with read/write pool separation
+4. Route writes to primary database, reads to replica for load distribution
 
-For a small shop of 100 items, design a system in which the shop owner can
+## Context
 
-- add a new product
-- update/delete existing product
-- list all products on the website
-- customers should be able to access catalog quickly
+### Requirements
 
-Task
-
-- Design DB schema
-- Write backend API
-- Setup DB replication
-- Read API from replica
-
-## Design
+For a small shop of 100 items, design a system in which the shop owner can:
+- Add a new product
+- Update/delete existing product
+- List all products on the website
+- Customers should be able to access catalog quickly
 
 ### Architecture 
 

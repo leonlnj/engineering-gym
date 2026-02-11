@@ -1,9 +1,14 @@
-# Exercise 8 - Bloom Filters
+# Exercise 8 - Bloom Filters with Redis
 
-This exercise introduces **Bloom filters** using Redis and demonstrates how they are used
-to efficiently test whether an element has been seen before.
+Implement probabilistic membership testing using Redis Bloom filters for efficient duplicate detection.
 
-## Bloom Filters Concepts
+**Objectives**:
+1. Deploy Redis Stack (with RedisBloom module) via Helm
+2. Understand Bloom filter guarantees: no false negatives, possible false positives
+3. Test Bloom filter operations: BF.RESERVE, BF.ADD, BF.EXISTS
+4. Explore use cases: deduplication, cache penetration protection, password breach checks
+
+## Context
 
 A Bloom filter is a probabilistic data structure designed to answer one question: “Have I probably seen this value before?”
 

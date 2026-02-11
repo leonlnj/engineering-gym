@@ -1,12 +1,22 @@
-# Exercise 13 - Design a notifcation service
+# Exercise 13 - Notification Service Design (RFC)
 
-This exercise simply craft the RFC
+Design a high-availability, multi-channel notification system supporting Email, SMS, and Push notifications.
 
-## Problem Statement
+**Objectives**:
+1. Design asynchronous architecture with fan-out pattern for multiple channels
+2. Ensure idempotency and exactly-once delivery semantics
+3. Support priority-based routing with dedicated worker pools
+4. Enable horizontal scaling based on queue depth
+
+**Note**: This is a design-only exercise with no implementation.
+
+## Context
+
+### Problem Statement
 
 The objective is to architect a high-availability, low-latency notification system capable of multi-channel delivery (Email, SMS, Push). The design focuses on asynchronous processing and idempotency to manage traffic spikes effectively while protecting downstream third-party vendors from exhaustion.
 
-Functional Requirements
+### Functional Requirements
 
 - Template Management: Product Managers (PMs) must be able to create and manage dynamic templates via a dashboard.
 - Multi-Channel Support: A single event can trigger notifications across multiple channels simultaneously (e.g., Push + Email).
@@ -18,7 +28,7 @@ Non functional requirements:
 - Extensibility: The architecture must allow for the seamless addition of new channels (e.g., Slack, WhatsApp).
 - Scalability: The system must handle spiky workloads, scaling workers horizontally based on queue depth.
 
-## High-level Design
+## Design
 
 ### Notification Template Engine
 
@@ -179,7 +189,9 @@ sequenceDiagram
     W->>MQ: 7. ACK (Delete Task)
 ```
 
-## Alternative Cosndiered
+## Appendix
+
+### Alternative Considered
 
 1. Unified Queue with Selective Worker Execution
 The Alternative: All notification tasks are published to a single, global queue. Specialized worker pools then filter messages based on channel metadata.
