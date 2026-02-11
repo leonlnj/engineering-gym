@@ -2,6 +2,10 @@
 
 This repo is setup to experiment/practice random exercises that I stumbled upon
 
+## AI-Assisted Development
+
+This repository includes GitHub Copilot instructions at `.github/copilot-instructions.md` that help AI agents understand exercise patterns, setup procedures, and common troubleshooting steps. If you're using GitHub Copilot, it will automatically reference this file to provide better assistance.
+
 ## Setup
 
 - [devcontainer](https://code.visualstudio.com/docs/devcontainers/tutorial)

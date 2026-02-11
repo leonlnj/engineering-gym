@@ -1,8 +1,14 @@
-# Exercise 10 - Big Data Processing with Kafka and Flink
+# Exercise 10 - Real-Time ETL with Kafka and Flink
 
-This exercise demonstrates a real-time ETL pipeline. JSON data is ingested from a Kafka topic, transformed using a PyFlink job, and the results are sent back to a different Kafka topic.
+Build a real-time ETL pipeline using Apache Flink to transform streaming data from Kafka.
 
-## Flink Concept
+**Objectives**:
+1. Deploy Kafka using Strimzi operator and Flink using Flink Kubernetes Operator
+2. Create a PyFlink job for stateless stream transformation
+3. Package Flink job and Kafka connectors into a custom Docker image
+4. Deploy FlinkDeployment CRD in Application Mode (1:1 job-to-cluster)
+
+## Context
 
 Apache Flink is a distributed processing engine designed for stateful computations over data streams. In a Kubernetes-native environment, the architecture is divided into a control plane and a data plane.
 

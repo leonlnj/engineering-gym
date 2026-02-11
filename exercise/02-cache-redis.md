@@ -1,6 +1,11 @@
-# Exercise 2 - Cache
+# Exercise 2 - Caching with Redis
 
-Setup cache and do some measurement of performance gain
+Measure performance improvements using Redis as a caching layer for expensive computations.
+
+**Objectives**:
+1. Deploy Redis on Kubernetes via Helm
+2. Compare execution times: no cache vs cold cache vs warm cache
+3. Understand cache TTL and key management
 
 ## Setup
 

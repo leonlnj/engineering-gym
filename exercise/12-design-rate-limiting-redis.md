@@ -1,14 +1,20 @@
-# Exercise 12 - Designing a rate limiter
+# Exercise 12 - Rate Limiting with Redis
 
-This exercise setup a Redis with local Rust app accessing the database via port-forwarding. The Rust App is written with various rate limiting strategy.
+Implement rate limiting strategies (fixed window, sliding window) using Redis and Rust.
 
-## Design
+**Objectives**:
+1. Deploy Redis on Kubernetes via Helm
+2. Implement fixed window and sliding window rate limiting algorithms
+3. Build Rust (Axum) server with selectable rate limiting strategies
+4. Test rate limiting behavior with configurable limits and windows
+
+## Context
+
+### Architecture Design
 
 Rate limit primary works with heavy writes (per request) and require low-latency. Redis is the gold standard for implementing rate limit as request are usually stored with a unique identify (eg, user_id) and an count. 
 
-### Architecture 
-
-Option 1: Proxy
+#### Option 1: Proxy
 
 In this model, an API Gateway or Reverse Proxy (e.g., Nginx, Kong) sits in front of the services. It intercepts requests and consults the Rate Limiter before forwarding traffic.
 

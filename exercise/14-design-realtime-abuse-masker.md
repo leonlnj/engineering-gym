@@ -1,12 +1,18 @@
-# Exercise 14 - Design realtime abuse masker
+# Exercise 14 - Real-Time Content Moderation (WebSocket)
 
-This exercise involves deploying a high-concurrency Rust environment. Implement a server-side masking logic where the "Abuse Dictionary" is fetched from S3 during the application’s boot sequence. A local text file will be used instead of s3 for simplicity.
+Implement high-performance content masking for WebSocket messages using Trie-based dictionary lookups in Rust.
+
+**Objectives**:
+1. Build WebSocket server/client using tokio-tungstenite
+2. Load abuse dictionary into memory-efficient Trie at startup
+3. Implement concurrent message handling (one task per connection)
+4. Mask prohibited terms in real-time using sliding window search
 
 ## Problem Statement
 
 Implement a high-performance masking layer for a WebSocket server. When a client broadcasts a message containing prohibited terms, the server must redact these terms (e.g., badword → *******) before broadcasting the payload to other connected peers.
 
-## Design
+## Context
 
 ### Architectural Design
 
@@ -40,7 +46,9 @@ Cons:
 Efficient but no database offer Trie datastructure. Building an external service to hold the abuse is has bad performance if every message require a HTTP call.
 Hence the Trie will be stored and init from an external storage by the websocket server as the optimal approach.
 
-## Implementation Overview
+## Setup
+
+### Implementation Overview
 
 The system follows a Producer-Consumer pattern over WebSockets, optimized for low latency and high throughput.
 
@@ -52,7 +60,7 @@ The system follows a Producer-Consumer pattern over WebSockets, optimized for lo
 
 4. Client-Side Loop: The client utilizes a split-stream approach to handle bi-directional IO. While the client converts its own input to lowercase for consistency in this exercise, the server is designed to handle mixed-case input regardless.
 
-## Setup
+### Running the Application
 
 In `exercise/resources/ex-14`, execute the server and client code in separate terminals:
 
@@ -75,3 +83,7 @@ bardwoRDx   # Output: [Server]: *******x
 # Case-insensitivity & Multiple words
 badwordjerk # Output: [Server]: **********
 ```
+
+## Cleanup
+
+Stop the server and client processes (Ctrl+C in both terminals).

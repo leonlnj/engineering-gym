@@ -1,11 +1,12 @@
-# Exercise 1 - RDB
+# Exercise 1 - Relational Database (PostgreSQL)
 
-This exercise aims to appreciate transaction and isolation in RDB. It uses a postgresql on minikube and helm for setup.
+Learn transaction management and isolation levels in relational databases using PostgreSQL on Kubernetes.
 
-1. Set up a SQL DB
-2. Create a schema for social network (user, post, profile, photos, following)
-3. Insert data (in user and profile) in one transaction
-4. Validate Isolation levels
+**Objectives**:
+1. Deploy PostgreSQL on Kubernetes via Helm
+2. Design a social network schema (user, post, profile, media, follows, likes)
+3. Validate transactional integrity and isolation levels
+4. Test triggers, constraints, cascading deletes, and indexes
 
 ## Setup
 
@@ -144,7 +145,7 @@ CREATE INDEX idx_follows_follower ON follows(follower_id);
 CREATE INDEX idx_follows_following ON follows(following_id);
 ```
 
-## Validation
+## Test
 
 ### Insert dummy data
 ```sql

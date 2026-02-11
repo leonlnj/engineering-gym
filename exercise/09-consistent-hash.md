@@ -1,8 +1,14 @@
-# Exercise 9 - Consistent Hash
+# Exercise 9 - Consistent Hashing
 
-Python imeplment of Consistent Hash using 2 array.
+Implement consistent hashing in Python using a two-array structure for efficient distributed data placement.
 
-## Consistent Hash Concepts
+**Objectives**:
+1. Understand consistent hashing fundamentals: hash ring, virtual nodes
+2. Implement using two arrays (ring_pos + nodes) with binary search
+3. Test data distribution and minimize rebalancing when nodes change
+4. Use MD5 for stable, deterministic hashing across sessions
+
+## Context
 
 Consistent hashing is a distributed hashing scheme that operates independently of the number of servers. It is designed to minimize data movement (rebalancing) when nodes are added or removed from a cluster.
 
@@ -16,7 +22,11 @@ The Two-Array Implementation
 - ring_pos (Sorted): Stores the numeric positions of servers on the ring.
 - nodes: Stores the server names. The name at nodes[i] corresponds to the position at ring_pos[i].
 
-## Core implementation
+## Setup
+
+This is a pure Python implementation exercise (no Kubernetes deployment required).
+
+## Core Implementation
 
 ```python
 import hashlib
@@ -69,7 +79,7 @@ class ConsistentHash:
         return self.nodes[idx]
 ```
 
-## Example
+## Test
 
 ### Basic usage
 
@@ -110,6 +120,10 @@ Added Server-B (Replica 2) at position 2
 Key User A has a hash value of 98
 User A will be placed in Server-B
 ```
+
+## Cleanup
+
+No cleanup required (pure Python implementation, no external resources).
 
 The value 98 wrap around to 2 which is server B. Each server are better distributed with virtual nodes, essentially having more points on the hash.
 

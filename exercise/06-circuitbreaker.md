@@ -1,8 +1,13 @@
-# Exercise 6 - Circuitbreaker
+# Exercise 6 - Circuit Breaker Pattern
 
-Simple exercise running inline python on a pod
+Demonstrate the circuit breaker pattern using Python's `pybreaker` library in an inline Kubernetes pod.
 
-## Concept
+**Objectives**:
+1. Understand circuit breaker states: Closed, Open, Half-Open
+2. Test automatic failure detection and recovery
+3. Use inline Python demo for quick prototyping without persistent files
+
+## Context
 
 A circuit breaker tracks recent failures and moves between three states:
 
@@ -100,3 +105,7 @@ Call 28: ❌ fail
 ⚡ CircuitClosedState → CircuitOpenState
 Call 29: ⛔ OPEN
 ```
+
+## Cleanup
+
+No cleanup required (ephemeral pod with `--rm` flag auto-deletes after completion).
