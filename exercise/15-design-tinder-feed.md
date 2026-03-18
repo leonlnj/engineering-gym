@@ -34,9 +34,9 @@ This is a design-only exercise. The goal is to architect a Tinder-like feed syst
 - Avoid storing candidate lists as arrays (prefer one row per candidate)
 
 #### Feed Storage Options
-- **Option A**: Store (user_id, candidate_id, created_at) – requires join/fetch for profile
-- **Option B**: Store (user_id, candidate_profile, created_at) – denormalized, more storage
-- Avoid storing as a list/array to prevent document bloat and slow iteration
+- **Option A (Normalized)**: Store `(user_id, candidate_id, created_at)`. Requires a read-time fetch of the `candidate_id` profile from the source (e.g., InterestDB). **Recommended:** This keeps the user's feed document lightweight and guarantees fresh profile data (if a candidate updates their bio, it propagates to all user feeds instantly since the feed only holds the ID pointer).
+- **Option B (Denormalized)**: Store `(user_id, candidate_full_profile, created_at)`. Optimizes for reads but suffers from massive storage bloat and serves stale profile data if the candidate updates their bio after being loaded into the Feed DB.
+- **Anti-pattern**: Avoid storing candidates as an array within the User document itself. Large, unbounded candidate arrays bloat NoSQL documents and slow down insertion iteration by forcing document locks/reallocations.
 
 ### Feed Generation Flow
 1. Frontend requests feed
@@ -51,14 +51,9 @@ This is a design-only exercise. The goal is to architect a Tinder-like feed syst
 - If match, insert into Match DB
 
 ### Seen Tracking
-- Use Bloom filters to track seen profiles per user
-- Guarantees user never sees the same profile twice
+- Use Bloom filters to track seen profiles per user. *Why?*: Bloom filters are space-efficient probabilistic data structures. They guarantee a user never sees the same profile twice (100% true negatives), while accepting a minuscule false-positive rate as a fair trade-off for extreme memory savings.
 
-## Trade-offs & References
-- Discussed trade-offs between normalized and denormalized feed storage
-- Reference: [Redis Geospatial](https://redis.io/docs/latest/develop/data-types/geospatial/)
-
-## Architecture Diagram
+### Architecture Diagram
 
 ```mermaid
 graph TD
@@ -78,7 +73,7 @@ graph TD
     GenSvc --> InterestDB
 ```
 
-## Data Flow: Feed Generation & Swipe
+### Data Flow: Feed Generation & Swipe
 
 ```mermaid
 sequenceDiagram
@@ -111,6 +106,32 @@ sequenceDiagram
     M-->>API: If match, notify
 ```
 
+### Swipe Lifecycle Sequence
+
+```mermaid
+stateDiagram-v2
+    [*] --> Generated : Candidate added to Feed DB
+    Generated --> Passed : Swipe Left (Dislike)
+    Generated --> Liked : Swipe Right (Like)
+    Passed --> [*]
+    Liked --> Match : Candidate Swiped Right (Mutual)
+    Liked --> NoMatch : Candidate Swiped Left/Unseen
+    Match --> [*]
+```
+
+## Setup
+
+*No deployment needed. This is a purely architectural design exercise.*
+
+## Test
+
+*No validation commands required.*
+
 ## Cleanup
 
-No implementation or teardown required (design-only exercise).
+*No implementation or teardown required (design-only exercise).*
+
+## References / Appendix
+
+- [Redis Geospatial](https://redis.io/docs/latest/develop/data-types/geospatial/)
+- [Redis Bloom Filter](https://redis.io/docs/latest/develop/data-types/probabilistic/bloom-filter/)
