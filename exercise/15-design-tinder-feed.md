@@ -64,15 +64,12 @@ This is a design-only exercise. The goal is to architect a Tinder-like feed syst
 graph TD
     Client[Mobile Client] --> LB[Load Balancer]
     LB --> FeedAPI[Feed Service]
-    LB --> SwipeAPI[Swipe Service]
     
     FeedAPI --> GeoStore[Redis Geospatial]
     FeedAPI --> InterestDB[MongoDB]
     FeedAPI --> FeedDB[Feed Database]
-    
-    SwipeAPI --> FeedDB
-    SwipeAPI --> MatchDB[Match Database]
-    SwipeAPI --> Bloom[Bloom Filter Store]
+    FeedAPI --> MatchDB[Match Database]
+    FeedAPI --> Bloom[Bloom Filter Store]
     
     FeedAPI --> MQ[Message Queue]
     MQ --> GenSvc[Feed Generation Service]
@@ -93,7 +90,6 @@ sequenceDiagram
     participant GEO as Redis Geospatial
     participant INT as Interest DB
     participant FDB as Feed DB
-    participant SW as Swipe API
     participant B as Bloom Filter
     participant M as Match DB
 
@@ -108,11 +104,11 @@ sequenceDiagram
     API->>FE: Return feed
 
     U->>FE: Swipes right/left
-    FE->>SW: Submit swipe
-    SW->>FDB: Update swipe
-    SW->>B: Mark as seen
-    SW->>M: Check for match
-    M-->>SW: If match, notify
+    FE->>API: Submit swipe
+    API->>FDB: Update swipe
+    API->>B: Mark as seen
+    API->>M: Check for match
+    M-->>API: If match, notify
 ```
 
 ## Cleanup
