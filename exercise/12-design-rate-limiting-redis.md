@@ -91,7 +91,7 @@ graph TD
 
 ### Storage
 
-Assuming key-value pair of 20 Bytes each and 100m requires, this will only take 2GB.
+Assuming key-value pair of 20 Bytes each and 100m requests, this will only take 2GB.
 
 ### Rate Limiter Strategy
 
