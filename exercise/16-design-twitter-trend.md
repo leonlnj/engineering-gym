@@ -60,7 +60,7 @@ graph TD
 	subgraph Trend_Entity_Pipeline [Trend Entity Pipeline]
 		K --> CLN[Cleaner & Normalizer]
 		CLN --> NER[Named Entity + Domain/Topic Tagger]
-		NER --> WIN[Window Aggregator\n(1m/5m/30m)]
+		NER --> WIN[Window Aggregator (1m/5m/30m)]
 		WIN --> CAND[(Candidate Entities Store)]
 		CAND --> SCN[Scanner]
 		SCN --> ENR[Entity Enricher]
@@ -137,7 +137,7 @@ Where `velocity` captures growth in short windows and `diversity` penalizes sing
 
 ```mermaid
 flowchart LR
-	E[Entity Mentions Stream] --> W1[Window Builder\n1m/5m/30m]
+	E[Entity Mentions Stream] --> W1[Window Builder 1m/5m/30m]
 	W1 --> F1[Feature Store]
 
 	S1[Spam & Bot Signals] --> F1
@@ -156,8 +156,8 @@ flowchart LR
 	R --> SCORE
 	P --> SCORE
 
-	SCORE --> K[Top-K per\nDomain x Location x Topic]
-	K --> STABLE[Stability Filter\nnoise suppression]
+	SCORE --> K[Top-K per Domain x Location x Topic]
+	K --> STABLE[Stability Filter noise suppression]
 	STABLE --> OUT[(Trend DB Materialized View)]
 ```
 
@@ -165,15 +165,15 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-	UEV[URL Events Stream] --> CAN[URL Canonicalizer\nremove tracking params]
+	UEV[URL Events Stream] --> CAN[URL Canonicalizer remove tracking params]
 	CAN --> DEDUP[Deduplicator]
 	DEDUP --> FETCH[Content Fetcher]
-	FETCH --> PARSE[Article Parser\ntitle/body/published_at]
+	FETCH --> PARSE[Article Parser title/body/published_at]
 	PARSE --> LANG[Language + Quality Filter]
 	LANG --> EMB[Embedding / TF-IDF Vectorizer]
 
-	EMB --> CLUS[Clustering Engine\nDBSCAN/HDBSCAN]
-	CLUS --> LABEL[Cluster Labeler\nkeywords + headline]
+	EMB --> CLUS[Clustering Engine DBSCAN/HDBSCAN]
+	CLUS --> LABEL[Cluster Labeler keywords + headline]
 	LABEL --> IMG[Reference Image Selector]
 	IMG --> META[(Cluster Metadata Store)]
 
