@@ -52,37 +52,37 @@ Why this design:
 
 ```mermaid
 graph TD
-	U[End User / Client App] --> API[API Server]
+    U[End User Client App] --> API[API Server]
 
-	API --> K[(Kafka: tweet-events)]
-	API --> TDB[(Tweet DB - Sharded by user_id)]
+    API --> K[(Kafka tweet events)]
+    API --> TDB[(Tweet DB sharded by user id)]
 
-	subgraph Trend_Entity_Pipeline [Trend Entity Pipeline]
-		K --> CLN[Cleaner & Normalizer]
-		CLN --> NER[Named Entity + Domain/Topic Tagger]
-		NER --> WIN[Window Aggregator (1m/5m/30m)]
-		WIN --> CAND[(Candidate Entities Store)]
-		CAND --> SCN[Scanner]
-		SCN --> ENR[Entity Enricher]
-		ENR --> RANK[Scoring & Ranking Engine]
-		RANK --> TRDB[(Trend DB)]
-	end
+    subgraph Trend Entity Pipeline
+        K --> CLN[Cleaner and Normalizer]
+        CLN --> NER[Named Entity and Domain Topic Tagger]
+        NER --> WIN[Window Aggregator 1m 5m 30m]
+        WIN --> CAND[(Candidate Entities Store)]
+        CAND --> SCN[Scanner]
+        SCN --> ENR[Entity Enricher]
+        ENR --> RANK[Scoring and Ranking Engine]
+        RANK --> TRDB[(Trend DB)]
+    end
 
-	subgraph News_Context_Pipeline [News Context Pipeline]
-		K --> URLX[URL Extractor]
-		URLX --> K2[(Kafka: url-events)]
-		K2 --> FET[URL Fetcher / Parser]
-		FET --> NDB[(News Raw Store)]
-		NDB --> CLS[News Clustering Job]
-		CLS --> ES[(Elasticsearch Cluster Index)]
-	end
+    subgraph News Context Pipeline
+        K --> URLX[URL Extractor]
+        URLX --> K2[(Kafka url events)]
+        K2 --> FET[URL Fetcher and Parser]
+        FET --> NDB[(News Raw Store)]
+        NDB --> CLS[News Clustering Job]
+        CLS --> ES[(Elasticsearch Cluster Index)]
+    end
 
-	NCS[News Clustering Service] <--> ES
+    NCS[News Clustering Service] <--> ES
 
-	U --> TAPI[Trend API]
-	TAPI --> TRDB
-	TAPI <--> NCS
-	TAPI --> U
+    U --> TAPI[Trend API]
+    TAPI --> TRDB
+    TAPI <--> NCS
+    TAPI --> U
 ```
 
 ### End-to-End Data Flow
