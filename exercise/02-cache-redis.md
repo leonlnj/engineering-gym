@@ -7,6 +7,29 @@ Measure performance improvements using Redis as a caching layer for expensive co
 2. Compare execution times: no cache vs cold cache vs warm cache
 3. Understand cache TTL and key management
 
+## Context
+
+Caching shifts repeated reads from expensive compute/IO paths into low-latency memory reads. This exercise demonstrates the practical latency profile across baseline computation, cold-cache population, and warm-cache hits.
+
+## Design
+
+```mermaid
+sequenceDiagram
+  participant Client
+  participant App
+  participant Redis
+
+  Client->>App: Request f(x)
+  App->>Redis: GET sq:{run_id}:{x}
+  alt Cache hit
+    Redis-->>App: cached value
+  else Cache miss
+    App->>App: compute f(x)
+    App->>Redis: SET key value EX 60
+  end
+  App-->>Client: return value
+```
+
 ## Setup
 
 - Install a bitnami redis helm chart
@@ -91,7 +114,7 @@ helm uninstall ex-2
 kubectl get pvc | grep 'redis' | awk '{print $1}' | xargs kubectl delete pvc 
 ```
 
-## Appendix
+## References / Appendix
 
 ### How to portforward to redis for local/out of cluster access
 
@@ -110,3 +133,5 @@ SET test "hello"
 GET test
 exit
 ```
+
+- [Redis Caching Patterns](https://redis.io/learn/howtos/solutions/caching)

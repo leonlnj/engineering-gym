@@ -8,11 +8,32 @@ Implement high-performance content masking for WebSocket messages using Trie-bas
 3. Implement concurrent message handling (one task per connection)
 4. Mask prohibited terms in real-time using sliding window search
 
-## Problem Statement
+## Context
 
 Implement a high-performance masking layer for a WebSocket server. When a client broadcasts a message containing prohibited terms, the server must redact these terms (e.g., badword → *******) before broadcasting the payload to other connected peers.
 
-## Context
+## Design
+
+```mermaid
+graph TD
+	C[WebSocket Client] --> S[WebSocket Server]
+	S --> T[(In-memory Trie)]
+	T --> S
+	S --> C
+```
+
+```mermaid
+sequenceDiagram
+	participant C as Client
+	participant S as Server
+	participant T as Trie
+
+	C->>S: Send message
+	S->>T: Sliding-window + prefix search
+	T-->>S: Matched prohibited spans
+	S->>S: Mask matched terms
+	S-->>C: Broadcast sanitized message
+```
 
 ### Architectural Design
 
@@ -43,8 +64,8 @@ Cons:
 - State Management: Since standard databases (SQL/NoSQL) don't offer native Trie structures, the Trie must be built in-memory on the application node.
 - Latency: Avoid external API calls per message; the Trie must remain local to the WebSocket process to maintain real-time constraints.
 
-Efficient but no database offer Trie datastructure. Building an external service to hold the abuse is has bad performance if every message require a HTTP call.
-Hence the Trie will be stored and init from an external storage by the websocket server as the optimal approach.
+Efficient matching is hard to achieve with generic SQL/NoSQL lookups per token. Building an external service for every message would add network latency and hurt throughput.
+Hence, the Trie is initialized from external storage at startup and kept in-memory within the WebSocket server process.
 
 ## Setup
 
@@ -87,3 +108,8 @@ badwordjerk # Output: [Server]: **********
 ## Cleanup
 
 Stop the server and client processes (Ctrl+C in both terminals).
+
+## References / Appendix
+
+- [tokio-tungstenite](https://github.com/snapview/tokio-tungstenite)
+- [Trie Data Structure](https://en.wikipedia.org/wiki/Trie)

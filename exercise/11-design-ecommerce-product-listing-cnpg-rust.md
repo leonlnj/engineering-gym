@@ -18,6 +18,8 @@ For a small shop of 100 items, design a system in which the shop owner can:
 - List all products on the website
 - Customers should be able to access catalog quickly
 
+## Design
+
 ### Architecture 
 
 Classic 3 tier architecture: Client -> Server -> DB.
@@ -94,7 +96,7 @@ CREATE TABLE products (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     description TEXT,
-    category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL, -- foreign key on category, if catogory is deleted, set to null
+    category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL, -- foreign key on category, if category is deleted, set to null
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -160,10 +162,10 @@ WHERE pv.attributes @> '{"color": "Red"}';
 # use server-side as the entire state of the object in a "last-applied-configuration" annotation is too big
 kubectl apply --server-side -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/main/releases/cnpg-1.28.0.yaml
 
-# wait for cnpg controller to be runnng
+# wait for cnpg controller to be running
 kubectl get pod -n cnpg-system --watch
 
-# create a db instance with 2 replca
+# create a db instance with 2 replicas
 cat <<EOF | kubectl apply -f -
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
@@ -190,7 +192,7 @@ Port-forward to allow accessing the db from local
 kubectl port-forward svc/my-ecommerce-db-rw 5432:5432
 ```
 
-## Rust Catalog Service
+### Rust Catalog Service
 
 Rust files are created under `./resources/ex-11`.
 
@@ -280,3 +282,8 @@ kubectl get pvc | grep 'my-ecommerce-db' | awk '{print $1}' | xargs kubectl dele
 helm uninstall pgdb
 kubectl delete -f https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/main/releases/cnpg-1.28.0.yaml
 ```
+
+## References / Appendix
+
+- [CloudNativePG](https://cloudnative-pg.io/documentation/)
+- [Axum](https://docs.rs/axum/latest/axum/)

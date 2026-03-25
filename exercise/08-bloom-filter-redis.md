@@ -51,6 +51,24 @@ BF.INFO      Get information about a Bloom filter
 BF.INSERT    Add items, creating the filter if it doesn't exist
 ```
 
+## Design
+
+```mermaid
+sequenceDiagram
+  participant App
+  participant BF as Bloom Filter
+  participant DB as Primary DB
+
+  App->>BF: BF.EXISTS(item)
+  alt definitely not present
+    BF-->>App: 0
+    App-->>App: Skip DB hit
+  else might exist
+    BF-->>App: 1
+    App->>DB: Validate exact existence
+  end
+```
+
 ## Setup
 
 - Install a bitnami redis helm chart
@@ -81,3 +99,7 @@ BF.EXISTS emails "user1@example.com"
 ```sh
 helm uninstall ex-8
 ```
+
+## References / Appendix
+
+- [RedisBloom](https://redis.io/docs/latest/develop/data-types/probabilistic/bloom-filter/)

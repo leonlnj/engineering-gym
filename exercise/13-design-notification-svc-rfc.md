@@ -189,7 +189,19 @@ sequenceDiagram
     W->>MQ: 7. ACK (Delete Task)
 ```
 
-## Appendix
+## Setup
+
+No deployment required. This is a design-only RFC exercise.
+
+## Test
+
+No execution commands required. Validate the design by reviewing failure scenarios (provider outage, duplicate request, queue backlog) against the proposed architecture.
+
+## Cleanup
+
+No teardown required (no infrastructure provisioned).
+
+## References / Appendix
 
 ### Alternative Considered
 
