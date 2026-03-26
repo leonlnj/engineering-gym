@@ -10,11 +10,18 @@ All exercises MUST strictly follow this consistent Markdown structure to ensure 
 1. **Title**: `# Exercise <N> - <Topic>`
 2. **Objectives**: A numbered list of clear learning goals.
 3. **Context**: Conceptual background and the problem statement.
-4. **Design**: Architectural details. **MUST** include Mermaid diagrams (`graph TD` for architecture, `sequenceDiagram` for system/data flow).
+4. **Design**: Architectural details with at least one Mermaid diagram. Prefer both `graph TD` (architecture) and `sequenceDiagram` (flow) when useful.
 5. **Setup**: Step-by-step deployment or compilation instructions (Helm, Cargo, Local, etc.).
 6. **Test**: Validation steps, demo commands, and expected outputs.
 7. **Cleanup**: Strict teardown commands to avoid dangling resources.
 8. **References / Appendix**: Links to official documentation or further reading.
+
+## Clarity Checklist (Apply to Every Exercise)
+- Explain **why** a design/tool is chosen, not only **how** to run commands.
+- Add trade-offs for major decisions (latency vs durability, simplicity vs flexibility, etc.).
+- Keep commands copy-paste ready and grouped by phase (Setup/Test/Cleanup).
+- For design-only exercises, keep Setup/Test/Cleanup explicit as `No deployment required`, `No execution required`, etc.
+- Prefer concise, purposeful diagrams over decorative diagrams.
 
 ## Universal Archetypes & Workflows
 

@@ -39,14 +39,25 @@ Use Kafka when:
 - High throughput
 - Stream processing
 
+## Design
+
+```mermaid
+graph TD
+  Producer --> Exchange
+  Exchange --> Queue
+  Queue --> Consumer
+```
+
+The exchange performs routing; queues provide buffering; consumers control acknowledgement strategy.
+
 #### Exchange
 
-RabbitMQ exchanges does the following and behave like a router (its not work like Kafka topic!)
+A RabbitMQ exchange behaves like a router (it does not work like a Kafka topic).
 - Receives messages from producers
 - Decides which queue(s) get the message
 - Does not store messages
 
-Each exchange is binded to a queue and maybe include a routing key. All queue have a binding key to the exchange.  
+Each exchange is bound to one or more queues and may include a routing key. All queues have a binding key to the exchange.  
 It is possible to bind an exchange to another exchange (routing it)
 
 There are 4 types of exchange
@@ -94,12 +105,12 @@ Kafka
 - Consumer commits offset
 - Message remains even after commit
 
-RabbitMQ emphasizes on delivery gurantee while kafka ephasizes on replayability.
+RabbitMQ emphasizes delivery guarantees while Kafka emphasizes replayability.
 
 ## Setup
 
 - Install a bitnami RabbitMQ helm chart
-- Portforward to RabbitMQ instance in k8
+- Port-forward to the RabbitMQ instance in Kubernetes
 - Download and configure `rabbitmqadmin` to communicate with broker
 
 
@@ -131,13 +142,13 @@ username = "user"
 password = "password"
 EOF
 # The default config points to localhost:15672, with portforwarding no further args are required for host etc
-# Validate the cli tool
-./rabbitmqadmin -c admin.config list queues
+# Validate the CLI tool
+./rabbitmqadmin -c admin.conf list queues
 ```
 
 ## Test
 
-The test will be ran using `rabbitmqadmin` on the localhost (not within the rabbitmq pod). 
+The test will be run using `rabbitmqadmin` on localhost (not within the RabbitMQ pod). 
 
 
 Set up exchange, queue and bind queue to exchange
@@ -171,8 +182,13 @@ Local machine
 rm rabbitmqadmin admin.conf
 ```
 
-K8
+Kubernetes
 
 ```sh
 helm uninstall ex-3
 ```
+
+## References / Appendix
+
+- [RabbitMQ Tutorials](https://www.rabbitmq.com/getstarted.html)
+- [RabbitMQ Exchanges](https://www.rabbitmq.com/docs/exchanges)

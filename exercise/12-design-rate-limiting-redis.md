@@ -10,9 +10,13 @@ Implement rate limiting strategies (fixed window, sliding window) using Redis an
 
 ## Context
 
-### Architecture Design
+Rate limiting is a protective control for API reliability. It prevents abusive traffic, enforces fairness across users/tenants, and shields downstream services during sudden bursts.
 
-Rate limit primary works with heavy writes (per request) and require low-latency. Redis is the gold standard for implementing rate limit as request are usually stored with a unique identify (eg, user_id) and an count. 
+## Design
+
+### Architecture
+
+Rate limiting primarily involves heavy writes (one update per request) and requires low latency. Redis is a strong fit because requests are usually tracked by a unique identity (e.g., `user_id`) and a counter or timestamp set.
 
 #### Option 1: Proxy
 
@@ -134,7 +138,7 @@ High-Resolution Precision: Leverages Redis TIME (microsecond precision) to handl
 
 Modern Rust Concurrency: Built on the Tokio runtime with a Multiplexed Redis Connection, allowing thousands of concurrent users to share a single, efficient TCP pipeline.
 
-It adopt a strategy pattern and the configuration is pass in via args.
+It adopts a strategy pattern, and the configuration is passed in via arguments.
 
 ```rust
 enum Strategy { Fixed, Leaky, Sliding }
@@ -230,3 +234,8 @@ R8 (15s) 17:12:27: 200
 ```sh
 helm uninstall redis
 ```
+
+## References / Appendix
+
+- [Redis Rate Limiting Patterns](https://redis.io/learn/howtos/ratelimiting)
+- [GCRA / Leaky Bucket](https://en.wikipedia.org/wiki/Generic_cell_rate_algorithm)

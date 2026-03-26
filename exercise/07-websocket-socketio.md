@@ -38,6 +38,26 @@ Implement real-time bidirectional communication using Socket.IO with Python serv
 7. **Scalability**
    - Using an async framework (like Python `asyncio`) or an ASGI server allows a Socket.IO server to handle many concurrent connections efficiently.
 
+## Design
+
+```mermaid
+graph TD
+    C1[Client 1] --> S[Socket.IO Server]
+    C2[Client 2] --> S
+    S --> C1
+    S --> C2
+```
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant S as Server
+    C->>S: connect
+    C->>S: message event
+    S-->>C: broadcast event
+    C->>S: disconnect
+```
+
 ## Setup
 
 This exercise will use `uv` as the python venv.
@@ -147,7 +167,7 @@ sio.wait()
 
 ```
 
-### Test
+## Test
 
 1. Start the server by running server.py.
 2. Run a client (client.py). Observe that it receives the broadcast message announcing its own join.
@@ -192,3 +212,8 @@ connected: client-10d4
 disconnected: client-fca9
 disconnected: client-10d4
 ```
+
+## References / Appendix
+
+- [Socket.IO Documentation](https://socket.io/docs/v4/)
+- [WebSocket Protocol (RFC 6455)](https://datatracker.ietf.org/doc/html/rfc6455)

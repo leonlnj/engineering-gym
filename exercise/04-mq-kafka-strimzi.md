@@ -8,6 +8,29 @@ Deploy Apache Kafka using the Strimzi operator and test producer/consumer patter
 3. Test producer/consumer communication using console tools
 4. Understand Kafka's immutable log and offset-based consumption
 
+## Context
+
+Kafka is optimized for durable event streaming with replayable logs. In this exercise, Strimzi acts as the Kubernetes operator that manages Kafka cluster lifecycle through CRDs.
+
+## Design
+
+```mermaid
+graph TD
+	Producer --> Kafka[Kafka Topic]
+	Kafka --> Consumer
+```
+
+```mermaid
+sequenceDiagram
+	participant P as Producer
+	participant K as Kafka
+	participant C as Consumer
+
+	P->>K: Append records to topic
+	C->>K: Poll by offset
+	K-->>C: Records from requested offset
+```
+
 ## Setup
 
 [Strimzi](https://strimzi.io/) operator will be used. Kafka will be deployed via Strimzi CRD.
@@ -16,7 +39,7 @@ Deploy Apache Kafka using the Strimzi operator and test producer/consumer patter
 # https://strimzi.io/quickstarts/
 kubectl create namespace kafka
 kubectl create -f 'https://strimzi.io/install/latest?namespace=kafka' -n kafka
-# Run the below an d wait for pod to be ready
+# Run the below and wait for pod to be ready
 kubectl get pod -n kafka --watch
 kubectl apply -f https://strimzi.io/examples/latest/kafka/kafka-single-node.yaml -n kafka 
 
@@ -37,7 +60,7 @@ Simply type messages in the producer prompt and see message arriving in the cons
 
 ## Cleanup
 
-K8
+Kubernetes
 
 ```sh
 kubectl delete -f https://strimzi.io/examples/latest/kafka/kafka-single-node.yaml -n kafka 
@@ -45,3 +68,8 @@ kubectl delete -f 'https://strimzi.io/install/latest?namespace=kafka' -n kafka
 kubectl delete pvc data-0-my-cluster-dual-role-0 -n kafka
 kubectl delete namespace kafka
 ```
+
+## References / Appendix
+
+- [Strimzi Quickstart](https://strimzi.io/quickstarts/)
+- [Apache Kafka Documentation](https://kafka.apache.org/documentation/)

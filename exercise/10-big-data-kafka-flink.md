@@ -50,6 +50,29 @@ Concept: A transformation is stateless if processing one event does not depend o
 
 Application: Converting a string to uppercase is a classic stateless operation. Flink processes each record independently, which enables high throughput and simple scaling.
 
+## Design
+
+```mermaid
+graph TD
+  KP[Kafka input-topic] --> FL[Flink Job]
+  FL --> KO[Kafka output-topic]
+```
+
+```mermaid
+sequenceDiagram
+  participant P as Producer
+  participant KI as Kafka Input
+  participant F as Flink
+  participant KO as Kafka Output
+  participant C as Consumer
+
+  P->>KI: publish JSON event
+  F->>KI: read event
+  F->>F: transform payload to UPPERCASE
+  F->>KO: write transformed event
+  C->>KO: consume output
+```
+
 ## Setup
 
 Required files are created under `./resources/ex-10`. The working directory is assumed to be this location. The kafka namespace will be used for this exercise.
@@ -262,3 +285,8 @@ kubectl delete -f 'https://strimzi.io/install/latest?namespace=kafka' -n kafka
 kubectl delete pvc data-0-my-cluster-dual-role-0 -n kafka
 kubectl delete namespace kafka
 ```
+
+## References / Appendix
+
+- [Apache Flink Docs](https://nightlies.apache.org/flink/flink-docs-stable/)
+- [Strimzi Documentation](https://strimzi.io/documentation/)

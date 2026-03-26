@@ -17,6 +17,21 @@ A circuit breaker tracks recent failures and moves between three states:
 
 > Note: Half-Open is stricter — a single failure reopens the circuit. Not all failures may appear in logs.
 
+## Design
+
+```mermaid
+stateDiagram-v2
+    [*] --> Closed
+    Closed --> Open: fail_max reached
+    Open --> HalfOpen: reset_timeout elapsed
+    HalfOpen --> Closed: trial success
+    HalfOpen --> Open: trial failure
+```
+
+## Setup
+
+No local files are required. The demo runs in an ephemeral Kubernetes pod and auto-cleans with `--rm`.
+
 ## Test
 
 Execute the shell command below to run a python container with inline python script to demo circuitbreaker with `pybreaker` library.
@@ -109,3 +124,8 @@ Call 29: ⛔ OPEN
 ## Cleanup
 
 No cleanup required (ephemeral pod with `--rm` flag auto-deletes after completion).
+
+## References / Appendix
+
+- [Circuit Breaker Pattern](https://martinfowler.com/bliki/CircuitBreaker.html)
+- [pybreaker](https://pypi.org/project/pybreaker/)

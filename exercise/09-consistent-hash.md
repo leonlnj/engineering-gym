@@ -26,7 +26,15 @@ The Two-Array Implementation
 
 This is a pure Python implementation exercise (no Kubernetes deployment required).
 
-## Core Implementation
+## Design
+
+```mermaid
+graph LR
+    K[Key Hash] --> R[Hash Ring]
+    R --> N[Next Clockwise Node]
+```
+
+### Core Implementation
 
 ```python
 import hashlib
@@ -150,3 +158,7 @@ User A will be placed in Server-C
 ```
 
 The value 98 wrap around to 35 which is server C.
+
+## References / Appendix
+
+- [Consistent Hashing (Wikipedia)](https://en.wikipedia.org/wiki/Consistent_hashing)

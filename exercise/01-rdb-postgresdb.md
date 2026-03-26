@@ -8,9 +8,13 @@ Learn transaction management and isolation levels in relational databases using 
 3. Validate transactional integrity and isolation levels
 4. Test triggers, constraints, cascading deletes, and indexes
 
+## Context
+
+Relational databases are ideal when correctness and transactional guarantees are non-negotiable. This exercise focuses on PostgreSQL primitives that backend engineers rely on in production: constraints, indexes, triggers, and isolation levels.
+
 ## Setup
 
-- Install a bitnami postgresl helm chart
+- Install a bitnami postgresql helm chart
 - Run sql command via postgresql client
 
 Install postgresql helm 
@@ -27,9 +31,9 @@ kubectl run ex-1-postgresql-client --rm --tty -i --restart='Never' --image regis
       --command -- psql --host ex-1-postgresql -U postgres -d postgres -p 5432
 ```
 
-## Schema Design
+## Design
 
-- A user have a profile
+- A user has a profile
 - A user can create post
 - A user can follow another user
 - A user can like a post
@@ -47,7 +51,7 @@ erDiagram
 Assumptions
 - Media in posts are not ordered
 - Post must have text
-- Developers will not updated created_at or updated_at (remove service account access to update such fields - eg `REVOKE UPDATE (created_at, updated_at) ON users FROM app_user;`)
+- Developers should not update `created_at` or `updated_at` (remove service account access to update such fields, e.g., `REVOKE UPDATE (created_at, updated_at) ON users FROM app_user;`)
 - case sensitive username and email
 
 ```sql
@@ -283,7 +287,7 @@ SELECT COUNT(*) FROM posts WHERE user_id = 1;
 BEGIN;
     INSERT INTO posts (user_id, content) 
         VALUES (1, 'Check out my new photo!');
-    -- Force failutre
+    -- Force failure
     SELECT 1 / 0;
 COMMIT;
 -- count retain
@@ -386,3 +390,8 @@ DROP FUNCTION IF EXISTS set_updated_at();
 helm uninstall ex-1
 kubectl get pvc | grep 'postgres' | awk '{print $1}' | xargs kubectl delete pvc 
 ```
+
+## References / Appendix
+
+- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
+- [PostgreSQL Transaction Isolation](https://www.postgresql.org/docs/current/transaction-iso.html)
