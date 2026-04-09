@@ -78,57 +78,44 @@ helm repo add elastic https://helm.elastic.co
 helm repo update
 ```
 
-2. **Deploy Elasticsearch**:
+2. **Deploy Elasticsearch and Kibana**:
 We deploy a single-node Elasticsearch cluster for local testing.
 ```bash
-helm install elasticsearch elastic/elasticsearch \
-  --set replicas=1 \
-  --set minimumMasterNodes=1 \
-  --set resources.requests.cpu=500m \
-  --set resources.requests.memory=1Gi \
-  --set resources.limits.cpu=1000m \
-  --set resources.limits.memory=2Gi
+helm install elastic-operator elastic/eck-operator
+helm install es-kb-quickstart elastic/eck-stack
 ```
 
-3. **Deploy Kibana**:
-```bash
-helm install kibana elastic/kibana \
-  --set resources.requests.cpu=500m \
-  --set resources.requests.memory=1Gi \
-  --set resources.limits.cpu=1000m \
-  --set resources.limits.memory=2Gi
-```
-
-4. **Wait for Pods to be Ready**:
+3. **Wait for Pods to be Ready**:
 ```bash
 kubectl get pods --watch
 ```
-*(Wait until both `elasticsearch-master-0` and `kibana-kibana-*` are in the `Running` state.)*
 
-5. **Port-Forward to Access Kibana and Elasticsearch**:
+4. **Port-Forward to Access Kibana and Elasticsearch**:
 
 In one terminal, forward Kibana (runs on 5601):
 ```bash
-kubectl port-forward svc/kibana-kibana 5601:5601
+kubectl port-forward svc/es-kb-quickstart-eck-kibana-kb-http 5601:5601
 ```
 
 In another terminal, forward Elasticsearch (runs on 9200):
 ```bash
-kubectl port-forward svc/elasticsearch-master 9200:9200
+kubectl port-forward svc/elasticsearch-es-http 9200:9200
 ```
 
 ## Test
 
 1. **Verify Elasticsearch is Running**:
 ```bash
-curl -X GET "localhost:9200/"
+PASSWORD=$(kubectl get secret elasticsearch-es-elastic-user  \
+   -o jsonpath="{.data.elastic}" | base64 --decode)
+curl -k -u elastic:$PASSWORD https://localhost:9200
 ```
 
 2. **Mock Pastebin Data Ingestion**:
 Let's populate Elasticsearch with some mock metadata representing different pastes.
 
 ```bash
-curl -X POST "localhost:9200/pastes/_bulk?pretty" -H 'Content-Type: application/json' -d'
+curl -X POST -k -u elastic:$PASSWORD https://localhost:9200/pastes/_bulk?pretty -H 'Content-Type: application/json' -d'
 { "index": { "_id": "1" } }
 { "uid": "abc-123", "name": "Python Script", "visibility": "public", "owner_id": "user1", "language": "python", "size_kb": 12 }
 { "index": { "_id": "2" } }
@@ -155,18 +142,18 @@ It is essential to clean up the cluster to free up resources for other exercises
 
 1. **Uninstall Helm Releases**:
 ```bash
-helm uninstall kibana
-helm uninstall elasticsearch
+helm uninstall es-kb-quickstart
+helm uninstall elastic-operator
 ```
 
 2. **Delete Persistent Volume Claims (PVCs)**:
 Elasticsearch creates PVCs that must be removed manually.
 ```bash
-kubectl delete pvc -l app=elasticsearch-master
+kubectl delete pvc elasticsearch-data-elasticsearch-es-default-0
+kubectl delete pvc elasticsearch-master-elasticsearch-master-0
 ```
 
 ## References / Appendix
-- [Elasticsearch Helm Chart Documentation](https://github.com/elastic/helm-charts/tree/main/elasticsearch)
-- [Kibana Helm Chart Documentation](https://github.com/elastic/helm-charts/tree/main/kibana)
+- [Elastic Stack Helm chart](https://www.elastic.co/docs/deploy-manage/deploy/cloud-on-k8s/managing-deployments-using-helm-chart)
 - [Elasticsearch Bulk API](https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html)
 
