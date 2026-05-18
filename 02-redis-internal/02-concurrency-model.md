@@ -35,8 +35,16 @@ Common coordination primitives:
 - **Semaphore**: counter-based admission for bounded shared resources.
 
 Analogy:
-- Mutex: one bathroom key.
-- Semaphore: parking lot with a fixed number of slots.
+- Mutex: one bathroom key. 
+  - Only one person (thread) can hold the key at a time. 
+  - If someone else wants to use the bathroom, they must wait in line until the current person finishes, comes out, and hands over the key. 
+  - Strict Ownership: Crucially, only the person who locked the door can unlock it. You cannot have someone else from the line reach in and unlock the door for you.
+- Semaphore: valet parking lot with a fixed number of slots.
+  - The semaphore starts with a count of 5.
+  - When a car (thread) arrives, it takes a spot, and the counter decreases by 1 (down to 4).
+  - If 5 cars fill the lot, the counter hits 0. The 6th car must wait outside.
+  - When any car leaves the lot, the counter increases by 1, and a waiting car is signaled that a spot has freed up.
+  - No Ownership: Anyone can signal a semaphore. If a car gets stuck, a parking attendant (a completely different thread) can signal that a spot is open.
 
 ---
 
