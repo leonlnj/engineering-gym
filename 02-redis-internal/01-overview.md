@@ -12,15 +12,15 @@ Redis is built on three interlocking design decisions, each chosen to solve a sp
 
 **In-Memory Storage** means every key and value lives in RAM, never on disk during normal operation. Disk I/O is the slowest operation a computer performs — it is orders of magnitude slower than reading from RAM. By cutting disk out of the read/write path entirely, Redis achieves response times measured in microseconds rather than milliseconds. The cost is that dataset size is bounded by available RAM, and data can be lost if the process crashes before it has been persisted.
 
-**Single-Threaded Command Execution** means all commands run on one thread, sequentially, one at a time. At first this sounds like a limitation — multi-threaded programs can use multiple CPU cores simultaneously. But multi-threaded access to shared data requires locking, and locking introduces race conditions, deadlocks, and context-switch overhead. Redis sidesteps all of that by never sharing the data store across threads. The result: every command is automatically atomic, and correctness is simple to reason about.
+**Single-Threaded Command Execution** means all commands run on one thread, sequentially, one at a time. At first this sounds like a limitation — multi-threaded programs can use multiple CPU cores simultaneously. But multi-threaded access to shared data requires careful locking, and locking brings its own problems: deadlocks and context-switch overhead. Any gap in the locking logic reopens the door to race conditions. Redis sidesteps all of that by never sharing the data store across threads. The result: every command is automatically atomic, and correctness is simple to reason about.
 
 **Rich Key-Value Model** means keys always map to one of several specific data structures — List, Set, Hash, Sorted Set, and so on — rather than a raw string. This matters because the structure dictates which operations are available and how fast they run. Choosing the right type is not just aesthetic: it determines whether an operation is O(1) or O(N).
 
 ```mermaid
 graph TD
-    C["Client Applications"] --> EL["Event Loop\nI/O Multiplexing"]
-    EL --> CT["Command Execution Core\nSingle Thread"]
-    CT --> DS["In-Memory Data Store\nStrings · Lists · Sets · ZSets · Hashes · Streams"]
+    C["Client Applications"] --> EL["Event Loop<br/>I/O Multiplexing"]
+    EL --> CT["Command Execution Core<br/>Single Thread"]
+    CT --> DS["In-Memory Data Store<br/>Strings · Lists · Sets · ZSets · Hashes · Streams"]
     CT --> P["Persistence Layer"]
     P --> RDB["RDB Snapshots"]
     P --> AOF["AOF Log"]

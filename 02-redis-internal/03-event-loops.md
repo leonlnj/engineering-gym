@@ -97,8 +97,8 @@ Analogy: this is the code-level realization of the hotel switchboard from lesson
 
 ```mermaid
 graph TD
-    A["epoll_ctl ADD fd\n(subscribe to events)"] --> B["Kernel epoll instance\n(watches all registered FDs)"]
-    B --> C["epoll_wait\n(thread suspends in kernel)"]
+    A["epoll_ctl ADD fd<br/>(subscribe to events)"] --> B["Kernel epoll instance<br/>(watches all registered FDs)"]
+    B --> C["epoll_wait<br/>(thread suspends in kernel)"]
     C --> |"One or more FDs ready"| D["Dispatch handler for each ready FD"]
     D --> C
 ```
@@ -134,7 +134,7 @@ typedef struct aeEventLoop {
 // One iteration of the event loop
 void aeProcessEvents(aeEventLoop *el) {
     // Block in the kernel until at least one FD is ready
-    int numevents = epoll_wait(el->epfd, el->fired, MAX_EVENTS, timeout_ms);
+    int numevents = epoll_wait(el->epfd, el->fired, MAX_EVENTS, timeout_ms); // timeout_ms = ms until next timer fires
 
     for (int i = 0; i < numevents; i++) {
         int fd        = el->fired[i].fd;

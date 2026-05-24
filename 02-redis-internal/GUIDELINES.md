@@ -40,14 +40,19 @@ before the reader has formed a wrong mental model.>
 
 ## N. Practical Limits and Trade-offs
 
-<Bullet list of real-world constraints, failure modes, and design trade-offs.>
+<Bulleted list of real-world constraints, failure modes, and design trade-offs.
+Each bullet must have a **bold label** followed by a sentence of explanation —
+never a bare fact fragment. Example: "**Speed vs. durability**: in-memory
+storage makes Redis fast but volatile — a crash loses any writes not yet
+flushed to disk.">
 
 ---
 
 ## N+1. Summary
 
-<3–6 sentences or a tight bullet list that a reader can use as a quick recap
-without re-reading the whole file.>
+<3–6 sentences of prose that a reader can use as a quick recap
+without re-reading the whole file. No bullet lists here — prose forces you
+to show how the ideas connect, not just enumerate them.>
 ```
 
 **Structural rules:**
@@ -99,9 +104,18 @@ Every significant design choice has a cost. Always name both sides: what is gain
 
 Calling out trade-offs is what separates an educational note from a marketing brochure.
 
+Placement rule: weave each trade-off into the prose at the point where the mechanism is introduced — *"The gain is X; the cost is Y."* Then consolidate the most important ones in the final "Practical Limits and Trade-offs" section so a reader skimming to that section gets the full picture without having to re-read the whole lesson.
+
 ### Tone
 
 Educational and precise. Avoid over-brevity — a reader should be able to fully understand the topic from this file alone without watching the video again. At the same time, do not pad with filler. Every sentence should earn its place.
+
+Aim for **5–8 major sections** per lesson. Fewer than five usually means a concept was not fully unpacked; more than eight usually means the lesson is covering two topics and should be split into a follow-up.
+
+### Terminology
+
+- **Bold every key term on first definition.** If you introduce a concept by name for the first time, bold the name at that exact sentence so readers can skim-locate definitions. Example: *"The OS keeps a per-process table of open resources. The FD is the index into that table; it is just a number…"* should instead read *"…called a **file descriptor (FD)**."*
+- **Expand every acronym on first use.** Write it out in full, then show the abbreviation in parentheses: *"**Redis Serialization Protocol (RESP)**"*. After that first use, the abbreviation alone is fine. Common Redis-world acronyms to watch for: RESP, RDB, AOF, TTL, FD, AOF, HA.
 
 ---
 
@@ -133,6 +147,7 @@ Choose the diagram type that best fits what you are showing:
 - Every diagram must have a one-line italic caption immediately below it (using `*caption text*`) describing what it shows.
 - Diagrams must be directly tied to the explanation in the surrounding text — no decorative diagrams.
 - Keep node labels short and readable. Use `["Label text"]` for boxes with spaces or special characters.
+- For multi-line node labels in `graph` diagrams, use `<br/>` as the line separator, never `\n`. GitHub's Mermaid renderer prints `\n` literally as two characters inside the node box rather than breaking the line.
 
 ---
 
@@ -179,7 +194,7 @@ Do not repeat a concept at the same level of detail if a prior lesson already co
 
 ## What to Avoid
 
-- **Do not produce a raw list of bullet points.** A bullet list of facts is not a lesson — it has no explanation, no reasoning, no analogy. Prose should carry the explanation; bullets are for enumerating items within an explanation.
+- **Do not produce bare bullet-point lists.** A list of fact fragments is not a lesson — it has no explanation, no reasoning, no analogy. Prose should carry the explanation. Bullets are only acceptable in the "Practical Limits and Trade-offs" section, where each item must start with a **bold label** followed by a sentence of reasoning. A bullet that reads *"— speed vs. durability"* is not acceptable; *"**Speed vs. durability**: in-memory storage is fast but volatile — a crash discards any writes not yet persisted."* is.
 - **Do not skip analogies or trade-offs for the sake of brevity.** They are required, not optional.
 - **Do not end a file without a Summary section.** The summary is what a reader uses to quickly re-orient after not reading the file for a month.
 - **Do not copy-paste video transcripts.** Rewrite concepts in your own words — that process itself deepens understanding.

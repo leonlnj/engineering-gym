@@ -1,6 +1,6 @@
 # Redis Concurrency Model: A Hybrid Architecture
 
-Redis is often described as "single-threaded," but that phrase is incomplete and misleading. Modern Redis uses a **hybrid architecture** that assigns a different concurrency strategy to each layer of work — connection handling, I/O, and command execution. Understanding which layer uses which strategy is the key to understanding both its performance and its correctness guarantees.
+Lesson 01 introduced Redis's single-threaded core as a design principle; this lesson explains how that core is actually achieved without sacrificing throughput. Redis is often described as "single-threaded," but that phrase is incomplete and misleading. Modern Redis uses a **hybrid architecture** that assigns a different concurrency strategy to each layer of work — connection handling, I/O, and command execution. Understanding which layer uses which strategy is the key to understanding both its performance and its correctness guarantees.
 
 ---
 
@@ -49,6 +49,8 @@ Analogy: imagine a hotel concierge managing a bank of room phones. The naive app
 Reading bytes from a network socket and parsing them into a Redis command is not free. Redis uses the **RESP protocol** (Redis Serialization Protocol) — a text-based format that must be decoded for every request and re-encoded for every response. Under large payloads or many simultaneously active clients, this parsing work can itself become a CPU bottleneck.
 
 Modern Redis (version 6+) introduced background I/O threads to parallelize this work. When the event loop detects that a socket is ready, it can delegate the socket to an I/O thread that reads and parses the bytes in parallel with other sockets. On the response side, I/O threads handle writing large responses back to clients so the main thread can move on to the next command. All of this distributes network-bound CPU work across cores without touching the in-memory data store, where correctness requires single-threaded access.
+
+> Nuance: Threaded I/O is **disabled by default**. You enable it by setting `io-threads` to a value greater than 1 in `redis.conf`. Even then, only write I/O is threaded by default; to also thread reads you add `io-threads-do-reads yes`. Command *execution* is never threaded — it always happens on the main thread regardless of the I/O configuration. This means the single-threaded execution guarantee described in §2.3 holds even when threaded I/O is on.
 
 ### 2.3 Layer 3 — The Sacred Core (Single-Threaded Execution)
 
