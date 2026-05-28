@@ -246,17 +246,31 @@ dictAdd(db->dict, key, value);
 
 ---
 
-## 6. Command Batching and Pipelining
+## 6. Multi-Client Batching and Pipelining
+
+### 6.1 Pipelining: One Client, Many Commands
 
 A client is not required to wait for a response before sending the next command. It can write multiple commands back-to-back into a single TCP write. This is called **pipelining**, and it dramatically improves throughput by removing the round-trip latency between each command.
 
 When a pipelining client sends three commands at once, they may all arrive in the same TCP segment. `epoll_wait` fires once for that client FD. The I/O thread reads all the bytes in one `read()` call and parses them into three command objects, all of which are enqueued for the main thread.
 
-Multiple clients can also become readable in a single `epoll_wait` call — if 50 clients all sent commands while the main thread was busy executing the previous batch, `epoll_wait` returns all 50 FDs as ready at once. Their commands are all parsed in parallel by I/O threads and then queued up.
+Without pipelining, a client doing 100 sequential `SET` operations waits for a round-trip after each one — at 1 ms latency that is 100 ms total. With pipelining, all 100 commands are sent in one batch, executed in one drain pass, and all responses arrive in one reply — the latency is one round-trip regardless of how many commands are in the batch.
+
+### 6.2 The I/O Thread Batch Cycle: From epoll to Execution
+
+When multiple clients send commands simultaneously, `epoll_wait` returns all of their FDs as ready in a single call — one kernel trip surfaces work from any number of clients at once. Redis then processes that batch in four phases.
+
+**Phase 1 — Distribute.** The main thread iterates the array of ready FDs returned by `epoll_wait` and assigns each client to an I/O thread in round-robin order: client 0 to thread 0, client 1 to thread 1, wrapping back at the thread count. This spreads parsing work evenly across CPU cores.
+
+**Phase 2 — Parse (parallel).** All I/O threads run concurrently. Each reads its assigned clients' sockets and parses the RESP frames into command objects. The main thread does not participate in this step.
+
+**Phase 3 — Barrier wait.** The main thread busy-polls an atomic counter per I/O thread (`io_threads_pending`), spinning until every counter reaches zero. This is a hard synchronisation point: no command from the current batch is executed until every client's bytes have been fully parsed.
+
+**Phase 4 — Execute (sequential).** Once the barrier clears, the main thread drains the pending command list in order, executing each command against the in-memory store one at a time.
 
 ```c
-// After aeProcessEvents completes, the pending queue may have many commands.
-// The main thread drains the entire queue in one pass.
+// After the barrier clears, the pending queue holds all parsed commands.
+// The main thread drains it in one sequential pass.
 while (!listEmpty(pending_commands)) {
     redisCommand *cmd = listPopHead(pending_commands);
     cmd->proc(client);      // execute the command against the in-memory store
@@ -264,11 +278,82 @@ while (!listEmpty(pending_commands)) {
 }
 ```
 
-Without pipelining, a client doing 100 sequential `SET` operations waits for a round-trip after each one — at 1 ms latency that is 100 ms total. With pipelining, all 100 commands are sent in one batch, executed in one drain pass, and all responses arrive in one reply — the latency is one round-trip regardless of how many commands are in the batch.
+```mermaid
+sequenceDiagram
+    participant EL as Event Loop (main)
+    participant T0 as I/O Thread 0
+    participant T1 as I/O Thread 1
+    participant Core as Main Thread (execute)
+
+    EL->>EL: epoll_wait returns 4 ready clients
+    EL->>T0: assign clients 0 and 2 (round-robin)
+    EL->>T1: assign clients 1 and 3 (round-robin)
+    par Parse in parallel
+        T0->>T0: read() + parse RESP for clients 0, 2
+    and
+        T1->>T1: read() + parse RESP for clients 1, 3
+    end
+    EL->>EL: busy-poll barrier until all io_threads_pending == 0
+    EL->>Core: all parsed — execute commands sequentially
+```
+
+*Four simultaneous clients are split round-robin across two I/O threads for parallel parsing; the main thread waits at the barrier and then executes all parsed commands in sequence.*
+
+**Ordering guarantees.** Within a single client's connection, commands are always executed in the order they were sent — RESP is a stream protocol and the parser preserves buffer order. Across different clients within the same batch, the execution order is deterministic (it follows the order of the main thread's pending-command list) but is not tied to wall-clock arrival time. This is correct: commands from unrelated clients are independent by design, and ordering only matters within a single connection or an explicit `MULTI`/`EXEC` transaction.
+
+> Nuance: The Phase 3 barrier means the I/O phase for an entire batch is bounded by its **slowest member**. A single client with an unusually large payload delays execution of every other client's commands in that batch. This is a deliberate trade-off — the synchronisation simplifies the handoff to the single-threaded execution core — but it is worth knowing when diagnosing tail latency spikes under mixed workloads.
 
 ---
 
-## 7. Practical Limits and Trade-offs
+## 7. io_uring: A Faster Foundation
+
+`epoll` has served Redis well, but it has a structural inefficiency: it is a *notification* mechanism, not an *execution* mechanism. When `epoll_wait` signals that a socket is readable, Redis must still issue a separate `read()` system call to retrieve the data. Under extreme load — hundreds of thousands of small operations per second — the cumulative cost of those system calls becomes measurable. **`io_uring`**, introduced in Linux 5.1 (2019), addresses this by eliminating the notification-then-act round trip entirely.
+
+### 7.1 How io_uring Works
+
+`io_uring` is built around two lock-free ring buffers in shared memory between the kernel and userspace.
+
+- **Submission Queue (SQ)**: userspace writes I/O *requests* here — "read up to 4096 bytes from FD 6 into this buffer."
+- **Completion Queue (CQ)**: the kernel writes *results* here when each operation finishes — "the read from FD 6 returned 128 bytes."
+
+Because the rings live in shared memory, posting a request and reading a result require no system call in the common case. In **`SQPOLL`** mode, a dedicated kernel thread continuously polls the SQ; userspace drops requests into the ring and continues, while the kernel executes them asynchronously and deposits results in the CQ.
+
+```c
+// io_uring: submit a read request (no syscall needed in SQPOLL mode)
+struct io_uring_sqe *sqe = io_uring_get_sqe(&ring);
+io_uring_prep_read(sqe, client_fd, buf, sizeof(buf), 0);
+io_uring_submit(&ring);    // may be a no-op in SQPOLL mode
+
+// Later: pick up the completed result from the CQ
+struct io_uring_cqe *cqe;
+io_uring_wait_cqe(&ring, &cqe);
+int bytes_read = cqe->res; // bytes read (negative value = error code)
+io_uring_cqe_seen(&ring, cqe);
+```
+
+| Step | epoll + read/write | io_uring |
+| :--- | :--- | :--- |
+| Detect readiness | `epoll_wait` (syscall) | — (kernel polls SQ) |
+| Read bytes | `read()` (syscall) | result appears in CQ (no syscall) |
+| Write bytes | `write()` (syscall) | submitted to SQ (no syscall) |
+
+Analogy: `epoll` is like a hotel concierge who pages you when a guest's request is ready at the counter — you still walk over and handle it yourself. `io_uring` is like leaving the concierge a stack of pre-written instructions ("when Room 42 calls, handle their order and leave the outcome in my inbox"). You check the inbox periodically and process everything in bulk, never leaving your desk to make individual trips.
+
+### 7.2 Redis and io_uring
+
+Redis has not adopted `io_uring` as its default I/O backend. The `ae.c` abstraction layer — which already swaps `epoll` for `kqueue` on macOS — is the natural insertion point for a new `ae_io_uring.c` backend that plugs in without touching the command-execution path. Valkey (the Linux Foundation's open-source Redis fork) and upstream Redis 8.x are actively exploring this. The case is strongest for Redis's hot-path workload profile: very high connection counts and many small reads and writes — exactly the pattern where eliminating per-operation syscalls yields the largest latency and throughput gains.
+
+> Nuance: Early `io_uring` kernel versions (5.1–5.10) had a series of security vulnerabilities and were disabled by default in many Linux distributions. Modern production kernels (5.15 LTS and later) have a significantly cleaner record. Adopting `io_uring` in a latency-sensitive system like Redis requires a sufficiently recent kernel and careful testing — the performance ceiling is higher, but so is the surface area for subtle bugs compared to the battle-tested `epoll` path.
+
+### 7.3 Trade-offs vs. epoll
+
+- **Fewer syscalls vs. higher implementation complexity**: ring-buffer management, buffer registration, cancellation, and error handling are all more involved than the straightforward `epoll_wait`/`read`/`write` pattern. Correctness is harder to achieve and audit.
+- **True async I/O vs. readiness notification**: `io_uring` can execute multi-step I/O (chained requests, file reads) without any userspace involvement between steps. `epoll` only signals readiness; the actual data movement still requires a follow-up syscall.
+- **Higher throughput ceiling vs. decades of hardening**: under sustained high load, `io_uring` in `SQPOLL` mode can outperform `epoll` substantially. But `epoll` has twenty years of production use in the kernel and ecosystem; `io_uring` is still maturing in both stability and the libraries built on top of it.
+
+---
+
+## 8. Practical Limits and Trade-offs
 
 - **Portability vs. performance**: `epoll` is Linux-specific. macOS and BSD use `kqueue`, which has similar semantics but different system calls. ae.c abstracts this, but it means the event loop layer has conditional compilation per OS. The benefit is that Redis runs natively on all major Unix systems; the cost is added abstraction.
 
@@ -276,12 +361,12 @@ Without pipelining, a client doing 100 sequential `SET` operations waits for a r
 
 - **Simplicity vs. preemption**: a handler that takes a long time (a blocking Lua script, a large `SORT` command) holds up the entire `aeProcessEvents` iteration. No other ready FD is dispatched until the slow handler returns. The event loop is cooperative, not preemptive — one slow handler delays everyone. The trade-off is the same as lesson 02's single-thread limitation: simplicity and no locking, but no isolation between fast and slow commands.
 
-- **Throughput vs. synchronization overhead**: handing off parsed commands from I/O threads to the main thread requires a synchronization point — a lock-free queue or similar structure. The overhead is small but real. The gain is that network I/O, which is CPU-intensive under load, is parallelized across cores without the main thread being involved.
+- **Throughput vs. synchronisation overhead**: handing off parsed commands from I/O threads to the main thread requires the barrier described in §6.2. The overhead is small but real. The gain is that network I/O, which is CPU-intensive under load, is parallelised across cores without the main thread being involved.
 
 - **Batch size vs. latency**: `epoll_wait` accepts a `maxevents` argument capping how many events it returns in one call. Under extreme load, more events may be pending than the batch size allows, requiring multiple `aeProcessEvents` iterations to drain them. A larger batch reduces the number of system call round-trips but increases the latency of any individual event that lands at the back of a large batch.
 
 ---
 
-## 8. Summary
+## 9. Summary
 
-File descriptors are the lingua franca of Linux I/O: sockets, epoll instances, and files are all represented as small integers that you pass to system calls. `epoll` builds on this by letting one thread register interest in thousands of FDs (`epoll_ctl`) and then block inside the kernel until any of them become ready (`epoll_wait`) — paying zero CPU cost while idle. Redis's `ae.c` wraps `epoll` in a portable event library that maps each FD to a handler function, calls `epoll_wait` once per loop iteration, and dispatches to the right handler for each ready FD. Commands batch naturally: pipelining clients and simultaneous activity from many clients both result in multiple commands being queued and drained together in a single pass through the main thread. The event loop is the glue that connects the kernel's efficient readiness notifications to Redis's single-threaded, lock-free execution guarantee.
+File descriptors are the lingua franca of Linux I/O: sockets, epoll instances, and files are all represented as small integers that you pass to system calls. `epoll` builds on this by letting one thread register interest in thousands of FDs (`epoll_ctl`) and then block inside the kernel until any of them become ready (`epoll_wait`) — paying zero CPU cost while idle. Redis's `ae.c` wraps `epoll` in a portable event library that maps each FD to a handler function, calls `epoll_wait` once per loop iteration, and dispatches to the right handler for each ready FD. When many clients send commands simultaneously, `epoll_wait` returns them all in a single batch; I/O threads parse them in parallel across CPU cores while the main thread waits at a barrier, then executes every parsed command sequentially — preserving per-client order while parallelising the network cost. Looking forward, `io_uring` promises to take this further by replacing `epoll`'s notify-then-act model with shared memory rings that let the kernel perform I/O entirely on userspace's behalf, reducing syscall overhead toward zero.
