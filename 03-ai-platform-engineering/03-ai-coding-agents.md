@@ -24,7 +24,20 @@ while True:
     messages.append({"role": "tool", "content": result})   # feed the result back
 ```
 
-This is what separates "generate a YAML file" (one prediction) from "find why this deployment fails and fix it" (many cycles of look, hypothesise, act, check). Note that the model never runs anything — `run_tool` does; the model only ever emits text describing the call it wants. That separation is the whole subject of lesson 04.
+This is what separates "generate a YAML file" (one prediction) from "find why this deployment fails and fix it" (many cycles of look, hypothesise, act, check). Note that the model never runs anything — `run_tool` does; the model only ever emits text describing the call it wants.
+
+What is that "text describing the call"? It is the same schema mechanism from lesson 02 §4, run in reverse. There, structured output made the filled schema the *answer's shape*; here the filled schema is an *action* the harness executes — the only difference is what you do with it. The model is given the tool definitions, and at the point it would otherwise write prose it instead emits a structured **tool-use** block naming a tool and its arguments:
+
+```json
+// What `reply` actually contains when stop_reason == "tool_use"
+{
+  "stop_reason": "tool_use",
+  "tool_name": "run_shell",
+  "tool_input": { "cmd": "kubectl get pods -n staging" }
+}
+```
+
+This matters because it dissolves the word "decides." The model does not *decide* to act in any agentic sense — it predicts the next tokens (lesson 01), and those tokens happen to form a tool-use block instead of a sentence. The harness parses that block, runs the real command, and appends the output as a new message. That parse-run-append seam between a token predictor and your real systems is the whole subject of lesson 04.
 
 ```mermaid
 stateDiagram-v2

@@ -27,6 +27,18 @@ response = client.messages.create(
 )
 ```
 
+The roles are a convenience at the API surface, not something the model sees as separate channels. Before inference, the API flattens the whole message list into the *single* token sequence from lesson 01 by wrapping each message in special **control tokens** that mark where each role's text begins and ends — a fixed format called the **chat template**. So "how does the model tell the system prompt from the user's text if it's all one sequence?" has a concrete answer: it learned, during training, what those delimiter tokens mean. A simplified view of what actually reaches the model:
+
+```text
+<|system|>You are a Kubernetes assistant. Answer ONLY from the manifest...<|end|>
+<|user|>Why won't this pod schedule? <manifest...><|end|>
+<|assistant|>The pod requests 8Gi but no node has it free.<|end|>
+<|user|>How do I confirm that?<|end|>
+<|assistant|>                                  <- the model generates from here
+```
+
+This is why roles are not a security boundary — they are just text with special markers in one stream, which is the mechanical reason a manifest pasted into a `user` message can still smuggle in instructions (Section 3.1, and lesson 11).
+
 ### 1.2 The System Prompt as Configuration
 
 The **system prompt** is the highest-leverage place to set durable rules — output format, tone, what to refuse, how to handle uncertainty — because it frames every turn without being repeated by the user. Keep it stable and treat it like configuration: it belongs in source control, not pasted fresh each call (Section 6). A useful analogy: the system prompt is the standing operating procedure you give a contractor once; the user messages are the individual tickets they work. You would not restate the entire SOP on every ticket, and you would not bury a critical safety rule inside a single ticket where it applies only once.
@@ -75,7 +87,15 @@ The discipline mirrors resource management you already practice: a context windo
 
 ## 3. Core Techniques
 
-A handful of techniques reliably improve output, and each works *because* of how next-token prediction operates — not because of incantation.
+A handful of techniques reliably improve output, and each works *because* of how next-token prediction operates — not because of incantation. These are **prompt engineering** techniques — and this is the moment to pin down two terms readers routinely fuse. Prompt engineering is the narrower craft of *wording* a single instruction well; context engineering (Sections 1–2) is the broader discipline of deciding *everything* that occupies the window. One is a subset of the other:
+
+| | Prompt engineering | Context engineering |
+| :--- | :--- | :--- |
+| Scope | Phrasing one instruction | Assembling the whole window |
+| Levers | Wording, examples, delimiters, step-by-step | Budget, what to include/evict, retrieval, history, tools |
+| Failure it prevents | A vague or ambiguous ask | A window that is bloated, stale, or missing the key fact |
+
+The techniques below are prompt engineering; they pay off only inside a context that was engineered well — a perfectly worded prompt cannot rescue a window that omits the one fact the answer needs.
 
 ### 3.1 Specificity and Delimiters
 
@@ -133,6 +153,19 @@ Conversational prose is fine for a human, but platform automation needs machine-
   }
 }
 ```
+
+How does declaring a schema *force* valid output, rather than just politely asking for it? Through **constrained decoding**. Recall from lesson 01 that each step the model produces logits over the whole vocabulary and the sampler picks one token. Schema-binding inserts a filter between those two: at every step it masks out — sets to zero probability — every token that would break the schema, so the sampler can only choose from tokens that keep the output valid. Right after `"severity":` the only permitted next tokens are `"low"`, `"medium"`, or `"high"`; nothing else is even reachable.
+
+```text
+Step after '"severity": ' — logits exist for all ~100k tokens, but the mask zeroes
+all except the enum members, so sampling is forced into the schema:
+  "low"     0.55   ✓ allowed
+  "high"    0.30   ✓ allowed
+  "medium"  0.15   ✓ allowed
+  "urgent"  ----   ✗ masked (not in enum)   "the"  ---- ✗ masked
+```
+
+That is the difference from "asking for JSON in prose": prose merely raises the *probability* of valid output, while constrained decoding makes invalid output *impossible* to generate. The cost is that the schema must be expressible as a grammar the decoder can enforce.
 
 ### 4.2 Why Pipelines Need It
 

@@ -96,6 +96,23 @@ For every mechanism or design decision, answer: *why is it built this way, and w
 Bad: "vLLM uses paged attention."
 Good: "vLLM uses **paged attention** because a naive server reserves a contiguous block of GPU memory for each request's maximum possible length — most of which goes unused — so memory fragments and throughput collapses. Paging the KV-cache the way an OS pages RAM lets many requests share memory efficiently, raising the number of concurrent requests a single GPU can serve."
 
+### Build the mental model in one pass
+
+The benchmark is not "is this correct?" but "can a first-time reader follow it without stopping to ask a question?" Most confusion comes not from a wrong fact but from a missing link the author had in their head and never wrote down. The five rules below close those gaps; the "Self-Review: The One-Pass Test" section near the end of this file is the checklist that enforces them.
+
+- **Show the connecting artifact.** When one stage feeds another (X produces Y, Y is consumed by Z), show the concrete data structure or shared contract that joins them. Never narrate a transformation while hiding the thing being transformed — the bridge *is* the lesson.
+  - Bad: "the token ID becomes a vector."
+  - Good: show the vocabulary entry the ID indexes, then show that the *same* ID indexes a row of the embedding table — so the reader sees the ID is a lookup key shared by both stages, not magic.
+
+- **Explain origin, not just definition.** For any artifact the model relies on — a table, an index, a set of weights — show *how it came to be* (how it is built, learned, or derived), not only what it is once finished. A reader who knows only the end state cannot reason about why it has the properties it does. This complements **Explain the why** above (that rule covers *why it is designed this way*; this one covers *how it came to exist*).
+
+- **Name and refute the wrong mental model.** For any concept a reader is likely to misread, state the plausible-but-wrong intuition out loud and say why it is wrong — don't just assert the right one. Deliver this with a `> Nuance:` callout (see **Nuances and caveats**).
+  - Example: "An embedding is *not* a hash. A hash is similarity-blind by design — two related inputs land at unrelated outputs. An embedding is the opposite: similar inputs are placed near each other on purpose."
+
+- **Answer the obvious follow-up.** At each mechanism, answer the "but then what about…?" a curious reader asks the moment they understand it — don't leave the thread dangling for them to puzzle over. (E.g. having said the logits are recomputed every step, immediately answer "so does the KV-cache still help?")
+
+- **Disambiguate confusable terms.** When you introduce a term that sounds like, or sits next to, one already introduced, contrast them explicitly — what is the same, what is different. A small two-column table (see **Tables**) is usually the clearest form. Silent adjacency is how a reader fuses two distinct concepts into one wrong one (e.g. "context window" vs. "KV-cache").
+
 ### Analogies
 
 Use a concrete, real-world analogy for every non-trivial concept. Place the analogy *after* the technical explanation, not before — the reader needs the concept first so the analogy clicks.
@@ -134,11 +151,15 @@ Calling out trade-offs is what separates an engineering note from a vendor pitch
 
 Placement rule: weave each trade-off into the prose at the point where the mechanism is introduced — *"The gain is X; the cost is Y."* Then consolidate the most important ones in the final "Practical Limits and Trade-offs" section so a reader skimming to that section gets the full picture without re-reading the whole lesson.
 
+Pre-empt the obvious objection. When a lesson introduces a fix or solution, name the *first* objection a sharp reader raises the instant they read it — and answer it on the spot. This is the trade-off the reader immediately *feels*, not just one for the consolidated list. If you present RAG as "inject the facts into the context," the reader instantly thinks "but that spends the very context budget it's meant to help" — so say so and resolve it, rather than leaving them arguing with the page.
+
 ### Worked walkthroughs
 
 For any topic with a request or data lifecycle — a query flowing through a system, a pipeline transforming data, an inference step producing a token — include a **numbered, end-to-end worked walkthrough** that traces one concrete instance from start to finish. This is the single technique that most separates a deep lesson from a shallow one: it forces every intermediate state into the open. Model it on the "TCP packet → executed command" trace in `../02-redis-internal/03-event-loops.md`.
 
 A good walkthrough: picks one concrete example (a real query string, a specific manifest, an actual incident), numbers each step, shows the data as it changes shape at each stage (often with a small snippet per step), and is paired with a `sequenceDiagram` so the reader can see the flow and the detail side by side. State real values, not placeholders — "the query `why won't my pod schedule` embeds to a 1,024-dim vector," not "the query is embedded."
+
+Include at least one non-trivial case. A minimal example ("the dog ___") proves the mechanism exists; it does *not* prove the reader can apply it to anything real, and it hides the intermediate states that only appear under load. So whenever a mechanism would obviously be used on something harder than the toy case, also work a realistic example — a multi-clause sentence, a multi-hop lookup, a query with competing candidates — far enough to expose how the mechanism scales. The toy example builds intuition; the hard one earns the reader's trust that they actually understand it.
 
 ### Quantify
 
@@ -230,6 +251,23 @@ Do not repeat a concept at the same level of detail if a prior lesson already co
 
 ---
 
+## Self-Review: The One-Pass Test
+
+Before a lesson is done, read it once *as someone seeing the topic for the first time* and confirm each item below. A "no" marks a spot where the reader will have to stop and ask a question — which is exactly the failure these notes exist to prevent. Fix every "no" before considering the lesson finished.
+
+- [ ] **Connecting artifacts shown.** Every "X produces Y" / "Y becomes Z" transition shows the concrete structure or shared key that links the two stages — no transformation is narrated with the linking artifact left invisible.
+- [ ] **Origins explained.** Every artifact the model uses (table, index, weights, cache) is explained by *how it comes to be*, not only what it is once built.
+- [ ] **Wrong models refuted.** Every concept a reader is likely to misread names the plausible-but-wrong intuition and says why it's wrong, not just the right answer.
+- [ ] **Confusable terms contrasted.** Every new term that resembles or sits beside a prior one is explicitly contrasted with it (same vs. different), usually in a small table.
+- [ ] **Follow-ups answered.** Every mechanism answers the obvious "but then what about…?" a curious reader asks the moment they grasp it.
+- [ ] **A non-trivial example exists.** At least one worked example is realistic, not only the minimal toy case — enough to show the mechanism scales.
+- [ ] **Objections pre-empted.** Every fix or solution names the first objection a reader feels on reading it and answers it in place.
+- [ ] **Structure and depth bars met.** Sub-sections throughout, 6+ snippets, 2–3 diagrams, an end-to-end walkthrough, concrete numbers, both AI-internal and operational depth (see Depth and Length).
+
+If a reader still has to re-read a passage to follow it, the passage — not the reader — is the problem.
+
+---
+
 ## What to Avoid
 
 - **Do not produce bare bullet-point lists.** A list of fact fragments is not a lesson — it has no explanation, no reasoning, no analogy. Prose should carry the explanation. Bullets are only acceptable in the "Practical Limits and Trade-offs" section, where each item must start with a **bold label** followed by a sentence of reasoning. A bullet that reads *"— capability vs. cost"* is not acceptable; *"**Capability vs. cost**: a larger model is smarter but costs more per token and per GPU-hour, so default to the smallest model that passes your evals."* is.
@@ -239,3 +277,7 @@ Do not repeat a concept at the same level of detail if a prior lesson already co
 - **Do not end a file without a Summary section.** The summary is what a reader uses to quickly re-orient after not reading the file for a month.
 - **Do not paste vendor marketing or hype.** Rewrite concepts in your own words and ground every claim in a mechanism or trade-off — that process itself deepens understanding.
 - **Do not add a standalone "why this matters" section.** The explanation of why belongs inside the section where the mechanism is introduced. The Summary is the only place for restatement. A separate synthesis section adds length without adding understanding.
+- **Do not narrate a transformation while hiding the artifact that links the two stages.** "The ID becomes a vector" leaves the reader unable to see *how* — show the shared lookup key or data structure that joins the stages (see Build the mental model in one pass).
+- **Do not define an artifact without explaining how it comes to be.** Stating only what something *is*, never how it is built or learned, leaves the reader unable to reason about why it behaves as it does.
+- **Do not introduce a term confusable with a prior one without contrasting them.** Placing "KV-cache" next to "context window" with no explicit same/different contrast invites the reader to fuse two distinct concepts into one wrong one.
+- **Do not present a fix without its first obvious objection.** A solution offered with no acknowledgement of the cost the reader immediately spots reads as a sales pitch and quietly erodes trust in the rest of the lesson.
