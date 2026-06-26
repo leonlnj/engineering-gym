@@ -53,7 +53,7 @@ The **GPU Operator** (NVIDIA's, the dominant one) automates the whole stack as a
 
 ## 3. Sharing a GPU: MIG and Time-Slicing
 
-Because a whole GPU is far more than many workloads need — an inference server for a small quantized model (lesson 08 §5), a notebook, a dev environment — handing each a full device wastes the most expensive resource in the cluster. Two mechanisms share one physical GPU, making opposite trade-offs.
+Because a whole GPU is far more than many workloads need — an inference server for a small quantized model (lesson 08 §5), a notebook, a dev environment — handing each a full device wastes the most expensive resource in the cluster. Two mechanisms share one physical GPU, making opposite trade-offs. (A third, NVIDIA's **Multi-Process Service (MPS)**, also shares a device but is less commonly exposed through the Kubernetes device plugin, so it is noted only in passing here.)
 
 ### 3.1 MIG: Hardware Partitioning
 

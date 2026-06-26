@@ -80,7 +80,7 @@ This is the wall that motivates the entire vector-database industry. You cannot 
 
 ### 4.1 HNSW: Navigating a Proximity Graph
 
-An **Approximate Nearest Neighbour (ANN)** index organises vectors so a query examines only a small, promising subset. **HNSW (Hierarchical Navigable Small World)** builds a layered graph: upper layers hold few nodes with long-range links, lower layers are dense with short-range links. A search enters at the sparse top, greedily hops toward the query through long jumps, then descends into denser layers for fine local search — like zooming in on a map.
+An **Approximate Nearest Neighbour (ANN)** index organises vectors so a query examines only a small, promising subset. HNSW and IVF below are the two families that dominate production vector search; others exist (ScaNN, Annoy, LSH) but are rarer and trade off differently, so this lesson covers the two you will actually meet. **HNSW (Hierarchical Navigable Small World)** builds a layered graph: upper layers hold few nodes with long-range links, lower layers are dense with short-range links. A search enters at the sparse top, greedily hops toward the query through long jumps, then descends into denser layers for fine local search — like zooming in on a map.
 
 ```mermaid
 graph TD
@@ -164,7 +164,7 @@ The architectural question is **whether you need a dedicated vector database at 
 
 ## 6. End-to-End: One Semantic Search
 
-To consolidate, trace the query *"why are my pods getting OOMKilled"* through a vector store holding 2 million chunks on an HNSW index.
+To consolidate, trace the query *"why are my pods getting OOMKilled"* through a vector store holding 2 million chunks on an HNSW index. The §4.3 search-path diagram is exactly this flow — read it alongside the steps below.
 
 **Step by step:**
 

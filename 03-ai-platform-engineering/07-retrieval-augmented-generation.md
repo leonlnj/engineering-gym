@@ -149,7 +149,7 @@ The grounding-and-abstention instruction is not decoration — it is what conver
 
 ### 6.1 End-to-End Trace
 
-Trace *"why are the payments pods OOMKilled"* through the full online path.
+Trace *"why are the payments pods OOMKilled"* through the full online path. The online (right-hand) half of the §2.1 diagram traces these same steps — read it alongside.
 
 **Step by step:**
 
