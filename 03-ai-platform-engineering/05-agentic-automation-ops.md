@@ -117,7 +117,7 @@ The architecture encodes the autonomy dial structurally: the read path is wide o
 
 ## 5. A Worked Incident: High Latency on `payments`
 
-To make the architecture concrete, trace a triage agent through one alert, with autonomy set to *approve* for the remediation.
+To make the architecture concrete, trace a triage agent through one alert, with autonomy set to *approve* for the remediation. The §4.1 sequence diagram is exactly this flow — read it alongside the steps below to see the shape and the detail side by side.
 
 **Step by step:**
 

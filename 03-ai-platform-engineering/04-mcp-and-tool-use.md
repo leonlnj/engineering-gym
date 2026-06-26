@@ -1,6 +1,6 @@
 # Model Context Protocol (MCP) & Tool Use: Giving Agents Hands
 
-Lesson 03 showed an agent calling tools without explaining how a tool call actually works. This lesson opens that box. **Tool use** is the mechanism by which a text-only model triggers real actions; the **Model Context Protocol (MCP)** is an open standard that lets any agent discover and call tools any system exposes, without bespoke integration code for every pairing. The misconception to clear immediately: the model does not *run* anything. It cannot query your cluster, call an API, or touch a disk. It only ever emits text — specifically, a structured request saying *which* tool to call with *what* arguments. Your code runs the tool and hands the result back. The model is the brain deciding what to do; your harness is the hands that do it.
+Lesson 03 showed an agent calling tools without explaining how a tool call actually works. This lesson opens that box. **Tool use** is the mechanism by which a text-only model triggers real actions; the **Model Context Protocol (MCP)** is an open standard that lets any agent discover and call tools any system exposes, without bespoke integration code for every pairing. The misconception to clear immediately: the model does not *run* anything. It cannot query your cluster, call an API, or touch a disk. It only ever emits text — specifically, a structured request saying *which* tool to call with *what* arguments. Your code runs the tool and hands the result back. The model is the brain deciding what to do; your harness (defined in lesson 03) is the hands that do it.
 
 For a platform engineer this is the most important seam in the track, because it is where AI meets the surface area you already own — clusters, cloud accounts, internal APIs — and where access control becomes a design problem rather than an afterthought.
 
@@ -50,7 +50,7 @@ The model produced text describing the call it *wanted*; your code is what actua
 
 ### 2.1 N×M Glue Code
 
-If every agent had to be hand-wired to every system with custom glue, the cost would be combinatorial: **N** agents times **M** systems is N×M bespoke integrations, each maintained separately. Your Kubernetes integration for one agent would not work with another; a new agent means re-integrating everything. This is the same fragmentation that plagued every pre-standard integration era.
+Section 1 wired up a single tool: one schema, one harness, one function. Real platforms have many agents *and* many systems — and if every agent had to be hand-wired to every system with custom glue, the cost would be combinatorial: **N** agents times **M** systems is N×M bespoke integrations, each maintained separately. Your Kubernetes integration for one agent would not work with another; a new agent means re-integrating everything. This is the same fragmentation that plagued every pre-standard integration era.
 
 ### 2.2 MCP Collapses It to N+M
 

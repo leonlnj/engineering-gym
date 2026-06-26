@@ -10,7 +10,9 @@ As `00-overview.md` framed it, this is the first half of the platform engineer's
 
 ### 1.1 Plan, Act, Observe
 
-Everything an agent does is the loop introduced in the overview, made concrete. The model is handed a goal and a set of tool definitions (the schema mechanism from lesson 02, §4). It reasons about the next step, emits a request to call one tool, your harness executes that tool and feeds the result back into the context, and the model reasons again with that new information. The loop continues until the model decides the goal is met and emits a final answer instead of a tool call.
+Everything an agent does is the loop introduced in the overview, made concrete — and it runs on two cooperating parts. The first is the model: the stateless next-token predictor from lesson 01, which can only read text and emit text, and never touches your machine. The second is the **harness** — the ordinary program wrapped around the model that you actually launch and run. Claude Code, Cursor, and Copilot's agent mode *are* harnesses; the model is a remote service they call. The harness owns the loop: it holds the running conversation, calls the model, parses what the model asks for, executes the real tool, enforces permissions, and feeds the result back. The model proposes; the harness disposes.
+
+With that split in mind the cycle is concrete. The model is handed a goal and a set of tool definitions (the schema mechanism from lesson 02, §4); it reasons about the next step and emits a request to call one tool; the harness executes that tool and feeds the result back into the context; and the model reasons again with that new information. The loop continues until the model decides the goal is met and emits a final answer instead of a tool call.
 
 ```python
 # Simplified — the core agent loop
@@ -24,7 +26,9 @@ while True:
     messages.append({"role": "tool", "content": result})   # feed the result back
 ```
 
-This is what separates "generate a YAML file" (one prediction) from "find why this deployment fails and fix it" (many cycles of look, hypothesise, act, check). Note that the model never runs anything — `run_tool` does; the model only ever emits text describing the call it wants.
+In that snippet the division is literal: the single `model(...)` call is the model, and everything around it — the `while` loop, `run_tool`, and the two `messages.append` lines — is the harness. This is what separates "generate a YAML file" (one prediction) from "find why this deployment fails and fix it" (many cycles of look, hypothesise, act, check). The model never runs anything — `run_tool` does; the model only ever emits text describing the call it wants.
+
+The split is like a brain in a jar wired to a robot body: the model is the brain — it can only think and say what it wants done, with no hands and no memory of yesterday — while the harness is the body and notebook that read files, run commands, refuse the dangerous ones, and bring results back. Intent comes from the model; everything that actually happens to your systems is the harness.
 
 What is that "text describing the call"? It is the same schema mechanism from lesson 02 §4, run in reverse. There, structured output made the filled schema the *answer's shape*; here the filled schema is an *action* the harness executes — the only difference is what you do with it. The model is given the tool definitions, and at the point it would otherwise write prose it instead emits a structured **tool-use** block naming a tool and its arguments:
 
