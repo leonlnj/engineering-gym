@@ -82,6 +82,7 @@ Concrete expectations per lesson:
 - **At least one end-to-end worked walkthrough** for any topic with a request or data lifecycle. See "Worked walkthroughs" below.
 - **Concrete numbers.** See "Quantify" below.
 - **Balanced depth.** Go deep on *both* the AI internals (how the model or algorithm actually works) *and* the operational reality (how a platform engineer builds, serves, schedules, and runs it). A lesson that only does one of the two is half-finished.
+- **Depth proportional to prominence.** The concept the lesson headlines as its main idea must be the *most* thoroughly developed — with the same worked examples, snippets, and numbers a subordinate concept gets. If a secondary topic carries concrete techniques while the headline topic gets only a definition and a diagram, the lesson is inverted: deepen the headline, not the footnote.
 
 > Note: Depth is not length for its own sake. The guard is simple — every sub-section, snippet, diagram, and number must teach a distinct mechanic the reader did not already have. If a paragraph or snippet only restates something or pads the count, cut it. A tight 250-line lesson that teaches ten real mechanics beats a 400-line one that teaches six and repeats them.
 
@@ -112,6 +113,19 @@ The benchmark is not "is this correct?" but "can a first-time reader follow it w
 - **Answer the obvious follow-up.** At each mechanism, answer the "but then what about…?" a curious reader asks the moment they understand it — don't leave the thread dangling for them to puzzle over. (E.g. having said the logits are recomputed every step, immediately answer "so does the KV-cache still help?")
 
 - **Disambiguate confusable terms.** When you introduce a term that sounds like, or sits next to, one already introduced, contrast them explicitly — what is the same, what is different. A small two-column table (see **Tables**) is usually the clearest form. Silent adjacency is how a reader fuses two distinct concepts into one wrong one (e.g. "context window" vs. "KV-cache").
+
+### Structural cohesion
+
+The rules above keep a *passage* coherent. This one keeps the *whole document* coherent. A lesson can be locally flawless — every sentence clear, every artifact shown — and still fail, because the reader cannot see how the major sections fit together. These checks operate at the section/document level, not the passage level.
+
+- **Map every section to the lesson's spine.** When a lesson states a framework, taxonomy, or thesis (e.g. "context engineering is the umbrella; prompt engineering is a subset"), open every later major section by stating where it sits in that frame. A reader should never reach a section and wonder "how does this connect to what came before?" — a silent topic-switch between sections is the macro version of the missing-link problem the rules above fix locally.
+  - Bad: a "Structured Output" section that opens straight into "machine automation needs parseable output."
+  - Good: open with placement first — "So far there have been two levers: *what* fills the window and *how* an instruction is worded. Structured output is a third, distinct one — it constrains the *shape of what comes back*."
+
+- **Headings are signposts — make them accurate and directional.** A heading must name its content correctly and, where it expresses a relationship or transformation, point the right way. Re-read each heading against its section: does it mislabel the scope, or state a relationship backwards?
+  - Example of the bug: a heading "Converting Open-Book to Closed-Source" reversed the direction (grounding goes closed-book → open-book) *and* mistyped "Book" as "Source"; a heading "Core Techniques" promised a scope wider than the prompt-only techniques the section actually held.
+
+- **Be honest about coverage.** When you present a *selected subset* of techniques or options rather than the full set, say so explicitly — name that it is a curated high-leverage subset, why these were chosen, and where the omitted ones are covered. An undisclosed subset reads as exhaustive and quietly misleads the reader into thinking nothing else exists.
 
 ### Analogies
 
@@ -262,6 +276,8 @@ Before a lesson is done, read it once *as someone seeing the topic for the first
 - [ ] **Follow-ups answered.** Every mechanism answers the obvious "but then what about…?" a curious reader asks the moment they grasp it.
 - [ ] **A non-trivial example exists.** At least one worked example is realistic, not only the minimal toy case — enough to show the mechanism scales.
 - [ ] **Objections pre-empted.** Every fix or solution names the first objection a reader feels on reading it and answers it in place.
+- [ ] **Sections mapped to the spine.** If the lesson states a framework or thesis, every major section's opening places it within that frame; no section reads as an unannounced topic switch.
+- [ ] **Headings accurate and directional.** Every heading names its content correctly and points the right way; none promises a scope the section narrowed, mislabels it, or states a relationship backwards.
 - [ ] **Structure and depth bars met.** Sub-sections throughout, 6+ snippets, 2–3 diagrams, an end-to-end walkthrough, concrete numbers, both AI-internal and operational depth (see Depth and Length).
 
 If a reader still has to re-read a passage to follow it, the passage — not the reader — is the problem.
@@ -281,3 +297,6 @@ If a reader still has to re-read a passage to follow it, the passage — not the
 - **Do not define an artifact without explaining how it comes to be.** Stating only what something *is*, never how it is built or learned, leaves the reader unable to reason about why it behaves as it does.
 - **Do not introduce a term confusable with a prior one without contrasting them.** Placing "KV-cache" next to "context window" with no explicit same/different contrast invites the reader to fuse two distinct concepts into one wrong one.
 - **Do not present a fix without its first obvious objection.** A solution offered with no acknowledgement of the cost the reader immediately spots reads as a sales pitch and quietly erodes trust in the rest of the lesson.
+- **Do not switch topics between sections without placing the new section in the lesson's frame.** A section that opens cold — without saying where it sits in the thesis the lesson established — forces the reader to reconstruct the connection the author left out.
+- **Do not let the headline concept be the least-developed.** If the title's main idea gets less concrete treatment than a subordinate one, the depth is inverted — invest the worked examples where the lesson's weight is.
+- **Do not present a curated subset as if it were exhaustive, or write a heading that mislabels or reverses its content.** Flag a partial list as partial and point to where the rest are covered; re-read every heading against its section so it names the content and points the right direction.

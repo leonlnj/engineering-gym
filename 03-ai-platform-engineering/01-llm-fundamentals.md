@@ -210,7 +210,7 @@ while True:
 
 ### 4.2 Temperature and Top-p: Steering the Sampler
 
-The sampler is where **non-determinism** enters. Pick the single highest-probability token every time (**greedy** decoding) and generation is nearly deterministic but often bland and repetitive. In practice two knobs shape the distribution before sampling. **Temperature** scales the logits: low temperature sharpens the distribution toward the top token; high temperature flattens it so unlikely tokens get a real chance. **Top-p (nucleus) sampling** keeps only the smallest set of tokens whose probabilities sum to *p* and samples among those, cutting off the long tail. Worked on the same raw distribution:
+The sampler is where **non-determinism** enters. Pick the single highest-probability token every time (**greedy** decoding) and generation is nearly deterministic but often bland and repetitive. In practice two knobs do most of the steering — others exist (top-k, min-p, repetition penalties), but these two are the common pair you will tune. **Temperature** scales the logits: low temperature sharpens the distribution toward the top token; high temperature flattens it so unlikely tokens get a real chance. **Top-p (nucleus) sampling** keeps only the smallest set of tokens whose probabilities sum to *p* and samples among those, cutting off the long tail. Worked on the same raw distribution:
 
 ```text
 Next-token probabilities for "...ran out of ___":

@@ -45,7 +45,7 @@ The **system prompt** is the highest-leverage place to set durable rules — out
 
 ---
 
-## 2. The Context Window as a Budget
+## 2. Engineering the Context Window
 
 ### 2.1 What Competes for the Space
 
@@ -83,9 +83,37 @@ graph TD
 
 The discipline mirrors resource management you already practice: a context window is like the memory limit on a pod. You can request more (a bigger-window model) but it costs more per token and adds latency, and over-provisioning to "just include everything" is both wasteful and counterproductive — recall lesson 01's "lost in the middle," where padding the window with marginal content actively buries the facts that matter. The goal is the *smallest* context that contains everything relevant, not the largest one that fits.
 
+### 2.3 Placement: Where a Fact Sits in the Window
+
+Budgeting decides *what* you include; placement decides *whether the model actually uses it*. The "lost in the middle" effect from 2.2 has a flip side worth exploiting: models attend most reliably to the start and end of the context and weakest to the middle, so the same fact can be read or effectively ignored depending only on where it lands. The engineering rule that follows is concrete — put durable rules in the system prompt (the start), put the live question last (the end), and when you inject many retrieved documents, order them so the most relevant sit at the edges rather than buried mid-stack:
+
+```text
+Weak ordering — key fact buried in the low-attention middle:
+  [system rules][doc_1 ... doc_11][doc_12 = KEY FACT][doc_13 ... doc_18][question]
+
+Strong ordering — key fact promoted to a high-attention edge:
+  [system rules][doc_12 = KEY FACT][doc_1 ... supporting docs][question]
+```
+
+The gain is that the fact the answer depends on lands where the model reads most reliably; the cost is that you must *know* which document is most relevant to place it there — which is the retrieval-ranking problem RAG solves (lesson 07). Placement is free to do and surprisingly high-impact: the same tokens, reordered, change the answer.
+
+### 2.4 Compacting a Growing History
+
+Section 2.1 noted that a long conversation must shed tokens or overflow. The naive fix — drop the oldest turns — silently discards durable facts established early ("the cluster is GKE", "we already ruled out DNS"), so the model later contradicts decisions it already made. The more robust strategy is **rolling summarisation**: periodically replace the oldest verbatim turns with one compact recap that preserves decisions and constraints, while keeping the most recent turns verbatim for fidelity:
+
+```python
+# Simplified — compact history when it nears the budget, preserving decisions
+if tokens(history) > 0.6 * WINDOW:                  # trigger before it overflows
+    old, recent = history[:-6], history[-6:]        # keep the last 6 turns verbatim
+    recap = summarise(old)                           # one model call: decisions + constraints
+    history = [{"role": "system", "content": recap}] + recent
+```
+
+The gain is a bounded window that still remembers what mattered; the cost is real — the summary is itself a lossy model call that can drop a detail later turns need, and it adds a call's worth of latency and tokens. This is the deliberate trade-off Section 2.1 flagged: there is no lossless memory, only a choice of which failure mode you prefer.
+
 ---
 
-## 3. Core Techniques
+## 3. Prompt Engineering Techniques
 
 A handful of techniques reliably improve output, and each works *because* of how next-token prediction operates — not because of incantation. These are **prompt engineering** techniques — and this is the moment to pin down two terms readers routinely fuse. Prompt engineering is the narrower craft of *wording* a single instruction well; context engineering (Sections 1–2) is the broader discipline of deciding *everything* that occupies the window. One is a subset of the other:
 
@@ -96,6 +124,8 @@ A handful of techniques reliably improve output, and each works *because* of how
 | Failure it prevents | A vague or ambiguous ask | A window that is bloated, stale, or missing the key fact |
 
 The techniques below are prompt engineering; they pay off only inside a context that was engineered well — a perfectly worded prompt cannot rescue a window that omits the one fact the answer needs.
+
+The four covered here — specificity, delimiters, few-shot examples, and chain-of-thought — are a deliberately small, high-leverage subset, not the full catalogue. They earn their place because each maps directly onto how next-token prediction works, so the *why* generalises. Other established techniques are real but covered where they land naturally: **role assignment** is the system prompt of Section 1.2, and **prefilling** the assistant turn and **prompt-chaining / task decomposition** appear where agents need them (lessons 03–04). The aim is to teach the mechanism behind the highest-impact few, not to enumerate every tactic.
 
 ### 3.1 Specificity and Delimiters
 
@@ -137,7 +167,7 @@ The reason is mechanical (lesson 01): each generated token conditions the next, 
 
 ### 4.1 Binding the Model to a Schema
 
-Conversational prose is fine for a human, but platform automation needs machine-readable output — a value to branch on, a config to apply, fields to store. **Structured output** forces the model to return parseable data, almost always **JSON (JavaScript Object Notation)**, conforming to a schema you define. The robust approach binds the model to a schema rather than merely asking for JSON in prose — most APIs expose this as a tool/function definition or a structured-output mode that constrains generation to fill the declared shape:
+So far there have been two levers: *what* fills the window (context engineering, Sections 1–2) and *how* a single instruction is worded (prompt engineering, Section 3). Structured output is a third, distinct one — it does not change the input at all but constrains the **shape of what comes back**. Conversational prose is fine for a human, but platform automation needs machine-readable output — a value to branch on, a config to apply, fields to store. **Structured output** forces the model to return parseable data, almost always **JSON (JavaScript Object Notation)**, conforming to a schema you define. The robust approach binds the model to a schema rather than merely asking for JSON in prose — most APIs expose this as a tool/function definition or a structured-output mode that constrains generation to fill the declared shape:
 
 ```json
 {
@@ -186,9 +216,9 @@ A schema-bound response is like a form versus a free-text email. An email may co
 
 ## 5. Grounding and Reducing Hallucination
 
-### 5.1 Converting Open-Book to Closed-Source
+### 5.1 Converting Closed-Book to Open-Book
 
-Lesson 01 established that an LLM hallucinates because it generates plausible continuations from frozen weights, not retrieved records. **Grounding** is the strongest mitigation: supply the relevant facts in the context and instruct the model to answer *only* from them. You convert an open-ended "what do you know about X" — which invites invention — into "answer X using this material," which constrains the model to source text. A reusable grounding template:
+This section is context engineering in its purest form: every choice here is a decision about *which facts occupy the window* (Section 2), now aimed squarely at the hallucination problem. Lesson 01 established that an LLM hallucinates because it generates plausible continuations from frozen weights, not retrieved records. **Grounding** is the strongest mitigation: supply the relevant facts in the context and instruct the model to answer *only* from them. It turns a closed-book exam — answer from memory, which invites invention — into an open-book one, with the source material on the desk. You convert an open-ended "what do you know about X" — which invites invention — into "answer X using this material," which constrains the model to source text. A reusable grounding template:
 
 ```text
 Answer the question using ONLY the context below. If the context does not
@@ -217,7 +247,7 @@ Doing this well at scale — deciding *what* to retrieve and inject for a given 
 
 ### 6.1 Eval-Driven Prompt Development
 
-A prompt that works in one demo is not a reliable component. Because output is probabilistic (lesson 01), the only trustworthy way to know whether a prompt is good is to run it against representative inputs and score the results — **eval-driven development**. You assemble a small dataset of inputs with known-good expectations, change the prompt, and measure whether the score moves:
+Everything up to here has been about a single call — what fills the window, how the instruction is worded, what shape comes back. This section is a different altitude: not the content of any one call, but the *process* that proves your prompts and contexts hold up across many of them. A prompt that works in one demo is not a reliable component. Because output is probabilistic (lesson 01), the only trustworthy way to know whether a prompt is good is to run it against representative inputs and score the results — **eval-driven development**. You assemble a small dataset of inputs with known-good expectations, change the prompt, and measure whether the score moves:
 
 ```python
 # Simplified — the inner loop that makes prompt changes measurable
@@ -260,4 +290,4 @@ A prompt without an eval set is like shipping a config change with no tests and 
 
 ## 8. Summary
 
-Context engineering treats the model's context window as working memory you assemble on every stateless call, not a chat box you type wishes into. The request is a list of role-tagged messages, with the system prompt as durable configuration and the window as a fixed budget that instructions, history, retrieved data, tools, and the answer all compete for — so the discipline is fitting the smallest sufficient context, not the largest one that fits. A few mechanically-grounded techniques — specificity, delimiters, few-shot examples, chain-of-thought — reliably improve output, while schema-bound structured output turns a probabilistic model into a dependable contract for automation. Grounding the model in supplied facts and permitting it to abstain, with citations, is the strongest practical defence against hallucination, and doing that retrieval automatically is what RAG (lesson 07) provides. Above all, because output is probabilistic, prompts are versioned artefacts proven with eval sets, not magic strings tuned until a single demo looks right — the reliability discipline that lesson 10 formalises.
+Context engineering treats the model's context window as working memory you assemble on every stateless call, not a chat box you type wishes into. The request is a list of role-tagged messages, with the system prompt as durable configuration and the window as a fixed budget that instructions, history, retrieved data, tools, and the answer all compete for — so the discipline is fitting the smallest sufficient context (not the largest that fits), placing the facts that matter where the model reads most reliably, and compacting history rather than letting it overflow. A few mechanically-grounded techniques — specificity, delimiters, few-shot examples, chain-of-thought — reliably improve output, while schema-bound structured output turns a probabilistic model into a dependable contract for automation. Grounding the model in supplied facts and permitting it to abstain, with citations, is the strongest practical defence against hallucination, and doing that retrieval automatically is what RAG (lesson 07) provides. Above all, because output is probabilistic, prompts are versioned artefacts proven with eval sets, not magic strings tuned until a single demo looks right — the reliability discipline that lesson 10 formalises.
