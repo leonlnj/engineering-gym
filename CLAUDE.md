@@ -8,5 +8,5 @@ Personal self-learning repository. Each top-level folder (`NN-<topic>`) is an in
 
 ## Conventions
 
-- Each learning track folder owns its own conventions. Before working in any `NN-*` folder, read its local `GUIDELINES.md` (or `README.md`) first — that file is the source of truth for structure, style, and tooling within that track.
-- There are no repo-wide content or formatting rules; conventions are intentionally folder-local.
+- Each learning track folder owns its **domain** conventions. Before working in any `NN-*` folder, read its local `GUIDELINES.md` (or `README.md`) first — that file is the source of truth for the track's purpose, audience, file naming, and domain parameters (snippet languages, acronyms, example trade-offs).
+- The **writing craft** shared across tracks — document structure, depth bar, mental-model rules, diagrams, the One-Pass Test self-review — lives once in the `technical-lesson-authoring` skill (`.claude/skills/`). When writing or reviewing the `NN-*.md` learning notes, use that skill together with the folder's `GUIDELINES.md`. (The exercise-style track `01-system-design` is a different genre and keeps its own structure.)
