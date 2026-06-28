@@ -105,6 +105,8 @@ The benchmark is not "is this correct?" but "can a first-time reader follow it w
   - Bad: "the token ID becomes a vector."
   - Good: show the vocabulary entry the ID indexes, then show that the *same* ID indexes a row of the embedding table — so the reader sees the ID is a lookup key shared by both stages, not magic.
 
+- **Match the claim to what you show.** If a heading or sentence names a count — "four-step round-trip", "three capabilities", "two transports" — enumerate and label *all* of them consistently. A code block labelled "Step 2 … Step 4" with steps 1 and 3 absent reads as broken, and the reader stops to find the missing pieces. Corollary: when a step legitimately produces **no artifact** — it runs inside your code and emits no message — say so explicitly (*"step 3 happens in the harness; there is no message for it"*). This is the inverse of **Show the connecting artifact**: there the bug is hiding an artifact that exists; here it is leaving the reader hunting for one that does not.
+
 - **Explain origin, not just definition.** For any artifact the model relies on — a table, an index, a set of weights — show *how it came to be* (how it is built, learned, or derived), not only what it is once finished. A reader who knows only the end state cannot reason about why it has the properties it does. This complements **Explain the why** above (that rule covers *why it is designed this way*; this one covers *how it came to exist*).
 
 - **Name and refute the wrong mental model.** For any concept a reader is likely to misread, state the plausible-but-wrong intuition out loud and say why it is wrong — don't just assert the right one. Deliver this with a `> Nuance:` callout (see **Nuances and caveats**).
@@ -113,6 +115,10 @@ The benchmark is not "is this correct?" but "can a first-time reader follow it w
 - **Answer the obvious follow-up.** At each mechanism, answer the "but then what about…?" a curious reader asks the moment they understand it — don't leave the thread dangling for them to puzzle over. (E.g. having said the logits are recomputed every step, immediately answer "so does the KV-cache still help?")
 
 - **Disambiguate confusable terms.** When you introduce a term that sounds like, or sits next to, one already introduced, contrast them explicitly — what is the same, what is different. A small two-column table (see **Tables**) is usually the clearest form. Silent adjacency is how a reader fuses two distinct concepts into one wrong one (e.g. "context window" vs. "KV-cache").
+
+- **Anchor every abstraction in a concrete instance.** The moment you define an abstract role, layer, or protocol concept — host/client/server, "a transport", "a capability" — give one named, concrete example in the same breath: *"when you run Claude Code (the host) and `claude mcp add k8s`, it spawns one client dedicated to that server."* The **Worked walkthroughs** rule covers things with a lifecycle; this covers static definitions, which leave the reader just as stranded when stated only in the abstract.
+
+- **Present a taxonomy by purpose and selection, not just definition.** When you enumerate a set — capabilities, transports, retrieval strategies — each item must answer *what it means in this lesson* and *when you would reach for it*, not a dictionary gloss like "read-only data" or "reusable templates" that the reader cannot connect to anything. Then add explicit **selection guidance**: which one to choose for a given need, and why. A list of bare definitions with no "when/which" tells the reader the options exist but not how to act on them. (This complements **Disambiguate confusable terms**, which handles the same-vs-different contrast; this rule adds purpose and choice.)
 
 ### Structural cohesion
 
@@ -178,6 +184,15 @@ Include at least one non-trivial case. A minimal example ("the dog ___") proves 
 ### Quantify
 
 Make trade-offs tangible with concrete numbers and show the arithmetic. Abstract claims ("a larger context costs more," "the KV-cache uses GPU memory") teach far less than worked figures ("a 70B model in 16-bit needs ~140 GB; its KV-cache costs ~320 KB per token, so a 4,096-token request holds ~1.3 GB — meaning a single 80 GB GPU fits only a few dozen concurrent requests, not hundreds"). Reach for numbers wherever a reader would otherwise be left with a vague "it depends": token counts, memory math, latency figures, cost per hour or per million tokens, recall percentages. Flag rough figures as approximate (`~`) and keep the arithmetic visible so the reader can re-run it for their own case.
+
+### Technical currency and deprecation
+
+This track covers fast-moving surfaces — protocol transports, API request shapes, model and version names, SDK signatures. Verify volatile facts against a current source rather than from memory; the same hallucination risk lesson 03 warns about for agents applies to the author writing the lesson. When a mechanism has been superseded, present the **current** one as the default and **label the legacy one as deprecated** — do not silently omit it (readers still inherit it in the wild) and do not teach it as current.
+
+Bad: list "stdio, SSE, HTTP" as three co-equal transports.
+Good: "stdio and Streamable HTTP are the current transports; **HTTP+SSE** was the original remote transport and is now deprecated, folded into Streamable HTTP — recognise it when you meet it, but build new servers on Streamable HTTP."
+
+This is distinct from **Be honest about coverage** (disclosing a curated *subset*); this rule is about correctness *over time* — a fact that was right last year being presented as still right.
 
 ### Tone
 
@@ -253,7 +268,7 @@ Expect **multiple snippets per lesson** — the redis lessons run 6 to 14, and t
 
 ---
 
-## Cross-Lesson References
+## Cross-References
 
 Because lessons in this track build on each other, explicitly link backward and forward where it aids understanding.
 
@@ -263,6 +278,8 @@ Because lessons in this track build on each other, explicitly link backward and 
 
 Do not repeat a concept at the same level of detail if a prior lesson already covered it. One sentence referencing the prior lesson is enough; a reader who needs the detail can go back.
 
+**Intra-document references** (pointing to another part of the *same* file): pointers like "the schema from Section 1", "§3.2", or "the round-trip in 1.2" must resolve to the right place. After inserting, reordering, or renumbering any section, **re-verify every internal section-number reference** — a renumber silently invalidates them, leaving a pointer aimed at the wrong section. A quick grep for `Section [0-9]` / `§[0-9]` against the final headings catches stale pointers before they ship.
+
 ---
 
 ## Self-Review: The One-Pass Test
@@ -270,6 +287,8 @@ Do not repeat a concept at the same level of detail if a prior lesson already co
 Before a lesson is done, read it once *as someone seeing the topic for the first time* and confirm each item below. A "no" marks a spot where the reader will have to stop and ask a question — which is exactly the failure these notes exist to prevent. Fix every "no" before considering the lesson finished.
 
 - [ ] **Connecting artifacts shown.** Every "X produces Y" / "Y becomes Z" transition shows the concrete structure or shared key that links the two stages — no transformation is narrated with the linking artifact left invisible.
+- [ ] **Counts fully shown.** Every stated count (N steps, N capabilities, N transports) enumerates and labels all N consistently; any step that emits no artifact is flagged as such.
+- [ ] **Abstractions anchored; taxonomies actionable.** Every abstract role/layer/concept has a concrete named instance; every enumerated set gives per-item purpose ("when you'd reach for it") plus selection guidance, not bare definitions.
 - [ ] **Origins explained.** Every artifact the model uses (table, index, weights, cache) is explained by *how it comes to be*, not only what it is once built.
 - [ ] **Wrong models refuted.** Every concept a reader is likely to misread names the plausible-but-wrong intuition and says why it's wrong, not just the right answer.
 - [ ] **Confusable terms contrasted.** Every new term that resembles or sits beside a prior one is explicitly contrasted with it (same vs. different), usually in a small table.
@@ -278,6 +297,8 @@ Before a lesson is done, read it once *as someone seeing the topic for the first
 - [ ] **Objections pre-empted.** Every fix or solution names the first objection a reader feels on reading it and answers it in place.
 - [ ] **Sections mapped to the spine.** If the lesson states a framework or thesis, every major section's opening places it within that frame; no section reads as an unannounced topic switch.
 - [ ] **Headings accurate and directional.** Every heading names its content correctly and points the right way; none promises a scope the section narrowed, mislabels it, or states a relationship backwards.
+- [ ] **Facts current.** Volatile facts (transports, API shapes, model/version names, SDK signatures) verified against a current source; superseded mechanisms are labelled deprecated, not taught as current or silently omitted.
+- [ ] **Internal references resolve.** Every same-file "Section N.M" / "§N.M" pointer matches the final headings — re-checked after any insertion or renumber.
 - [ ] **Structure and depth bars met.** Sub-sections throughout, 6+ snippets, 2–3 diagrams, an end-to-end walkthrough, concrete numbers, both AI-internal and operational depth (see Depth and Length).
 
 If a reader still has to re-read a passage to follow it, the passage — not the reader — is the problem.
@@ -300,3 +321,7 @@ If a reader still has to re-read a passage to follow it, the passage — not the
 - **Do not switch topics between sections without placing the new section in the lesson's frame.** A section that opens cold — without saying where it sits in the thesis the lesson established — forces the reader to reconstruct the connection the author left out.
 - **Do not let the headline concept be the least-developed.** If the title's main idea gets less concrete treatment than a subordinate one, the depth is inverted — invest the worked examples where the lesson's weight is.
 - **Do not present a curated subset as if it were exhaustive, or write a heading that mislabels or reverses its content.** Flag a partial list as partial and point to where the rest are covered; re-read every heading against its section so it names the content and points the right direction.
+- **Do not state a count you do not fully show.** A "four-step" heading with only steps 2 and 4 in the snippet, or "three capabilities" with one missing, breaks the reader's model — enumerate all of them, label them consistently, and call out any step that emits no artifact so the reader does not hunt for it.
+- **Do not leave an abstraction or taxonomy unanchored.** A role, layer, or capability defined only in the abstract, or a set listed as bare definitions with no "when/which", leaves the reader unable to connect or apply it — give a concrete named instance and selection guidance.
+- **Do not teach a deprecated mechanism as current, or omit it silently.** Verify volatile facts (transports, API shapes, model and version names, SDK signatures); present the current default and mark the superseded alternative as deprecated rather than dropping it or passing it off as live.
+- **Do not let internal section references go stale.** After renumbering or inserting sections, a "Section 3.2" pointer left aimed at the wrong section is a silent defect — re-verify every same-file reference against the final headings.
