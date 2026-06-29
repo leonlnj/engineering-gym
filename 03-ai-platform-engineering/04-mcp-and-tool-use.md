@@ -61,7 +61,7 @@ sequenceDiagram
     U->>H: "Is api-7c9 healthy?"
     H->>M: 1. request — messages + tool catalogue
     M-->>H: 2. tool_use(get_pod_status, ...), then stops
-    H->>H: 3. run kubectl (no message; model idle)
+    H->>H: 3. run kubectl (no message, model idle)
     H->>M: 4. tool_result(phase=CrashLoopBackOff, restarts=7)
     M-->>H: final answer in prose
     H-->>U: "It's in CrashLoopBackOff with 7 restarts."
@@ -316,6 +316,24 @@ graph TD
     G --> S3["MCP server: Ticketing"]
 ```
 *The guardrail server sits at one chokepoint in front of every backend server, so a single policy-and-audit layer covers all tool traffic — including servers it merely proxies.*
+
+Concretely, "the host points at the gateway" is just MCP client config — the same `claude mcp add` registry from Section 3.1. Without a gateway the host registers one entry per backend; with a gateway it registers a *single* entry, the gateway, and the backends leave the host's config entirely:
+
+```jsonc
+// Host (e.g. Claude Code) MCP config — BEFORE: one client per backend
+{ "mcpServers": {
+    "k8s":       { "type": "http", "url": "https://k8s.mcp.internal" },
+    "cloud":     { "type": "http", "url": "https://cloud.mcp.internal" },
+    "ticketing": { "type": "http", "url": "https://tix.mcp.internal" } } }
+
+// AFTER: one entry — the host opens a single client connection, to the gateway
+{ "mcpServers": {
+    "platform":  { "type": "http", "url": "https://guardrail.internal/mcp" } } }
+```
+
+The host cannot tell the difference, because the gateway **is** a normal MCP server from its side — and an MCP *client* from the other. It implements the server half of the protocol toward the host (answering `list_tools` with the union of every backend's tools, usually namespaced like `k8s.get_pod_status`) and the client half toward the backends (forwarding each call over that backend's own transport, after its `on_call_tool` hook runs). Being a compliant MCP node on *both* faces is what lets it sit in the middle invisibly — the USB-C interoperability from Section 2 doing real work.
+
+> Nuance: config is not enforcement. If a user can edit their own MCP config, pointing at the gateway is only a polite default — they could re-add a direct backend entry and skip it. Make it binding the way Section 6 makes everything binding — in the access layer, not the prose: put the backend servers where only the gateway can reach them (no client-routable address), so the gateway is the *only* path that resolves, not merely the recommended one.
 
 The payoff is a **single chokepoint**: one place that enforces policy, one audit log of every action attempted, one point that can deny a call before it ever reaches a backend's credentials. The trade-off is the flip side of any chokepoint — it adds a network hop of latency and becomes a single point of failure and one more service you own and must keep available. For a regulated platform that is usually a trade worth making; the alternative is policy logic scattered across every server.
 
