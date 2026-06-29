@@ -27,7 +27,7 @@ build their own RAG              call RAG-as-a-service (golden path)
 no eval discipline               shared eval + tracing built in
 ```
 
-A platform is to AI what a paved internal PaaS is to deployments: a team should get a governed, observable, rate-limited model endpoint the way they get a namespace with sensible defaults — self-service, with the guardrails already wired in, not assembled by hand per project.
+A platform is to AI what a paved internal **Platform-as-a-Service (PaaS)** is to deployments: a team should get a governed, observable, rate-limited model endpoint the way they get a namespace with sensible defaults — self-service, with the guardrails already wired in, not assembled by hand per project.
 
 ---
 
@@ -81,6 +81,17 @@ def route(request):
     return "claude-opus-4-8"               # frontier — only when warranted
 ```
 
+Put numbers on "the single biggest cost lever" — 100,000 requests/day at ~1K input + 300 output tokens each:
+
+```text
+all to claude-opus-4-8 ($5 / $25 per 1M):
+  (1,000×$5 + 300×$25)/1M = $0.0125 / call  × 100,000 = $1,250/day  (~$37K/month)
+route 80% to claude-haiku-4-5 ($1 / $5 per 1M):
+  80,000 × $0.0025  +  20,000 × $0.0125   = $200 + $250 = $450/day  (~$13K/month)
+```
+
+Sending the 80% of requests a small model handles to `claude-haiku-4-5` instead of the frontier model cuts the bill ~64%, and the routing logic — owned once by the platform — pays for itself many times over.
+
 This is the latency/cost/capability trade-off from across the track made operational: routing turns "always use the best model" (simple but expensive) into "use the right model per request" (cheaper, with the complexity now owned by the platform rather than every team).
 
 ---
@@ -99,6 +110,19 @@ Agent templates      a scaffolded agent with permission gates, scoped creds,
 Vetted MCP servers   a registry of reviewed, least-privilege servers for
                      common systems (k8s, cloud, tickets) — lesson 04
 Prompt registry      versioned, eval-gated prompts as shared artefacts (lesson 02)
+```
+
+Adoption is self-service — a team declares what it wants and the platform provisions the wired-in path, the same way they request a namespace:
+
+```yaml
+# A product team adopting the RAG golden path — no pipeline code written
+kind: RAGService
+metadata: { team: incidents }
+spec:
+  source: s3://incidents-runbooks/      # documents to ground on
+  tenancy: { filter_by: team }          # cross-tenant isolation enforced (lesson 11 §3.2)
+  embed_model: text-embedding-3-small   # platform default
+# -> platform returns a governed, tenant-filtered query endpoint
 ```
 
 ### 4.2 Defaults Carry the Guardrails

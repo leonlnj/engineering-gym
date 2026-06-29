@@ -23,7 +23,7 @@ resources:
     nvidia.com/gpu: 1        # advertised by the device plugin; whole devices only
 ```
 
-Note what is missing: there is no `nvidia.com/gpu: 500m`. The request must be a whole integer, because the default plugin hands out entire physical GPUs. That single constraint — integer-only, whole-device allocation — is the root of nearly every GPU-on-Kubernetes challenge, and the sharing mechanisms in Section 3 exist to work around it.
+Note what is missing: there is no `nvidia.com/gpu: 500m`. The request must be a whole integer, because the default plugin hands out entire physical GPUs. That single constraint — integer-only, whole-device allocation — is the root of nearly every GPU-on-Kubernetes challenge, and the sharing mechanisms in *Sharing a GPU* exist to work around it.
 
 A GPU under the default plugin is like a meeting room that can only be booked whole, for the whole day, by one team. Even if that team uses it for a ten-minute standup, no one else can have it, and you cannot book "half a room." The room is expensive and often empty — exactly the pressure that forces you to share it.
 
@@ -39,15 +39,15 @@ Getting a GPU usable on a node is not just installing a device plugin — it req
 kernel driver        the NVIDIA driver matching the kernel
 container toolkit     the runtime hook that exposes the GPU into containers
 device plugin         advertises nvidia.com/gpu to the kubelet
-node-feature labels   describe GPU model/capability for scheduling (Section 4)
-DCGM exporter         GPU metrics for monitoring
+node-feature labels   describe GPU model/capability for scheduling (see Scheduling Constraints)
+DCGM exporter         Data Center GPU Manager (DCGM) metrics for monitoring
 ```
 
 Doing this by hand across every node and through every node replacement is brittle and drifts.
 
 ### 2.2 The Operator Reconciles It
 
-The **GPU Operator** (NVIDIA's, the dominant one) automates the whole stack as a Kubernetes operator: it deploys and lifecycle-manages the driver, toolkit, device plugin, labels, and monitoring as cluster resources, so a freshly-joined GPU node is automatically brought to a ready, schedulable state with no manual driver install. For a platform engineer this is the right abstraction level — you manage GPU capability declaratively, the operator reconciles the messy node reality, and node-scaling events (Section 5) just work because new nodes self-provision. It is to GPU nodes what good bootstrap automation is to any node pool: declare the desired capability and a controller continuously makes every node match.
+The **GPU Operator** (NVIDIA's, the dominant one) automates the whole stack as a Kubernetes operator: it deploys and lifecycle-manages the driver, toolkit, device plugin, labels, and monitoring as cluster resources, so a freshly-joined GPU node is automatically brought to a ready, schedulable state with no manual driver install. For a platform engineer this is the right abstraction level — you manage GPU capability declaratively, the operator reconciles the messy node reality, and node-scaling events (*Autoscaling and the Economics of Idle GPUs*) just work because new nodes self-provision. It is to GPU nodes what good bootstrap automation is to any node pool: declare the desired capability and a controller continuously makes every node match.
 
 ---
 
@@ -158,11 +158,11 @@ spec:
     consolidateAfter: 5m
 ```
 
-Put numbers on why this matters: an 8×A100 node at ~$32/hr left running idle is ~$23,000/month for nothing. The GPU Operator (Section 2) makes scale-up viable by auto-provisioning each new node's driver stack; scale-down to zero is where the savings sit.
+Put numbers on why this matters: an 8×A100 node at ~$32/hr left running idle is ~$23,000/month for nothing. The GPU Operator (*The GPU Operator* section) makes scale-up viable by auto-provisioning each new node's driver stack; scale-down to zero is where the savings sit.
 
 ### 5.2 The Cold-Start Collision
 
-This collides head-on with the cold-start reality from lesson 08. Scaling GPU nodes to zero saves the most money but means the next request waits for a node to provision (~2–5 min) *and* a multi-gigabyte model to load (~30–120 s) — minutes of latency. Keeping a warm node eliminates that but pays for idle hardware around the clock. There is no free option; you choose per workload by its latency SLO and traffic pattern — often a small warm baseline for interactive services plus scale-from-zero for bursty or batch ones.
+This collides head-on with the cold-start reality from lesson 08. Scaling GPU nodes to zero saves the most money but means the next request waits for a node to provision (~2–5 min) *and* a multi-gigabyte model to load (~30–120 s) — minutes of latency. Keeping a warm node eliminates that but pays for idle hardware around the clock. There is no free option; you choose per workload by its latency **Service Level Objective (SLO)** and traffic pattern — often a small warm baseline for interactive services plus scale-from-zero for bursty or batch ones.
 
 ```mermaid
 graph TD
@@ -179,7 +179,33 @@ graph TD
 
 ---
 
-## 6. Practical Limits and Trade-offs
+## 6. End-to-End: A Request to a Scaled-to-Zero Service
+
+### 6.1 Tracing One Cold Request
+
+To consolidate, follow a single request to an inference service that has scaled to zero. The lifecycle diagram above traces these same steps — read it alongside. The point is to see where the scattered numbers from this lesson land on one timeline.
+
+**Step by step:**
+
+**0. Idle (the state we start in).** No GPU node is running, so the service costs **$0/hr** — versus the ~$32/hr (~$23K/month) an 8×A100 node would burn sitting idle. This saving is the entire reason to tolerate what follows.
+
+**1. Request arrives → pod goes Pending.** The request lands, the Deployment wants a pod, but every GPU node is tainted (*Taints Keep the Wrong Workloads Off*) and none exists anyway, so the pod cannot be scheduled and sits **Pending** — which is the signal the autoscaler watches.
+
+**2. Node provisioned (~2–5 min).** The Cluster Autoscaler/Karpenter sees the pending GPU pod and launches a matching node (e.g. `g5.xlarge`), the `WhenEmpty` disruption policy meaning it will later remove it once idle.
+
+**3. GPU Operator readies the node (~tens of s).** On the fresh node the operator reconciles the whole stack — driver, container toolkit, device plugin — so `nvidia.com/gpu` is advertised and the node becomes schedulable; without this step the node would join blind to its own GPU.
+
+**4. Model loads (~30–120 s).** The pod is placed, but multi-gigabyte weights must stream onto the GPU before it can serve. Only now does the pod go **Ready** — and the request that arrived in step 1 has now waited **minutes**. This is the cold start in full.
+
+**5. Serving.** The pod answers, the model occupying GPU memory as a KV-cache or MIG slice (lesson 08). Subsequent requests, with the node already warm, skip steps 2–4 entirely and respond in milliseconds.
+
+**6. Drain → scale to zero.** Traffic stops; once no GPU pod needs the node, `consolidateAfter: 5m` elapses and the autoscaler removes it. Billing returns to **$0/hr** — back to step 0.
+
+The first request paid minutes of latency so the organisation paid nothing while idle. That single trade — borne by the cold request, banked by the budget — is the abstract choice of *The Cold-Start Collision* made concrete, and it is why interactive services keep a small warm baseline while bursty and batch ones scale from zero.
+
+---
+
+## 7. Practical Limits and Trade-offs
 
 - **Indivisible by default vs. sharing**: Kubernetes allocates whole GPUs only, so any fractional use requires MIG or time-slicing — without one, small workloads waste the cluster's most expensive resource.
 - **MIG isolation vs. time-slicing flexibility**: MIG gives hardware-enforced, contention-free slices in fixed profiles, while time-slicing oversubscribes any GPU dynamically with no isolation — choose isolation for production multi-tenancy, flexibility for bursty dev.
@@ -189,6 +215,6 @@ graph TD
 
 ---
 
-## 7. Summary
+## 8. Summary
 
 GPUs break the scheduler's core assumptions: a GPU is an indivisible, vendor-driven device that Kubernetes only sees because a device plugin advertises it, and only ever hands out whole, as integers rather than fractions. The GPU Operator tames the fragile per-node driver stack so nodes self-provision and autoscaling becomes possible, while MIG (hardware-isolated fixed partitions) and time-slicing (flexible, isolation-free oversubscription) are the two ways to share a device usually larger than one workload needs — chosen along an isolation-versus-flexibility axis. Taints keep cheap workloads off expensive nodes and affinity steers each model to GPUs that fit it, and the autoscaler's scale-to-zero is the main lever against the unforgiving economics of idle GPUs — an idle 8×A100 node burning ~$23K/month — bought at the price of the cold starts from lesson 08. Throughout, the tools are the platform primitives you already operate; what changes is that every scheduling decision is also a cost decision, because the resource is scarce and expensive enough that wasted capacity shows up directly on the bill — which is why lesson 11 returns to cost as a first-class governance concern.

@@ -115,7 +115,16 @@ Evals tell you how the system performs on your test set; **observability** tells
 
 ### 4.2 Two Non-Negotiable Needs
 
-First, **debuggability**: when a user reports a wrong answer you cannot reproduce it by re-running (non-determinism), so the *trace of that exact call* — what context went in, what came out — is the only way to understand what happened. Without the captured prompt and retrieved chunks, a RAG failure is unanalysable. Second, **the feedback loop**: production traces are the richest source of new eval cases. Real failures captured in traces become tomorrow's eval set (Section 2), closing the loop from production back into your quality measure.
+First, **debuggability**: when a user reports a wrong answer you cannot reproduce it by re-running (non-determinism), so the *trace of that exact call* — what context went in, what came out — is the only way to understand what happened. Without the captured prompt and retrieved chunks, a RAG failure is unanalysable. Second, **the feedback loop**: production traces are the richest source of new eval cases. Real failures captured in traces become tomorrow's eval set (Section 2), closing the loop from production back into your quality measure. The bridge is concrete — the captured trace becomes an eval row by reusing its own fields: the failing input, the *exact* context the model saw, and a corrected expected answer.
+
+```json
+// The req_8841 trace above, curated into a permanent eval case.
+{ "input": "Why did the checkout pod restart?",
+  "context": ["c1", "c7", "c12"],            // the same chunks the trace retrieved
+  "expected": "Its liveness probe timed out, so the kubelet killed and restarted the container.",
+  "rubric": ["names liveness probe", "says it timed out", "concludes restart"],
+  "source_trace": "req_8841" }                // provenance — which production failure this locks out
+```
 
 ```mermaid
 graph LR
@@ -158,6 +167,20 @@ For higher-stakes changes, roll out gradually — canary a new prompt or model t
 
 Two metrics need continuous watching beyond quality. **Cost** is per-token and therefore variable and usage-driven (lesson 01): a change that lengthens prompts, retrieves more chunks, or triggers more agent loops (lesson 05) can multiply spend with no error. Token cost belongs on a dashboard next to latency, with alerts, because here cost is a runtime behaviour, not a fixed line item — and a runaway agent can move it fast.
 
+Put numbers on "multiply spend". Take a high-volume triage assistant on a cheap tier — Haiku 4.5 at ~$1 per 1M input tokens and ~$5 per 1M output — running 50,000 calls/day:
+
+```text
+# Before: 1.5K input + 200 output tokens per call
+1,500 × $1/1M  +  200 × $5/1M  = $0.0015 + $0.0010 = $0.0025 / call
+                                 × 50,000 calls/day ≈ $125/day  (~$3.7K/month)
+
+# After: a retrieval tweak adds 3 chunks @ ~800 tokens → +2,400 input tokens
+3,900 × $1/1M  +  200 × $5/1M  = $0.0039 + $0.0010 = $0.0049 / call
+                                 × 50,000 calls/day ≈ $245/day  (~$7.4K/month)
+```
+
+A one-line change to *how many chunks you retrieve* — no error, no failing test, no latency alarm — nearly doubled the monthly bill. That is why cost rides on a dashboard, not a quarterly budget spreadsheet.
+
 ### 6.2 Drift Degrades Quality Silently
 
 **Drift** is the subtler threat. Even with everything on your side frozen, quality can degrade because the *world* changed: user questions shift to topics your RAG corpus does not cover, input patterns move away from what your prompts were tuned for, or a provider silently updates a model behind a stable name. Nothing in your code changed, no alert fires, yet quality slides. The only defence is continuous evaluation against a maintained eval set plus monitoring of live quality signals — drift is caught by *measuring quality over time*, which is why the Section 4 loop runs continuously rather than once.
@@ -166,7 +189,52 @@ Drift is like a well-calibrated sensor slowly going out of true: nothing dramati
 
 ---
 
-## 7. Practical Limits and Trade-offs
+## 7. End-to-End: Shipping One Prompt Change
+
+The earlier sections introduced the parts one at a time — evals as the test suite, the scoring funnel, observability, the eval-score gate, and the cost/drift watch. This section runs a single concrete change through all of them on one timeline, so you can see exactly where each mechanism fires and how the loop closes.
+
+### 7.1 One edit, traced from gate to lock
+
+Follow prompt **v7 → v8** of a Kubernetes triage assistant, currently scoring a mean **0.88** on the `triage` eval suite:
+
+**1. The edit.** An engineer changes `prompts/triage.v7.txt → v8.txt`, adding one instruction: *"always name the specific resource (probe, limit, request) that caused the failure."* It lands in source control, under review — the prompt is configuration (Section 5).
+
+**2. The gate.** CI runs `run_evals.py --suite triage --prompt prompts/triage.v8.txt`. The funnel (Section 3.4) scores every case; the suite mean comes back **0.91** — above both the **0.90** floor and the **0.88** current-production score — so the gate passes and the change is allowed to ship.
+
+**3. The canary.** Rather than flip 100% of traffic, v8 goes to **5%** (Section 5.2). The live quality and cost panels from Sections 4 and 6 are watched on that slice for a regression the eval set never anticipated.
+
+**4. The invisible failure.** On the canary, trace **`req_8841`** returns a fast, well-formed, **HTTP-200** answer that is *wrong* — it blames a memory limit when the real cause was a liveness-probe timeout. No exception, no error metric moves (Section 1); it surfaces only as a dip in the live LLM-judge score on the canary slice.
+
+**5. Trace becomes eval.** Because the full trace was captured (Section 4), the failing input and the *exact* context it retrieved are recoverable. They are curated into a new eval row — the `source_trace: "req_8841"` case shown in *Section 4.2*.
+
+**6. The lock.** The `triage` suite now contains that case. Prompt **v9** — and every prompt after it — must clear it before the gate in step 2 will pass. The bug can never silently regress.
+
+```mermaid
+sequenceDiagram
+    participant Eng as Engineer
+    participant CI as CI / Eval runner
+    participant Can as Canary (5%)
+    participant Tr as Traces
+    participant Ev as Eval set
+    Eng->>CI: commit prompts/triage.v8
+    CI->>Ev: run triage suite
+    Ev-->>CI: mean 0.91 (> 0.90 floor, > 0.88 prod)
+    CI-->>Eng: gate passes
+    Eng->>Can: roll v8 to 5% of traffic
+    Can->>Tr: req_8841 — confident-wrong, HTTP 200
+    Tr->>Ev: curate req_8841 into a new eval case
+    Ev-->>Eng: v9 must clear it before shipping
+```
+
+*One prompt change on a single timeline: the eval gate admits v8, a canary surfaces a confident-wrong trace no error metric caught, and that trace is curated back into the eval set — which then gates every future change.*
+
+### 7.2 Why this is a loop, not a pipeline
+
+Read top to bottom, steps 1–6 look linear. The decisive move is step 5 → step 2: the failure captured in production is folded back into the same suite that gates the *next* release. Each real-world miss permanently tightens the measure, so the system's quality floor only ever rises. That feedback edge — a production trace becoming tomorrow's gate — is what separates LLMOps from "we tested it once and shipped." Everything earlier in the lesson exists to make that one edge trustworthy: evals to define quality, the funnel to score it cheaply, observability to capture the trace, and the gate to enforce the result.
+
+---
+
+## 8. Practical Limits and Trade-offs
 
 - **Availability vs. quality**: traditional monitoring proves the system is *up* but says nothing about whether its answers are *right*, so LLMOps must measure quality separately — a 100%-healthy system can still be badly broken in correctness.
 - **Eval rigor vs. effort**: a strong eval set is the only foundation for confident change, but it is real, ongoing work to curate and maintain, and a system without one is improved by guesswork — the investment is the price of shipping safely.
@@ -176,6 +244,6 @@ Drift is like a well-calibrated sensor slowly going out of true: nothing dramati
 
 ---
 
-## 8. Summary
+## 9. Summary
 
 LLMOps exists because the practices that ship normal software fail for probabilistic ones: you cannot assert exact output, and the worst failures return a confident wrong answer with an HTTP 200 that no error metric catches. Evals replace unit tests with a curated dataset scored for quality rather than equality, and that score — produced by a funnel of cheap deterministic checks, reference similarity, and calibrated LLM-as-judge — becomes the gate every prompt, model, and retrieval change must pass before it ships. Observability captures the full trace of each real request, which is both the only way to debug a non-reproducible failure and the richest source of new eval cases, closing a continuous loop from production back into the quality measure. That loop must run continuously, not once, because cost is a usage-driven runtime behaviour a single change can multiply and because drift degrades quality with no code change and no alert — both caught only by measuring quality and cost over time. LLMOps is the discipline that makes everything earlier in this track — prompts, agents, RAG, serving — trustworthy enough to depend on, and it sets up the security, cost, and governance concerns that lesson 11 treats as first-class.

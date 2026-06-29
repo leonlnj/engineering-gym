@@ -10,7 +10,7 @@ For a platform engineer this is the first of the new infrastructure components f
 
 ### 1.1 A Model Whose Only Job Is Vectors
 
-An embedding is produced by an **embedding model** — a specialised, usually small model whose only output is a fixed-length vector (commonly 384 to 3,072 numbers). It is distinct from the generative LLM of lessons 01–05: it produces no text, only the numeric coordinates of meaning. You run a document through it once to get its vector, and you run a user's query through the *same* model at search time to get a query vector you can compare.
+An embedding is produced by an **embedding model** — a specialised, usually small model whose only output is a fixed-length vector (commonly 384 to 3,072 numbers). It is distinct from the generative **Large Language Model (LLM)** of lessons 01–05: it produces no text, only the numeric coordinates of meaning. You run a document through it once to get its vector, and you run a user's query through the *same* model at search time to get a query vector you can compare.
 
 ```python
 # Simplified — the same model embeds documents (ingest) and queries (search)
@@ -99,11 +99,24 @@ graph TD
 
 *HNSW search: enter at the sparse top layer, hop greedily toward the query, then descend into denser layers for fine-grained local search — visiting a few hundred nodes instead of millions.*
 
-A 10-million-vector HNSW search might visit only a few hundred nodes — turning the ~10 billion operations of Section 3.1 into a few hundred thousand. The gain is excellent recall at very low latency; the cost is high memory (the full graph lives in RAM) and slower index builds.
+A 10-million-vector HNSW search might visit only a few hundred nodes — turning the ~10 billion operations of brute-force search into a few hundred thousand. The gain is excellent recall at very low latency; the cost is high memory (the full graph lives in RAM) and slower index builds.
+
+That build cost is not incidental — it is where the graph *comes from*. The index is constructed one vector at a time: each new vector is inserted by running a search to find its nearest existing neighbours and wiring **bidirectional links** to up to `M` of them (typically 16–64). A second knob, `ef_construction`, sets how hard that insert-time search works to find good neighbours — a larger value yields a better-connected graph (higher recall later) but a slower build. Both decisions are baked in at build time and explain the costs above: every node carries up to `M` links so the whole graph must live in RAM, and each insert pays a search, so building 10M vectors is far slower than scanning them once.
+
+```sql
+-- pgvector: BUILD an HNSW index — m and ef_construction are build-time knobs
+CREATE INDEX ON chunks USING hnsw (embedding vector_cosine_ops)
+  WITH (m = 16, ef_construction = 64);  -- more links / harder build = better recall, slower build
+-- efSearch is set separately, per query, at SEARCH time (the recall-vs-latency dial below)
+```
 
 ### 4.2 IVF: Probing Clustered Cells
 
 **IVF (Inverted File Index)** clusters vectors into groups (cells) up front. At query time it identifies the few cells nearest the query and searches only within those, skipping the rest. IVF is more memory-efficient and faster to build than HNSW, but recall depends on how many cells it probes — search too few and you miss neighbours that fell just over a cell boundary.
+
+The cells are not given — they are *learned*. Before any vector is inserted, IVF runs **k-means** over a representative sample of the corpus to find a set of cluster centroids (the `lists` parameter sets how many), and every vector is then assigned to its nearest centroid's cell. This origin is what distinguishes IVF's `lists` from HNSW's `M`: `lists` defines a partitioning learned once from the data's distribution, so if that distribution drifts — a new tenant, a new document type — the centroids no longer fit and the index needs a rebuild to stay balanced. A query then probes the `nprobe` cells whose centroids are closest to it.
+
+> Nuance: Do not conflate the build-time and search-time knobs. `M`/`ef_construction` (HNSW) and `lists` (IVF) are fixed when the index is *built* and changing them means rebuilding; `efSearch`/`nprobe` are set per query and tune each individual search. The recall dial below is the search-time pair.
 
 | Property | HNSW | IVF |
 | :--- | :--- | :--- |
@@ -164,17 +177,17 @@ The architectural question is **whether you need a dedicated vector database at 
 
 ## 6. End-to-End: One Semantic Search
 
-To consolidate, trace the query *"why are my pods getting OOMKilled"* through a vector store holding 2 million chunks on an HNSW index. The §4.3 search-path diagram is exactly this flow — read it alongside the steps below.
+To consolidate, trace the query *"why are my pods getting OOMKilled"* through a vector store holding 2 million chunks on an HNSW index. The *search-path* diagram from *Vector Indexes* is exactly this flow — read it alongside the steps below.
 
 **Step by step:**
 
-**1. Embed the query.** The query text goes through the *same* embedding model used at ingest (Section 1.1), producing a 1,024-dim vector. Using a different model here would return nonsense (Section 1.2).
+**1. Embed the query.** The query text goes through the *same* embedding model used at ingest (the point of *A Model Whose Only Job Is Vectors*), producing a 1,024-dim vector. Using a different model here would return nonsense (*Meaning Becomes Direction*).
 
-**2. Enter the index.** The query vector enters the HNSW graph at the sparse top layer (Section 4.1). Note that no document text is involved yet — everything from here is geometry on vectors.
+**2. Enter the index.** The query vector enters the HNSW graph at the sparse top layer (*HNSW: Navigating a Proximity Graph*). Note that no document text is involved yet — everything from here is geometry on vectors.
 
-**3. Greedy descent.** The search hops toward the query through long-range links, then descends layer by layer into denser neighbourhoods, visiting ~300 of the 2 million nodes — bounded by `efSearch` (Section 4.3).
+**3. Greedy descent.** The search hops toward the query through long-range links, then descends layer by layer into denser neighbourhoods, visiting ~300 of the 2 million nodes — bounded by `efSearch` (the recall-versus-latency dial).
 
-**4. Apply the filter and rank.** Candidates are filtered by metadata (`tenant_id`, Section 5.1) and ranked by cosine similarity (Section 2.1). The top 5 come back as `(id, score)` pairs — e.g. the chunk "the deployment requests 8Gi but the LimitRange caps it at 4Gi" at score 0.88.
+**4. Apply the filter and rank.** Candidates are filtered by metadata (`tenant_id`, *The Vector Database Around the Index*) and ranked by cosine similarity (*Measuring Similarity*). The top 5 come back as `(id, score)` pairs — e.g. the chunk "the deployment requests 8Gi but the LimitRange caps it at 4Gi" at score 0.88.
 
 **5. Fetch payloads.** The vector IDs are resolved to their stored payloads — the original chunk text — which is what the caller actually wanted. Those five chunks are exactly the material lesson 07 will inject into an LLM's context to answer the question.
 

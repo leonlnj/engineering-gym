@@ -1,6 +1,6 @@
 # Retrieval-Augmented Generation (RAG): Grounding a Model in Your Data
 
-Lesson 01 left us with a problem: an LLM's knowledge is frozen at training time, so it knows nothing about your private systems or anything recent, and it hallucinates fluent answers to fill the gap. Lesson 02 named the fix in principle — put the facts in the context window — and lesson 06 built the engine that finds those facts. **Retrieval-Augmented Generation (RAG)** ties them together: at query time, retrieve the documents relevant to the question and inject them into the prompt so the model answers from supplied truth rather than memory. The misconception to dismantle is that RAG "teaches the model your data" or is a kind of training. It changes the model's weights by exactly zero. RAG is a *retrieval* system bolted in front of an unchanged model — it changes the model's *input*, not the model.
+Lesson 01 left us with a problem: a **Large Language Model (LLM)**'s knowledge is frozen at training time, so it knows nothing about your private systems or anything recent, and it hallucinates fluent answers to fill the gap. Lesson 02 named the fix in principle — put the facts in the context window — and lesson 06 built the engine that finds those facts. **Retrieval-Augmented Generation (RAG)** ties them together: at query time, retrieve the documents relevant to the question and inject them into the prompt so the model answers from supplied truth rather than memory. The misconception to dismantle is that RAG "teaches the model your data" or is a kind of training. It changes the model's weights by exactly zero. RAG is a *retrieval* system bolted in front of an unchanged model — it changes the model's *input*, not the model.
 
 This reframes the task for a platform engineer: most of RAG's difficulty, and almost all of its failure modes, live in plumbing you already understand — pipelines, search quality, data freshness — not in the model itself.
 
@@ -55,7 +55,7 @@ The separation matters operationally. Ingestion is a data pipeline with all the 
 ```python
 # Simplified — the ingestion pipeline, run when documents change
 for doc in source_documents:
-    for chunk in chunk_text(doc, size=512, overlap=64):     # Section 3
+    for chunk in chunk_text(doc, size=512, overlap=64):     # see Chunking, below
         vec = embed(chunk.text)                              # same model as query time
         vectordb.upsert(id=chunk.id, vector=vec,
                         payload={"text": chunk.text, "doc": doc.id, "tenant": doc.tenant})
@@ -94,7 +94,19 @@ Chunking is like cutting a reference manual into index cards filed by topic. Cut
 
 The generation is only as good as what retrieval surfaces — "garbage in, garbage out" is the iron law of RAG. Two metrics frame quality: **recall** (did the relevant chunks make it into the retrieved set at all?) and **precision** (how much of the set is actually relevant versus noise?). Low recall starves the model of the fact it needed; low precision floods the context with distractors that, per lesson 01's "lost in the middle," can bury the chunk that mattered.
 
-A common upgrade is **hybrid search**: combine vector (semantic) search with traditional keyword search. Semantic search catches paraphrases and synonyms; keyword search nails exact matches — error codes, function names, identifiers — that embeddings sometimes blur together. Running both and merging covers each other's blind spots.
+A common upgrade is **hybrid search**: combine vector (semantic) search with traditional keyword search. Semantic search catches paraphrases and synonyms; keyword search nails exact matches — error codes, function names, identifiers — that embeddings sometimes blur together. Running both and merging covers each other's blind spots. The merge is usually **Reciprocal Rank Fusion (RRF)**, which combines the two result lists by *rank* rather than score:
+
+```python
+# Simplified — Reciprocal Rank Fusion: merge keyword + vector result lists
+def rrf(rank_lists, k=60):                     # k dampens the tail's influence
+    scores = defaultdict(float)
+    for ranked in rank_lists:                  # one ranked list per retriever
+        for rank, doc_id in enumerate(ranked): # rank 0 = top hit
+            scores[doc_id] += 1 / (k + rank)   # earlier ranks contribute most
+    return sorted(scores, key=scores.get, reverse=True)
+```
+
+Fusing ranks sidesteps the obvious objection — a BM25 keyword score and a cosine similarity are on incomparable scales, so you cannot simply add them. RRF never looks at the raw scores; it only asks *how high each retriever ranked the document*, which is directly comparable across both.
 
 ### 4.2 The Two-Stage Retrieval Funnel
 
@@ -141,7 +153,7 @@ Question: Why are the payments pods being OOMKilled?
 
 ### 5.2 Why the Instruction Matters
 
-The grounding-and-abstention instruction is not decoration — it is what converts RAG's worst failure (confident invention on a retrieval miss, Section 6) into an honest "Not in the knowledge base," and the `[id]` citations make every claim auditable against the chunk it came from. With this prompt the model answers "The deployment requests 8Gi [c1] but the namespace caps containers at 4Gi [c2], so the kernel kills them" — grounded, cited, checkable.
+The grounding-and-abstention instruction is not decoration — it is what converts RAG's worst failure (confident invention on a retrieval miss, traced in the failure modes below) into an honest "Not in the knowledge base," and the `[id]` citations make every claim auditable against the chunk it came from. With this prompt the model answers "The deployment requests 8Gi [c1] but the namespace caps containers at 4Gi [c2], so the kernel kills them" — grounded, cited, checkable.
 
 ---
 
@@ -149,7 +161,7 @@ The grounding-and-abstention instruction is not decoration — it is what conver
 
 ### 6.1 End-to-End Trace
 
-Trace *"why are the payments pods OOMKilled"* through the full online path. The online (right-hand) half of the §2.1 diagram traces these same steps — read it alongside.
+Trace *"why are the payments pods OOMKilled"* through the full online path. The online (right-hand) half of the *Ingestion and Retrieval* two-phase diagram traces these same steps — read it alongside.
 
 **Step by step:**
 
@@ -157,9 +169,9 @@ Trace *"why are the payments pods OOMKilled"* through the full online path. The 
 
 **2. Retrieve (wide).** ANN search returns the top 50 chunks, filtered by `tenant` (lesson 06 §5.1) — high recall, some noise.
 
-**3. Re-rank (narrow).** The re-ranker (Section 4.2) scores the 50 and keeps the 5 most relevant, e.g. the 8Gi-request and 4Gi-LimitRange chunks at the top.
+**3. Re-rank (narrow).** The re-ranker (*The Two-Stage Retrieval Funnel*) scores the 50 and keeps the 5 most relevant, e.g. the 8Gi-request and 4Gi-LimitRange chunks at the top.
 
-**4. Assemble.** The 5 chunks become the grounded prompt of Section 5, each tagged `[c1]`–`[c5]`.
+**4. Assemble.** The 5 chunks become the grounded prompt from *Assembling the Grounded Prompt*, each tagged `[c1]`–`[c5]`.
 
 **5. Generate.** The LLM produces a cited, grounded answer — drawing on supplied facts, not its frozen weights.
 
@@ -168,11 +180,11 @@ Trace *"why are the payments pods OOMKilled"* through the full online path. The 
 RAG fails *plausibly* — a confident, well-formed, wrong answer with no error. The trace above breaks in four ways worth knowing:
 
 - **Retrieval missed it** (step 2/3): the relevant chunk was never retrieved — bad chunking, a query that embeds far from the source vocabulary, or recall tuned too low. Given no good context, the model falls back on training and hallucinates. The fix is in retrieval, not the prompt.
-- **Not in the corpus at all**: the user asked something the knowledge base does not cover. Without the Section 5 abstention instruction, the model answers from memory anyway — RAG silently degrades into ordinary hallucination.
-- **Conflicting or stale chunks**: retrieval returns an old policy and its replacement; the model picks one, possibly wrong. This traces to ingestion freshness (Section 2.2) — deletes and updates must propagate.
+- **Not in the corpus at all**: the user asked something the knowledge base does not cover. Without the grounding-and-abstention instruction from *Assembling the Grounded Prompt*, the model answers from memory anyway — RAG silently degrades into ordinary hallucination.
+- **Conflicting or stale chunks**: retrieval returns an old policy and its replacement; the model picks one, possibly wrong. This traces to ingestion freshness (*Ingestion Is a Data Pipeline*) — deletes and updates must propagate.
 - **Context overflow / distraction** (step 4): inject too many chunks and you blow the budget or bury the key one (lost in the middle). Relevant-and-concise beats comprehensive-and-noisy.
 
-> Note: The single highest-leverage line in any RAG system is the grounding-and-abstention instruction from Section 5. It converts the worst failure — confident invention on a retrieval miss — into a visible "I don't know," and citations turn the rest into something you can audit.
+> Note: The single highest-leverage line in any RAG system is the grounding-and-abstention instruction from *Assembling the Grounded Prompt*. It converts the worst failure — confident invention on a retrieval miss — into a visible "I don't know," and citations turn the rest into something you can audit.
 
 ---
 

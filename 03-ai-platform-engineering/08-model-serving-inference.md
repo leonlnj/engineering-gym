@@ -1,6 +1,6 @@
 # Model Serving & Inference: Running a Model in Production
 
-Everything so far consumed a model through an API. This lesson is about *being* that API — taking a model's weights and serving inference to many concurrent users with acceptable latency and cost. The misconception to drop at the door is that serving an LLM is like serving any stateless web service, where you scale by adding cheap, interchangeable replicas. It is not. Inference is **stateful within a request**, **bound to scarce and expensive GPUs**, and dominated by a memory structure — the KV-cache from lesson 01 — that has no equivalent in ordinary request handling. Treat an inference server like a stateless API and you will misjudge its capacity, latency, and bill by an order of magnitude.
+Everything so far consumed a model through an API. This lesson is about *being* that API — taking a model's weights and serving inference to many concurrent users with acceptable latency and cost. The misconception to drop at the door is that serving a **Large Language Model (LLM)** is like serving any stateless web service, where you scale by adding cheap, interchangeable replicas. It is not. Inference is **stateful within a request**, **bound to scarce and expensive Graphics Processing Units (GPUs)**, and dominated by a memory structure — the KV-cache from lesson 01 — that has no equivalent in ordinary request handling. Treat an inference server like a stateless API and you will misjudge its capacity, latency, and bill by an order of magnitude.
 
 This is the heart of the "operate" mandate from `00-overview.md`. The good news for a platform engineer is that the tuning concepts map cleanly onto things you already know — batching, caching, latency-versus-throughput — applied to unusually costly hardware.
 
@@ -23,7 +23,7 @@ Decode    generate remaining tokens ONE at a time, sequentially
           memory-bandwidth-bound, not compute-bound; cost ∝ output length
 ```
 
-This split is why the two latency metrics in Section 4 exist and why the same model can feel fast to start and slow to finish, or vice versa. LLM serving is unlike a typical API the way a kitchen making a tasting menu is unlike a vending machine: a vending machine dispenses one item in one action (a stateless request), while the kitchen plates a multi-course meal one course at a time, in order, holding the table for the whole sitting — and how long it takes depends on how many courses were ordered.
+This split is why the two latency metrics in *Latency, Throughput, and the Tuning Dial* exist and why the same model can feel fast to start and slow to finish, or vice versa. LLM serving is unlike a typical API the way a kitchen making a tasting menu is unlike a vending machine: a vending machine dispenses one item in one action (a stateless request), while the kitchen plates a multi-course meal one course at a time, in order, holding the table for the whole sitting — and how long it takes depends on how many courses were ordered.
 
 ---
 
@@ -89,9 +89,9 @@ This alone can multiply throughput several-fold over static batching, because th
 
 ### 3.2 Paged Attention
 
-**Paged attention** solves the KV-cache memory waste. The naive approach reserves one contiguous block sized to each request's *maximum possible* length — almost all unused — so memory fragments and concurrency caps far below the Section 2.2 math. Paged attention borrows the operating system's virtual-memory trick: split the KV-cache into fixed-size pages allocated on demand and tracked by a lookup table, so a request uses only the memory its actual tokens need, and freed pages are immediately reusable.
+**Paged attention** solves the KV-cache memory waste. The naive approach reserves one contiguous block sized to each request's *maximum possible* length — almost all unused — so memory fragments and concurrency caps far below the KV-cache memory math above. Paged attention borrows the operating system's virtual-memory trick: split the KV-cache into fixed-size pages allocated on demand and tracked by a lookup table, so a request uses only the memory its actual tokens need, and freed pages are immediately reusable.
 
-> Note: These are not optional micro-optimisations. The gap between a naive server and one with continuous batching plus paged attention is often 10–20× in throughput on the *same* hardware. Because GPUs are the dominant cost (lesson 09), this multiplier is the difference between a viable and an unaffordable deployment — choosing a serving engine that implements them (vLLM, Section 6) is one of the highest-impact decisions you make.
+> Note: These are not optional micro-optimisations. The gap between a naive server and one with continuous batching plus paged attention is often 10–20× in throughput on the *same* hardware. Because GPUs are the dominant cost (lesson 09), this multiplier is the difference between a viable and an unaffordable deployment — choosing a serving engine that implements them (vLLM, *Serving on Kubernetes*) is one of the highest-impact decisions you make.
 
 Paged attention is the OS-paging analogy made literal: just as your laptop runs programs needing more address space than physical RAM by paging memory in fixed blocks on demand, the inference server fits more requests' KV-caches into GPU memory by paging them rather than pre-reserving each one's worst case.
 
@@ -121,7 +121,7 @@ These trade against **throughput** through the batching dial. A larger running b
 
 ### 5.1 Precision for Memory
 
-A model's weights are numbers, by default stored in 16-bit precision. **Quantization** reduces that precision — to 8-bit or 4-bit integers — shrinking the footprint roughly proportionally, which (because GPU memory is the binding constraint, Section 2) is enormously consequential:
+A model's weights are numbers, by default stored in 16-bit precision. **Quantization** reduces that precision — to 8-bit or 4-bit integers — shrinking the footprint roughly proportionally, which (because GPU memory is the binding constraint, per *The KV-Cache* section) is enormously consequential:
 
 ```text
 13B model    16-bit  -> ~26 GB   (won't leave much KV-cache room on a 40 GB GPU)
@@ -129,7 +129,7 @@ A model's weights are numbers, by default stored in 16-bit precision. **Quantiza
              4-bit   -> ~6.5 GB  (fits a 24 GB GPU; or huge KV-cache on an 80 GB GPU)
 ```
 
-A model that needed an 80 GB GPU might fit a 24 GB one, or leave far more room for KV-cache (and thus concurrency, Section 2.2) on the same GPU.
+A model that needed an 80 GB GPU might fit a 24 GB one, or leave far more room for KV-cache (and thus concurrency, per the memory math above) on the same GPU.
 
 ### 5.2 Validate, Don't Assume
 
@@ -147,7 +147,7 @@ Two layers operationalise all of this. The **inference engine** — vLLM being t
 # vLLM exposes an OpenAI-compatible server with paged attention + continuous batching
 python -m vllm.entrypoints.openai.api_server \
   --model meta-llama/Llama-3-13b \
-  --quantization awq \                 # 4-bit weights (Section 5)
+  --quantization awq \                 # 4-bit weights (see Quantization)
   --gpu-memory-utilization 0.90 \      # how much of the GPU to use for weights + KV-cache
   --max-model-len 8192
 ```
@@ -161,7 +161,7 @@ kind: InferenceService
 metadata: { name: llama3-13b }
 spec:
   predictor:
-    minReplicas: 0                     # scale-to-zero when idle (Section 6.2)
+    minReplicas: 0                     # scale-to-zero when idle (see below)
     model:
       runtime: vllm
       resources:
@@ -174,7 +174,47 @@ KServe brings LLM serving into the Kubernetes-native model: a deployment is a cu
 
 ---
 
-## 7. Practical Limits and Trade-offs
+## 7. End-to-End: One Request Served
+
+### 7.1 Tracing a Single Generation
+
+To consolidate, trace one concrete request through the serving stack: a 200-token prompt streaming a ~500-token answer, on the 13B model and 80 GB GPU from *The Memory Math*. The numbers below all come from the earlier sections — this is where they connect.
+
+**Step by step:**
+
+**1. Prefill (TTFT clock starts).** The server processes all 200 prompt tokens in one parallel forward pass (the prefill phase) and emits the first token. The time from request arrival to this token *is* the **TTFT** — here dominated by prefill compute plus any queue wait.
+
+**2. KV-cache allocated, on demand.** Paged attention hands the request KV-cache pages as it produces tokens — ~0.8 MB/token for this model — so it starts around `200 × 0.8 MB ≈ 0.16 GB` and grows toward `700 × 0.8 MB ≈ 0.56 GB` by the final token, never reserving the worst case up front.
+
+**3. Join the continuous batch.** If a slot and free KV pages exist, the request is admitted into the running batch mid-flight and decodes alongside other requests; if the ~50 GB KV budget is already full (the ~15-request ceiling), it waits in the queue — and that wait adds to its TTFT.
+
+**4. Decode loop (inter-token latency).** The answer is generated one token at a time — ~500 sequential forward passes, each attending to the cached keys/values of all prior tokens. The gap between successive tokens is the **inter-token latency**, set by how many requests share the GPU in the current batch.
+
+**5. Finish and free.** After the 500th token (or a stop token), the request completes; its KV pages return to the pool, immediately freeing a slot for a queued request — which is exactly how continuous batching keeps the GPU saturated.
+
+```mermaid
+sequenceDiagram
+    participant R as Request (200+500 tok)
+    participant S as Scheduler / batch
+    participant G as GPU (KV-cache pool)
+    R->>S: arrive
+    S->>G: prefill 200 tok -> first token (TTFT)
+    G-->>R: token 1 (streamed)
+    loop 500 decode steps
+        G-->>R: next token (inter-token latency)
+        Note over G: KV grows ~0.8 MB/token (paged)
+    end
+    R->>G: done -> KV pages freed
+    G->>S: slot free -> admit queued request
+```
+
+*One request end-to-end: prefill sets TTFT, the decode loop streams tokens at the inter-token latency, the KV-cache grows page-by-page to ~0.56 GB, and freeing it on completion lets a waiting request take the slot.*
+
+The whole request held one of ~15 KV-cache slots for its entire 500-token generation — which is why capacity is the memory math, not the compute, and why packing more requests onto the GPU is the central serving problem.
+
+---
+
+## 8. Practical Limits and Trade-offs
 
 - **Memory-bound, not compute-bound**: serving capacity is usually limited by KV-cache memory, not compute, so concurrency rises by saving memory (paged attention, quantization) far more than by adding raw processing power.
 - **Latency vs. throughput (batch size)**: a larger running batch lifts total throughput and lowers cost-per-token but raises each request's inter-token latency, so set the batch to the workload's SLO — latency-led for chat, throughput-led for bulk jobs.
@@ -184,6 +224,6 @@ KServe brings LLM serving into the Kubernetes-native model: a deployment is a cu
 
 ---
 
-## 8. Summary
+## 9. Summary
 
 Serving an LLM is nothing like serving a stateless API: inference is an autoregressive token loop, split into a parallel prefill and a sequential decode, that holds GPU resources for the whole generation. The KV-cache — per-request, growing, living in GPU memory — makes serving capacity a memory problem, and the math is stark: a 13B model on an 80 GB GPU may fit only ~15 concurrent 4K-token requests. So the highest-leverage techniques (continuous batching to keep the GPU saturated, paged attention to stop the KV-cache wasting memory) are the ones that pack more requests onto the same expensive hardware, often a 10–20× difference. Latency is two numbers, TTFT and inter-token latency, which trade against throughput through the batch-size dial you set to the application's SLO, while quantization shrinks the model to fit cheaper GPUs at a quality cost you must verify with evals. vLLM is the engine that implements these mechanics and KServe brings them into Kubernetes with autoscaling and scale-from-zero — whose cold-start cost on multi-gigabyte models hands off directly to lesson 09's central subject: scheduling and operating the scarce, costly GPUs all of this runs on.
