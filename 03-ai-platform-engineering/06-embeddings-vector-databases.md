@@ -40,18 +40,22 @@ B "OOMKilled pod"  = [0.85, 0.35, 0.05]
 C "out of budget"  = [0.10, 0.20, 0.95]
 
 cos(A,B) = (0.90·0.85 + 0.30·0.35 + 0.10·0.05) / (|A|·|B|)
-         = 0.8825 / (0.954 · 0.921) = 0.864    -> very similar
+         = 0.875 / (0.954 · 0.921) = 0.996    -> very similar
 cos(A,C) = (0.90·0.10 + 0.30·0.20 + 0.10·0.95) / (|A|·|C|)
          = 0.245 / (0.954 · 0.975) = 0.263     -> unrelated
 ```
 
-Direction is used rather than raw distance because it captures "about the same thing" independent of text length or intensity. The 0.86-versus-0.26 split is the whole game: similar meanings score high, unrelated ones do not.
+Direction is used rather than raw distance because it captures "about the same thing" independent of text length or intensity. The 0.996-versus-0.263 split is the whole game: similar meanings score high, unrelated ones do not.
+
+> Note: Cosine is the *dominant* metric but not the only one — vector databases also offer **dot product** and **Euclidean (L2)** distance. The choice is coupled to whether your embeddings are length-normalised: on normalised vectors cosine and dot product rank results identically (and dot product is cheaper, skipping the magnitude division), while L2 is preferred when absolute magnitude carries meaning. Use whichever your embedding model's documentation recommends — they are not interchangeable across models.
 
 ### 2.2 Search Is a Nearest-Neighbour Query
 
 Search, then, is a **nearest-neighbour** query: embed the query, then find the stored vectors with the highest cosine similarity to it. Return the top *k* — the closest five or ten — and you have the most semantically relevant documents. This is the entire retrieval primitive, and it is why earlier lessons could treat "retrieve relevant context" as a single conceptual step.
 
 Cosine similarity is like comparing two hikers' *bearings* rather than how far each has walked. Two hikers heading due north are going "the same way" whether one covered one kilometre and the other ten; a hiker heading east is going a different way regardless of distance. Meaning is the bearing, not the mileage.
+
+> Nuance: Semantic search is not strictly better than keyword search — it has the *opposite* blind spot. Because it matches on meaning, it is weak exactly where the literal token *is* the point: a specific error code (`E1100`), a UUID, a rare flag, a product name, or a negation the embedding blurs away. Keyword/BM25 search nails those and misses vocabulary mismatches; vector search does the reverse. Production retrieval therefore often runs **hybrid search** — both a dense (vector) and a sparse (keyword) query, with the result lists merged — to get each one's strengths. Treat vector search as a powerful complement to keyword search, not a replacement; lesson 07 builds this into a retrieval pipeline.
 
 ---
 
@@ -125,6 +129,8 @@ The cells are not given — they are *learned*. Before any vector is inserted, I
 | Memory | High (graph in RAM) | Lower |
 | Build time | Slower | Faster |
 | Best for | Latency-critical search | Huge corpora, memory-constrained |
+
+> Note: When memory is the binding constraint — and for HNSW, holding the full graph in RAM, it usually is — the lever is **quantization**: storing each vector in a compressed form instead of raw 32-bit floats. **Scalar quantization** drops each dimension to 8 bits (a ~4× shrink) for a small recall hit; **product quantization (PQ)** splits the vector into sub-blocks and replaces each with the nearest of a learned codebook of centroids, often 8–16× smaller, at a larger recall cost. The canonical production combination is **IVF-PQ** — IVF to skip most cells, PQ to make the cells that *are* searched cheap to hold. Concretely, 50M × 1,024-dim vectors are ~200 GB as raw floats but ~50 GB scalar-quantized — the difference between needing many machines and fitting on one. The trade is the same exactness-for-resource bargain as the index itself, now spent on memory rather than time.
 
 ### 4.3 The Recall-Versus-Latency Dial
 
@@ -201,6 +207,8 @@ The whole path turned a fuzzy natural-language question into a geometric query o
 - **Recall vs. latency**: probing more of the graph or more IVF cells raises recall but costs query time, and there is no setting that maximises both — tune to the accuracy the downstream LLM actually needs, often less than perfect.
 - **HNSW memory vs. IVF efficiency**: HNSW delivers the best recall and latency but holds its full graph in RAM and builds slowly, while IVF is lighter and faster to build but needs careful probe tuning to match HNSW's recall.
 - **Dedicated vector DB vs. pgvector**: a purpose-built vector database scales to tens of millions of vectors and high throughput, but at small scale it is an extra system to operate when Postgres with `pgvector` would serve the same workload with less overhead.
+- **Semantic vs. lexical recall**: vector search wins on vocabulary mismatch but misses exact tokens (error codes, IDs, rare names) that keyword search nails, so production retrieval often runs both as **hybrid search** rather than treating semantic search as a replacement for keyword search.
+- **Memory vs. recall (quantization)**: compressing vectors with scalar or product quantization (IVF-PQ) cuts the RAM footprint several-fold and is often what makes a large index affordable, at the cost of some recall — tune the compression to the accuracy the workload tolerates.
 - **Embedding quality vs. cost and lock-in**: a stronger embedding model improves retrieval relevance but costs more to run and locks your whole corpus into its vector space — changing models later forces a full, expensive re-embedding.
 
 ---

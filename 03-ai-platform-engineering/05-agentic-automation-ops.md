@@ -49,7 +49,7 @@ Four families of ops work map naturally onto agents, ordered roughly from lowest
 
 ### 2.2 The Mutating Ones Need Gates
 
-**Runbook execution** automates documented procedures — a certificate rotation, a failover drill — that were previously copy-pasted shell steps; because these touch real systems, each mutating step is a candidate for an approval gate rather than blind execution. **CI/CD assistance** covers diagnosing a failed pipeline, proposing a fix, or triaging a flaky test, slotting into a workflow that already expects human review before merge. The pattern across all four: agents are strongest at the **read, gather, draft, and propose** phases and should be most constrained at the **mutate** phase. Lean on them where the cost of a wrong draft is a rejected review, not a production outage.
+**Runbook execution** automates documented procedures — a certificate rotation, a failover drill — that were previously copy-pasted shell steps; because these touch real systems, each mutating step is a candidate for an approval gate rather than blind execution. **CI/CD assistance** covers diagnosing a failed pipeline, proposing a fix, or triaging a flaky test, slotting into a workflow that already expects human review before merge — concretely, an agent reads a red pipeline's logs, identifies a test that times out only under parallel load, and opens a PR bumping that job's timeout (or quarantining the test) for an engineer to merge, never pushing to the protected branch itself. The pattern across all four: agents are strongest at the **read, gather, draft, and propose** phases and should be most constrained at the **mutate** phase. Lean on them where the cost of a wrong draft is a rejected review, not a production outage.
 
 ---
 
@@ -87,13 +87,15 @@ A plan reading `1 to change, 0 to destroy` is a far safer thing to approve than 
 Two backstops enforce limits independent of the agent's judgement. **Policy-as-code** (OPA/Gatekeeper, Sentinel) rejects a non-compliant change at the boundary regardless of how the agent was prompted — a deterministic guard around a probabilistic actor:
 
 ```rego
-# Gatekeeper/OPA — reject any agent-applied change to a protected namespace
-deny[msg] {
+# Gatekeeper/OPA (Rego v1, OPA 1.0+) — reject any agent-applied change to a protected namespace
+deny contains msg if {
   input.review.userInfo.username == "agent-ops"
   input.review.object.metadata.namespace == "payments-prod"
   msg := "agent may not modify payments-prod directly"
 }
 ```
+
+> Note: OPA 1.0 (GA January 2025) makes `contains` and `if` mandatory for partial set rules. You will still meet the older bare `deny[msg] { ... }` form in pre-1.0 policies and tutorials — recognise it, but write new rules in the v1 syntax above (or add `import rego.v1` to a legacy module).
 
 And **scoped credentials** cap the blast radius at the access layer — the single most important guardrail and the direct continuation of lesson 04 (§6). The agent's MCP servers hold tokens scoped by **Role-Based Access Control (RBAC)** to exactly the actions its role requires, so even a fully hijacked agent cannot exceed what its credentials permit. The triage agent from the walkthrough below, for instance, gets a Role that can read pods and undo *one* deployment's rollout — and nothing else:
 
@@ -119,7 +121,7 @@ rules:
 
 ### 4.1 The Read Plane and the Write Plane
 
-These pieces compose into a recognisable shape. A **trigger** starts the agent (an alert, webhook, chat command, pipeline event). A **context-gathering** phase pulls state through read-only MCP tools. A **planning** phase has the model decide a course of action. Proposed mutations pass through an **approval gate** — human confirmation or a policy check, or both — before a constrained set of **write tools** executes them on scoped credentials. Every step lands in an **audit log**.
+These pieces compose into a recognisable shape. A **trigger** starts the agent (an alert, webhook, chat command, pipeline event). A **context-gathering** phase pulls state through read-only MCP tools. A **planning** phase has the model — the **Large Language Model (LLM)** at the agent's core, from lesson 01 — decide a course of action. Proposed mutations pass through an **approval gate** — human confirmation or a policy check, or both — before a constrained set of **write tools** executes them on scoped credentials. Every step lands in an **audit log**.
 
 ```mermaid
 sequenceDiagram

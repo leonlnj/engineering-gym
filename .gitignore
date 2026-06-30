@@ -24,3 +24,5 @@ minikube.log
 
 # ignore cargo.lock for this repo
 Cargo.lock
+
+.claude/worktrees

@@ -79,14 +79,14 @@ The standard way to score "how close" is **cosine similarity** — the cosine of
 
 ```text
 cos(latency, throughput) = (0.81·0.79 + 0.22·0.18 + (-0.05)(-0.11)) / (|latency|·|throughput|)
-                         ≈ 0.640 / (0.842 · 0.812)
-                         ≈ 0.936      # very similar
+                         ≈ 0.685 / (0.841 · 0.818)
+                         ≈ 0.996      # very similar
 
-cos(latency, invoice)    ≈ -0.150 / (0.842 · 1.045)
-                         ≈ -0.171     # unrelated / mildly opposed
+cos(latency, invoice)    ≈ -0.159 / (0.841 · 1.047)
+                         ≈ -0.181     # unrelated / mildly opposed
 ```
 
-A score of 0.94 versus −0.17 is the whole game: similar meanings score high, unrelated ones do not. This exact operation — embed text, compare by cosine — is the basis of vector search and Retrieval-Augmented Generation, which lesson 06 builds into a production data store and lesson 07 into a grounding pipeline.
+A score of ≈1.0 versus −0.18 is the whole game: similar meanings score high, unrelated ones do not. This exact operation — embed text, compare by cosine — is the basis of vector search and Retrieval-Augmented Generation, which lesson 06 builds into a production data store and lesson 07 into a grounding pipeline.
 
 An embedding is like plotting every concept as a pin on an enormous map where location is decided purely by meaning, not spelling. Pins for "GPU," "accelerator," and "CUDA" cluster in one neighbourhood; "invoice" and "billing" cluster in another, far away. To find related concepts you no longer match strings — you ask "which pins are nearest this one." Two phrases sharing no words ("the cluster ran out of memory" and "OOMKilled pods") can still land close because they appeared in similar contexts during training.
 
@@ -143,6 +143,8 @@ Because `pod` wins the weighting, `it`'s updated representation is built mostly 
 
 > Nuance: Which tokens matter is recomputed for *every* token and *every* layer — attention is not a one-time parse. The weights above are illustrative of one head at one layer; the real model blends many such weightings. The takeaway is mechanical, not numeric: meaning flows between positions by learned, content-dependent weighting.
 
+> Nuance: Attention by itself is **order-blind**. Because a token's update is a *weighted sum* of value vectors, shuffling the inputs would shuffle the terms but produce the same blend — so raw attention cannot tell `pod crashed` from `crashed pod`. Order is supplied separately: before the first layer the model adds a **positional encoding** — a position-dependent vector (or, in modern models, a position-dependent rotation of the query/key vectors, "RoPE") — to each token's embedding, so "`pod` at position 2" and "`pod` at position 5" enter attention as distinguishable inputs. Word order is injected into the vectors, never inferred by attention on its own.
+
 Attention is like a researcher writing one sentence of a report while surrounded by a wall of sticky notes. For each new word, they glance across all the notes and let the few relevant ones drive what they write, ignoring the rest — and which notes matter changes with every word. They never re-read everything equally; they weight what matters for the word at hand.
 
 ### 3.3 Beyond One Word: Layers, Heads, and a Harder Sentence
@@ -168,7 +170,7 @@ Layer 9 (meaning assembled on top of layer 1's output):
   query "hits ___" -> key "primary"   0.12      # the primary was demoted — down-weighted
 ```
 
-By the upper layer the representation feeding the final score has absorbed "traffic," "failover," and "replica" while suppressing "primary." The resulting top logits favour `the`, then `replica` — not because the model *understands* failover, but because in its training data, text about traffic after a failover overwhelmingly continued toward the replica. It is completing a pattern, not following a plan.
+By the upper layer the representation feeding the final score has absorbed "traffic," "failover," and "replica" while suppressing "primary." That single enriched vector for the last position is then projected into a score per vocabulary token (the mechanism is Section 4.1). The resulting top logits favour `the`, then `replica` — not because the model *understands* failover, but because in its training data, text about traffic after a failover overwhelmingly continued toward the replica. It is completing a pattern, not following a plan.
 
 > Nuance: These weights are illustrative of a handful of links at two layers; the real model blends many heads across every layer, and no single number is meaningful on its own. The takeaway is structural — meaning is built up in passes, from local to global — not the specific values.
 
@@ -192,7 +194,16 @@ This step-by-step rescoring is like an autocomplete that re-reads the entire sen
 
 ### 4.1 Autoregressive Decoding
 
-Producing a response is called **inference**, and it is strictly sequential. The model takes the full token sequence, runs it through all the attention layers once, and emits a vector of **logits** — one raw score per vocabulary token, saying how strongly each is favoured as the *next* token. A **softmax** function turns those logits into a probability distribution (every value 0–1, summing to 1). A **sampler** picks one token from that distribution, appends it to the sequence, and the whole process repeats with the now-longer input. This is **autoregressive** generation: each output token feeds back in to produce the next, until the model emits a special end-of-sequence token or hits a length cap. A 500-token answer is 500 forward passes.
+Producing a response is called **inference**, and it is strictly sequential. The model takes the full token sequence and runs it through all the attention layers once, which leaves one context-rich vector per position. Only the **last position's** vector is used to predict the next token, but it is still just an embedding-sized vector (say 4,096 numbers) — not yet a score per word. One final step bridges that gap: an **output projection** (the "unembedding") multiplies that vector by a matrix with one row per vocabulary entry, producing the vector of **logits** — one raw score per vocabulary token, saying how strongly each is favoured as the *next* token:
+
+```text
+# Simplified — last layer output to logits
+hidden_last  : [ 0.12, -0.84, ..., 0.31 ]        # 4,096 numbers for the final position
+logits = hidden_last · Wout                       # Wout is [4,096 × ~100,000]; often the embedding matrix transposed
+logits       : [ 1.2, -3.4, 8.7, ..., 0.5 ]      # ~100,000 scores — one per vocab token
+```
+
+That `Wout` is frequently the *same* embedding table from Section 2, transposed (**weight tying**): the matrix that turns IDs into vectors going in is reused to turn the final vector back into per-token scores going out. Tying is not just tidy — it deletes a whole second matrix of `vocab × dim` parameters (for a 100k vocab × 4,096 dim, ~410M weights saved) and forces the "meaning" and "scoring" views of each token to share one representation, which also acts as a mild regulariser. A **softmax** function then turns those logits into a probability distribution (every value 0–1, summing to 1). A **sampler** picks one token from that distribution, appends it to the sequence, and the whole process repeats with the now-longer input. This is **autoregressive** generation: each output token feeds back in to produce the next, until the model emits a special end-of-sequence token or hits a length cap. A 500-token answer is 500 forward passes.
 
 In pseudocode, the entire generation loop is short:
 
@@ -341,7 +352,7 @@ sequenceDiagram
 
 **Step by step:**
 
-**1. Tokenize.** The tokenizer (Section 1) splits the prompt into IDs — e.g. `["The", " pod", " was", " OOM", "Killed", " because", " it", " ran", " out", " of"]` → `[464, 7126, 373, 31436, 42, ...]`. Ten words may become eleven or twelve tokens.
+**1. Tokenize.** The tokenizer (Section 1) splits the prompt into IDs — e.g. `["The", " pod", " was", " OOM", "Killed", " because", " it", " ran", " out", " of"]` → `[464, 17801, 373, 31436, 42, ...]`. Ten words may become eleven or twelve tokens.
 
 **2. Embed.** Each ID is looked up in the embedding table (Section 2), producing one context-free vector per token.
 

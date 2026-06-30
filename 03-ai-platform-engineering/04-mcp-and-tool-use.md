@@ -68,6 +68,17 @@ sequenceDiagram
 ```
 *The four-step round-trip. Only steps 1, 2, and 4 are messages; step 3 happens inside the harness — which is why the model can decide a call but never perform one.*
 
+Step 3 can also *fail* — the `kubectl` call errors, times out, or the pod doesn't exist. That is not an exception your harness swallows; it is **fed back to the model as a result**, with the same `tool_use_id` but flagged as an error, so the model can read what went wrong and react — retry with a corrected argument, try a different tool, or report the failure in prose:
+
+```jsonc
+// Step 4, error variant: the harness caught the failure and returns it AS the result
+{ "type": "tool_result", "tool_use_id": "call_01",
+  "is_error": true,
+  "content": "Error: pod \"api-7c9\" not found in namespace \"prod\"" }
+```
+
+The error is just more context the model reasons over — the same mechanism the guardrail middleware uses in Section 7.3, where a denied call comes back as a `ToolError` the model must then handle rather than a silent crash. The happy path and the failure path travel the *same* `tool_result` channel; only the `is_error` flag differs.
+
 The model produced text describing the call it *wanted*; your code is what actually ran `kubectl` and returned the answer. A tool call is like a surgeon directing a procedure by calling out precise instrument requests — "ten-blade scalpel" — while a nurse physically hands each one over. The surgeon (model) has the expertise and decides every move but never reaches into the tray; the nurse (harness) performs the physical action. Critically, the surgeon can only request instruments on the tray and named on the list you provided.
 
 ---
@@ -282,6 +293,22 @@ Treat write tools as a different risk class: a read-only server can be granted b
 
 An MCP server is like issuing a contractor a building access badge. You do not hand over a master key with a note saying "please only enter the lobby" — you program the badge to open exactly the doors the job requires. If the badge can open the server room, the contractor can enter it regardless of any verbal instruction, and regardless of whether they were tricked into doing so. Scope the badge, not the conversation.
 
+### 6.3 Authenticating the Caller
+
+Sections 6.1–6.2 scoped the *outbound* credential — what the server's own token can reach on the backend. There is a second, opposite direction that a network-exposed server must answer: *who is allowed to call the server in the first place?* A least-privilege token is no defence if anyone on the network can invoke the tools that hold it. The answer depends on the transport (Section 3.4):
+
+- **stdio** servers need no caller authentication — the server is a local subprocess the host launched, so the OS process boundary *is* the authentication, and the server reads its backend credentials from its environment.
+- **Remote (Streamable HTTP)** servers are reachable over the network, so MCP defines an **OAuth 2.1** authorization flow: the server acts as an OAuth *resource server*, and a client must present a valid access token (obtained via the standard authorization-code-with-PKCE flow) on every request. The token identifies and authorizes the *caller*, distinct from the credential the server later uses against the backend.
+
+```jsonc
+// A remote MCP server rejects an unauthenticated/under-scoped caller before any tool runs
+// (the host's MCP client attaches the bearer token it obtained via OAuth)
+{ "jsonrpc": "2.0", "id": 5, "error":
+  { "code": -32001, "message": "Unauthorized: missing or invalid access token" } }
+```
+
+So a production remote server has *two* identities to get right: it authenticates the **caller** coming in (OAuth) and presents a scoped **service credential** going out (Section 6.1). Conflating them — a server that accepts anyone but holds a powerful backend token, or a tightly-scoped token behind an open endpoint — leaves a hole on one side. The guardrail gateway in Section 7 is the natural place to centralise the inbound half, terminating caller auth once for every backend behind it.
+
 ---
 
 ## 7. Middleware and the Guardrail Server
@@ -333,6 +360,8 @@ Concretely, "the host points at the gateway" is just MCP client config — the s
 
 The host cannot tell the difference, because the gateway **is** a normal MCP server from its side — and an MCP *client* from the other. It implements the server half of the protocol toward the host (answering `list_tools` with the union of every backend's tools, usually namespaced like `k8s.get_pod_status`) and the client half toward the backends (forwarding each call over that backend's own transport, after its `on_call_tool` hook runs). Being a compliant MCP node on *both* faces is what lets it sit in the middle invisibly — the USB-C interoperability from Section 2 doing real work.
 
+> Nuance: unioning every backend's tools is not free. The whole catalogue — each tool's name, description, and schema — is sent to the model on every request (Section 1.2), so it *spends the context budget from lesson 02* before any reasoning happens, and a sprawling catalogue also *degrades selection*: with hundreds of similar tools the model picks the wrong one more often. Treat the gateway's exposed tool set as a curated surface, not a dump of everything — namespace it, and hide tools a given host has no business calling rather than listing all of them.
+
 > Nuance: config is not enforcement. If a user can edit their own MCP config, pointing at the gateway is only a polite default — they could re-add a direct backend entry and skip it. Make it binding the way Section 6 makes everything binding — in the access layer, not the prose: put the backend servers where only the gateway can reach them (no client-routable address), so the gateway is the *only* path that resolves, not merely the recommended one.
 
 The payoff is a **single chokepoint**: one place that enforces policy, one audit log of every action attempted, one point that can deny a call before it ever reaches a backend's credentials. The trade-off is the flip side of any chokepoint — it adds a network hop of latency and becomes a single point of failure and one more service you own and must keep available. For a regulated platform that is usually a trade worth making; the alternative is policy logic scattered across every server.
@@ -365,6 +394,8 @@ The gateway logs the attempt, matches it against policy, finds no approved chang
 - **Transport lineage**: build remote servers on Streamable HTTP; the older HTTP+SSE transport is deprecated (and folded into Streamable HTTP under the hood), so treat SSE-only servers as legacy you support, not a target you design for.
 - **Sampling vs. control**: sampling lets a server add AI behaviour without its own API key, but you are lending it your model, your context, and your bill — gate it behind human approval rather than letting an untrusted server generate freely.
 - **Middleware: safety vs. latency and SPOF**: a guardrail gateway gives one chokepoint for policy and audit across every server, but it adds a network hop and becomes a single point of failure you must operate.
+- **Caller auth vs. backend credential**: a remote server has two identities — it must authenticate the *caller* coming in (OAuth 2.1 for HTTP; the process boundary for stdio) and present a *scoped service credential* going out; securing only one side leaves a hole, so terminate inbound auth (ideally at the gateway) as well as scoping the outbound token.
+- **Catalogue breadth vs. context and accuracy**: every exposed tool's schema is sent to the model on each call, so a large catalogue both spends the context budget and dilutes tool selection — expose a curated, namespaced surface rather than the union of everything, especially behind a gateway.
 - **Prompt-level vs. credential-level control**: instructing the model what not to do is convenient but unenforceable, whereas scoping the server's token actually bounds the agent — always enforce at the access layer, never in the prose.
 
 ---

@@ -63,7 +63,18 @@ Context budget (8,000 tokens):
   room left for the response      1,500   <- if the answer needs more, something must give
 ```
 
-The response shares the same 8,000 tokens, so a verbose context literally shrinks the room the model has to answer. Growth forces eviction: in a long chat the oldest turns must be dropped or summarised, or the request overflows. There is no automatic lossless memory — whatever strategy you choose (truncate oldest, summarise periodically, retrieve only relevant past turns) is a deliberate engineering decision with its own failure mode.
+"Scarce" is literal: the same budget is also a *bill*. Tokens are priced per million, and **output is usually several times more expensive than input**, so the cost of a call is not symmetric with its size. At illustrative rates of ~$3 / 1M input and ~$15 / 1M output tokens:
+
+```text
+# Simplified — cost of the call above (example rates, not a live price)
+input:   6,500 tokens × $3  / 1M  ≈ $0.0195
+output:  1,500 tokens × $15 / 1M  ≈ $0.0225   <- fewer tokens, larger share of the bill
+                                   --------
+total per call                    ≈ $0.042     (~$42 per 1,000 calls)
+```
+
+This is why bloating the window is not just slower but directly costlier, and why trimming generated
+output (terse formats, tight `max_tokens`) often saves more than trimming input. The response shares the same 8,000 tokens, so a verbose context literally shrinks the room the model has to answer. Growth forces eviction: in a long chat the oldest turns must be dropped or summarised, or the request overflows. There is no automatic lossless memory — whatever strategy you choose (truncate oldest, summarise periodically, retrieve only relevant past turns) is a deliberate engineering decision with its own failure mode.
 
 ```mermaid
 graph TD
@@ -82,6 +93,8 @@ graph TD
 ### 2.2 Budgeting Like a Resource Limit
 
 The discipline mirrors resource management you already practice: a context window is like the memory limit on a pod. You can request more (a bigger-window model) but it costs more per token and adds latency, and over-provisioning to "just include everything" is both wasteful and counterproductive — recall lesson 01's "lost in the middle," where padding the window with marginal content actively buries the facts that matter. The goal is the *smallest* context that contains everything relevant, not the largest one that fits.
+
+> Note: One part of the budget you do not have to keep re-paying is the *stable prefix*. Because the system prompt and few-shot examples (Section 1.2) are identical on every call, most providers offer **prompt caching** — the model's computed state for that unchanging prefix (the KV-cache from lesson 01) is retained server-side, so repeated calls skip recomputing it, billed at a steep discount and returned faster. The catch is that it only helps when the prefix is byte-identical and *first*: put the durable, shared content at the front (where placement already wants it) and the volatile per-call content last, or the cache never hits.
 
 ### 2.3 Placement: Where a Fact Sits in the Window
 
@@ -278,7 +291,41 @@ A prompt without an eval set is like shipping a config change with no tests and 
 
 ---
 
-## 7. Practical Limits and Trade-offs
+## 7. End-to-End: One Triage Request
+
+To consolidate, here is a single concrete request — an incident-triage call — traced from the pieces you assemble to the typed result your code branches on. Every stage is a technique from a section above, now shown in sequence.
+
+```mermaid
+sequenceDiagram
+    participant App as Caller (your code)
+    participant API as Messages API
+    participant M as Model
+    App->>API: messages[system + user] + output_schema(triage_result)
+    API->>M: flattened chat template (control tokens, one sequence)
+    M->>M: decode under schema mask (only valid tokens reachable)
+    M->>API: {"severity":"high","component":"payments","needs_human":true}
+    API->>App: parsed JSON -> page_oncall("payments")
+```
+
+*One triage request: role-tagged messages plus a bound schema go in, the API flattens them to a single token sequence, constrained decoding keeps generation inside the schema, and typed JSON comes back for the caller to branch on.*
+
+**Step by step:**
+
+**1. Assemble the window (Sections 1–2).** The caller builds a role-tagged message list — a durable `system` rule ("triage from the alert only; if unsure, set `needs_human`") plus a `user` message carrying the live alert text — and orders the durable, shared content first so it stays cache-eligible (Section 2.2).
+
+**2. Bind the shape (Section 4).** The call also passes the `triage_result` schema (the JSON object from Section 4.1), so the answer's *shape* is fixed before a single token is generated.
+
+**3. Flatten to one sequence (Section 1.1).** The API wraps each message in control tokens via the chat template, producing the single token stream the model actually reads — the `system`/`user` boundary is now just delimiter tokens, not a separate channel.
+
+**4. Decode under the mask (Section 4.1).** The model runs the inference loop from lesson 01, but at each step the schema mask zeroes every token that would break the contract — right after `"severity":` only `"low"`, `"medium"`, `"high"` are reachable. Invalid output is impossible, not merely unlikely.
+
+**5. Parse and branch (Section 4.2).** The caller receives `{"severity":"high","component":"payments","needs_human":true}`, `json.loads` it with no string-sniffing, and routes on typed fields — `page_oncall("payments")`. The probabilistic model has handed deterministic code a contract it can depend on.
+
+The whole "the model triaged an incident" is these five steps once — assembly, binding, flatten, masked decode, parse — and every later automation lesson (tool use in 04, agentic ops in 05) is this same loop with the parsed result becoming an *action* instead of an answer.
+
+---
+
+## 8. Practical Limits and Trade-offs
 
 - **Context completeness vs. cost and focus**: more context can improve grounding, but every token adds latency and money and risks burying key facts in the middle — include what is relevant, not everything available, and aim for the smallest sufficient context.
 - **Structure vs. flexibility**: schema-constrained output gives reliable, parseable results for automation but can clip nuance the model would otherwise express; reserve rigid schemas for machine consumers and allow prose where a human reads the output.
@@ -288,6 +335,6 @@ A prompt without an eval set is like shipping a config change with no tests and 
 
 ---
 
-## 8. Summary
+## 9. Summary
 
 Context engineering treats the model's context window as working memory you assemble on every stateless call, not a chat box you type wishes into. The request is a list of role-tagged messages, with the system prompt as durable configuration and the window as a fixed budget that instructions, history, retrieved data, tools, and the answer all compete for — so the discipline is fitting the smallest sufficient context (not the largest that fits), placing the facts that matter where the model reads most reliably, and compacting history rather than letting it overflow. A few mechanically-grounded techniques — specificity, delimiters, few-shot examples, chain-of-thought — reliably improve output, while schema-bound structured output turns a probabilistic model into a dependable contract for automation. Grounding the model in supplied facts and permitting it to abstain, with citations, is the strongest practical defence against hallucination, and doing that retrieval automatically is what RAG (lesson 07) provides. Above all, because output is probabilistic, prompts are versioned artefacts proven with eval sets, not magic strings tuned until a single demo looks right — the reliability discipline that lesson 10 formalises.

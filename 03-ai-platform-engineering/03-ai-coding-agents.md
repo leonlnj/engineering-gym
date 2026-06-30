@@ -15,18 +15,21 @@ Everything an agent does is the loop introduced in the overview, made concrete �
 With that split in mind the cycle is concrete. The model is handed a goal and a set of tool definitions (the schema mechanism from lesson 02, §4); it reasons about the next step and emits a request to call one tool; the harness executes that tool and feeds the result back into the context; and the model reasons again with that new information. The loop continues until the model decides the goal is met and emits a final answer instead of a tool call.
 
 ```python
-# Simplified — the core agent loop
+# Simplified — the core agent loop, with the guardrail real harnesses enforce
 messages = [{"role": "user", "content": goal}]
-while True:
+for step in range(MAX_STEPS):                # bounded — not an open `while True`
     reply = model(messages, tools=TOOLS)     # model decides: act or finish?
     if reply.stop_reason != "tool_use":
         return reply.text                    # goal met — done
     result = run_tool(reply.tool_name, reply.tool_input)   # harness executes
     messages.append(reply)                   # record what the model asked for
     messages.append({"role": "tool", "content": result})   # feed the result back
+raise StepBudgetExceeded(step)               # ran out of budget without finishing
 ```
 
-In that snippet the division is literal: the single `model(...)` call is the model, and everything around it — the `while` loop, `run_tool`, and the two `messages.append` lines — is the harness. This is what separates "generate a YAML file" (one prediction) from "find why this deployment fails and fix it" (many cycles of look, hypothesise, act, check). The model never runs anything — `run_tool` does; the model only ever emits text describing the call it wants.
+In that snippet the division is literal: the single `model(...)` call is the model, and everything around it — the loop, `run_tool`, and the two `messages.append` lines — is the harness. This is what separates "generate a YAML file" (one prediction) from "find why this deployment fails and fix it" (many cycles of look, hypothesise, act, check). The model never runs anything — `run_tool` does; the model only ever emits text describing the call it wants.
+
+The loop is deliberately *bounded*, not the naive `while True` it is often drawn as. Because the agent decides for itself when it is done, a confused agent can otherwise thrash forever — retrying a failing command, ping-ponging between two edits — burning tokens and money with no human watching. So the harness imposes a **step budget** (and often a wall-clock or cost ceiling): a runaway is capped and surfaced rather than left to spin. This is the same instinct as the permission gates in Section 3 — a guardrail on autonomy, here on *how long* the agent may run rather than *what* it may touch.
 
 The split is like a brain in a jar wired to a robot body: the model is the brain — it can only think and say what it wants done, with no hands and no memory of yesterday — while the harness is the body and notebook that read files, run commands, refuse the dangerous ones, and bring results back. Intent comes from the model; everything that actually happens to your systems is the harness.
 
@@ -78,6 +81,17 @@ search(pattern)            -> matching files     # locate code
 The capability that most distinguishes a good coding agent is **autonomous context gathering**. Recall from lesson 02 that the model only knows what is in its context window. A coding agent does not require you to paste in the relevant files — it explores the repository to find them itself, reading directory structures, grepping for a function, opening the files it judges relevant, and building the working memory it needs before acting. This is why an agent can be dropped into an unfamiliar repo and still make a coherent change: it reconstructs context the way a new engineer would, by looking around.
 
 That same mechanism is the agent's main consumer of the token budget. Every file it reads and every command output it observes fills the context window, so on a large task the agent is constantly deciding what is worth looking at — and can run out of room, a limitation Section 5 returns to.
+
+It is also why an agent is far costlier than a single call, and the cost grows faster than the step count. Each iteration re-sends the *entire accumulated* context (lesson 02: there is no memory between calls, so prior turns are replayed every time), so a task that grows the context a little each step pays for that whole transcript again on every step:
+
+```text
+# Simplified — input tokens reprocessed across a 10-step task (~2k tokens added/step)
+  step 1 processes ~2k   step 2 ~4k   step 3 ~6k   ...   step 10 ~20k
+  total input ≈ 2k·(1+2+...+10) = 2k·55 ≈ 110k input tokens   <- vs ~2k for a one-shot call
+  at ~$3 / 1M input tokens  ->  ~$0.33 just to re-read context, before output is billed
+```
+
+The growth is quadratic in steps, not linear — which is why long agent runs get expensive, why **prompt caching** (lesson 02) matters so much here (the stable prefix is not re-billed at full price), and why "break the task into smaller units" (Section 5) is a cost argument as well as a reliability one.
 
 ---
 
@@ -168,6 +182,18 @@ A repository can far exceed any context window, so the agent works from a partia
 ### 6.1 Scope, Context, Review
 
 Three habits separate good results from frustration. **Scope the task**: "improve our deployment setup" gives no target, while "add a readiness probe on `/healthz:8080` to the `payments` deployment and update the matching service" gives a goal the agent can hit and you can verify. **Supply the context the agent cannot infer**: it reads the repo, but it cannot read your intent, conventions, or constraints that live in your head — state them, or capture them once in a project instructions file the agent reads automatically. **Review like a colleague's pull request**, because that is what it is: read the diff, run the tests, question anything you do not understand.
+
+That "project instructions file" is concrete: most harnesses auto-load a `CLAUDE.md` (or equivalent) from the repo root into the context of every session, so the conventions you would otherwise re-type each time are always present:
+
+```markdown
+# CLAUDE.md — auto-loaded into the agent's context every session
+- Manifests live in `deploy/`; never edit anything under `generated/` (it is templated).
+- We run on GKE; default namespace is `staging` unless told otherwise.
+- Always run `make test` before proposing a change; do not `kubectl apply` — emit the diff for review.
+- House style: env vars are `SCREAMING_SNAKE`, Helm values are `camelCase`.
+```
+
+This is the durable, repo-level equivalent of the system prompt from lesson 02 — write the convention once, and every future task inherits it instead of relearning it from scratch (or guessing wrong).
 
 ### 6.2 The Productivity Model
 
