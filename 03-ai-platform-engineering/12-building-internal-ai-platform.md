@@ -6,6 +6,20 @@ As `00-overview.md` framed the dual mandate, this is the "operate" thread brough
 
 ---
 
+## Contents
+
+1. [Why a Platform, Not Just an Endpoint](#1-why-a-platform-not-just-an-endpoint)
+2. [The AI Gateway: The Central Control Point](#2-the-ai-gateway-the-central-control-point)
+3. [Model Routing and Serving Behind One Interface](#3-model-routing-and-serving-behind-one-interface)
+4. [Self-Service Golden Paths](#4-self-service-golden-paths)
+5. [Cross-Cutting Platform Services](#5-cross-cutting-platform-services)
+6. [The Ownership Model](#6-the-ownership-model)
+7. [Reference Architecture and a Worked Request](#7-reference-architecture-and-a-worked-request)
+8. [Practical Limits and Trade-offs](#8-practical-limits-and-trade-offs)
+9. [Summary](#9-summary)
+
+---
+
 ## 1. Why a Platform, Not Just an Endpoint
 
 ### 1.1 What Goes Wrong Without One

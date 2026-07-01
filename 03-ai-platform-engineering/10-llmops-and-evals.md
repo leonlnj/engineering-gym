@@ -6,6 +6,20 @@ This is the operational backbone for everything in the track — the prompts of 
 
 ---
 
+## Contents
+
+1. [Why Traditional Testing and Monitoring Fall Short](#1-why-traditional-testing-and-monitoring-fall-short)
+2. [Evals: The Test Suite for Probabilistic Systems](#2-evals-the-test-suite-for-probabilistic-systems)
+3. [How to Score a Non-Deterministic Output](#3-how-to-score-a-non-deterministic-output)
+4. [Observability: Tracing What the System Actually Did](#4-observability-tracing-what-the-system-actually-did)
+5. [Managing Change: Prompts, Models, and Versions](#5-managing-change-prompts-models-and-versions)
+6. [Cost and Drift: The Ongoing Concerns](#6-cost-and-drift-the-ongoing-concerns)
+7. [End-to-End: Shipping One Prompt Change](#7-end-to-end-shipping-one-prompt-change)
+8. [Practical Limits and Trade-offs](#8-practical-limits-and-trade-offs)
+9. [Summary](#9-summary)
+
+---
+
 ## 1. Why Traditional Testing and Monitoring Fall Short
 
 ### 1.1 Assertion Testing Breaks

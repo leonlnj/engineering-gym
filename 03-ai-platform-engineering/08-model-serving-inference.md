@@ -6,6 +6,20 @@ This is the heart of the "operate" mandate from `00-overview.md`. The good news 
 
 ---
 
+## Contents
+
+1. [What Makes LLM Inference Different](#1-what-makes-llm-inference-different)
+2. [The KV-Cache: The Memory That Governs Capacity](#2-the-kv-cache-the-memory-that-governs-capacity)
+3. [Throughput Techniques: Batching and Paged Attention](#3-throughput-techniques-batching-and-paged-attention)
+4. [Latency, Throughput, and the Tuning Dial](#4-latency-throughput-and-the-tuning-dial)
+5. [Shrinking the Model: Quantization](#5-shrinking-the-model-quantization)
+6. [Serving on Kubernetes: vLLM and KServe](#6-serving-on-kubernetes-vllm-and-kserve)
+7. [End-to-End: One Request Served](#7-end-to-end-one-request-served)
+8. [Practical Limits and Trade-offs](#8-practical-limits-and-trade-offs)
+9. [Summary](#9-summary)
+
+---
+
 ## 1. What Makes LLM Inference Different
 
 ### 1.1 Generation Is a Loop, Not a Call

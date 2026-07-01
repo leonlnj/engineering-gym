@@ -6,6 +6,19 @@ For a platform engineer this is the first of the new infrastructure components f
 
 ---
 
+## Contents
+
+1. [From Text to Vectors: The Embedding Model](#1-from-text-to-vectors-the-embedding-model)
+2. [Measuring Similarity: Distance in Vector Space](#2-measuring-similarity-distance-in-vector-space)
+3. [The Scaling Problem: Why Exact Search Breaks](#3-the-scaling-problem-why-exact-search-breaks)
+4. [Vector Indexes: HNSW and IVF](#4-vector-indexes-hnsw-and-ivf)
+5. [The Vector Database Around the Index](#5-the-vector-database-around-the-index)
+6. [End-to-End: One Semantic Search](#6-end-to-end-one-semantic-search)
+7. [Practical Limits and Trade-offs](#7-practical-limits-and-trade-offs)
+8. [Summary](#8-summary)
+
+---
+
 ## 1. From Text to Vectors: The Embedding Model
 
 ### 1.1 A Model Whose Only Job Is Vectors

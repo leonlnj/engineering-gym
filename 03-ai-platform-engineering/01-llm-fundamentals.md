@@ -6,6 +6,20 @@ This lesson, the first in the track, builds the mental model the rest of the cur
 
 ---
 
+## Contents
+
+1. [Tokens: The Unit the Model Sees](#1-tokens-the-unit-the-model-sees)
+2. [Embeddings: Meaning as Geometry](#2-embeddings-meaning-as-geometry)
+3. [The Transformer and Attention](#3-the-transformer-and-attention)
+4. [Inference: The Generation Loop](#4-inference-the-generation-loop)
+5. [The Context Window: A Fixed, Shared Budget](#5-the-context-window-a-fixed-shared-budget)
+6. [Training vs. Inference: Why the Model Has No Live Facts](#6-training-vs-inference-why-the-model-has-no-live-facts)
+7. [End-to-End: One Prompt, One Token](#7-end-to-end-one-prompt-one-token)
+8. [Practical Limits and Trade-offs](#8-practical-limits-and-trade-offs)
+9. [Summary](#9-summary)
+
+---
+
 ## 1. Tokens: The Unit the Model Sees
 
 ### 1.1 Why Sub-Word Tokens

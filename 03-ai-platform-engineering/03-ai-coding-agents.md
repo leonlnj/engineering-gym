@@ -6,6 +6,19 @@ As `00-overview.md` framed it, this is the first half of the platform engineer's
 
 ---
 
+## Contents
+
+1. [The Agentic Loop](#1-the-agentic-loop)
+2. [What Makes a Coding Agent](#2-what-makes-a-coding-agent)
+3. [How They Work in Practice](#3-how-they-work-in-practice)
+4. [A Worked Task: Fixing a Failing Deployment](#4-a-worked-task-fixing-a-failing-deployment)
+5. [Where They Break Down](#5-where-they-break-down)
+6. [Working Effectively on Platform Tasks](#6-working-effectively-on-platform-tasks)
+7. [Practical Limits and Trade-offs](#7-practical-limits-and-trade-offs)
+8. [Summary](#8-summary)
+
+---
+
 ## 1. The Agentic Loop
 
 ### 1.1 Plan, Act, Observe

@@ -4,6 +4,18 @@ This is the track's closing document — a candid self-assessment, not a lesson.
 
 ---
 
+## Contents
+
+1. [The Verdict](#1-the-verdict)
+2. [What the Track Does Well](#2-what-the-track-does-well)
+3. [The Decisive Gap: Knowledge vs. Demonstrated Competence](#3-the-decisive-gap-knowledge-vs-demonstrated-competence)
+4. [Topic Gaps (Prioritized)](#4-topic-gaps-prioritized)
+5. [Role-Fit Read](#5-role-fit-read)
+6. [The Path Forward](#6-the-path-forward)
+7. [Closing](#7-closing)
+
+---
+
 ## 1. The Verdict
 
 Completing this track makes you **conceptually strong and a credible AI *platform/infrastructure* engineer — but reading it is necessary, not sufficient, to be hireable.** The gap is not about the quality or depth of the material; it is about *modality*. Hiring for AI roles screens overwhelmingly for **demonstrated competence** — systems you have built, code you have shipped, a portfolio someone can inspect — and twelve deep lessons build judgment and vocabulary, not evidence. A reader finishes able to *reason about and discuss* serving, RAG, agents, evals, and platforms convincingly, but on the strength of the track alone has not *built* any of them.

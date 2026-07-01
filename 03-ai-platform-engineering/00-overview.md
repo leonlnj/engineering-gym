@@ -6,6 +6,18 @@ This overview frames the platform engineer's **dual mandate** in the AI era and 
 
 ---
 
+## Contents
+
+1. [The Two Shifts: A Dual Mandate](#1-the-two-shifts-a-dual-mandate)
+2. [How LLMs Actually Work (Just Enough)](#2-how-llms-actually-work-just-enough)
+3. [From Chatbots to Agents](#3-from-chatbots-to-agents)
+4. [The New Infrastructure Layer](#4-the-new-infrastructure-layer)
+5. [What Changes for the Platform Engineer](#5-what-changes-for-the-platform-engineer)
+6. [Practical Limits and Trade-offs](#6-practical-limits-and-trade-offs)
+7. [Summary](#7-summary)
+
+---
+
 ## 1. The Two Shifts: A Dual Mandate
 
 The AI era pulls platform engineering in two directions at once, and treating them as one blurs both.

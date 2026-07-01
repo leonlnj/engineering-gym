@@ -41,6 +41,14 @@ before the reader has formed a wrong mental model.>
 
 ---
 
+## Contents
+
+1. [<First Major Section>](#1-first-major-section)
+2. [...](#2-)
+...
+
+---
+
 ## 1. <First Major Section>
 
 ### 1.1 <Sub-topic>
@@ -75,6 +83,7 @@ at each topic seam (see §3.12).>
 - Top-level sections use `## N.` (e.g. `## 1.`, `## 2.`).
 - Sub-sections use `### N.M` (e.g. `### 1.1`, `### 2.3`). Never use `##` for a sub-section — it renders as a top-level section.
 - **Decompose each major section into `### N.M` sub-sections.** A `## N.` section that is one undivided block of prose is almost always under-developed — break it into the two-to-four mechanical parts it is really made of, each with its own sub-heading, explanation, and (where it helps) snippet or diagram.
+- **Open with a `## Contents` list of the top-level `## N.` sections** (not the `### N.M` sub-sections), placed right after the intro's `---` and before `## 1.`. Use a real Markdown ordered list (`1.`, `2.`, ...) with the section number *only* as the list marker — do not also repeat the number inside the link text (e.g. `1. [Tokens: The Unit the Model Sees](#1-tokens-the-unit-the-model-sees)`, not `- [1. Tokens...]`), otherwise the rendered list shows the number twice. Generate it from the final headings in the Self-Review sweep (§8), not while drafting — see §7 for the anchor-slug rule.
 
 ---
 
@@ -278,6 +287,8 @@ Whenever a mechanism has a concrete form — an API call, a config, a data forma
   - **Or defer the number**: while drafting, write a placeholder such as `§<!--ref:transports-->` instead of a number, and resolve every placeholder to a real number only in the final Self-Review sweep (§8). **Never emit a hard `§N.M` mid-draft.**
   - The sweep greps for `Section [0-9]` / `§[0-9]` **and** for any leftover `ref:` placeholder, catching both stale numbers and unresolved refs.
 
+- **The `## Contents` TOC is the one sanctioned use of a plain `#N-heading-slug` link.** It is exempt from the moving-target bug above only because it is regenerated from the final headings in the same Self-Review sweep that resolves everything else — it is never written mid-draft and left stale. Build each slug from GitHub's auto-slug rule: lowercase the heading (number included), drop every character that is not a letter, digit, space, or hyphen, then turn spaces into hyphens (e.g. `## 2. The KV-Cache: The Memory That Governs Capacity` → `#2-the-kv-cache-the-memory-that-governs-capacity`). The link *text*, though, drops the leading number — the ordered-list marker supplies it (see §1) — so the entry reads `2. [The KV-Cache: The Memory That Governs Capacity](#2-the-kv-cache-the-memory-that-governs-capacity)`. Regenerating the TOC — not just resolving `§` refs — is part of the sweep.
+
 ---
 
 ## 8. Self-Review: The One-Pass Test
@@ -299,6 +310,7 @@ Before a lesson is done, read it once *as someone seeing the topic for the first
 - [ ] **Readable rhythm.** No monolithic paragraph or 3+-clause run-on sentence anywhere; the Summary is 2–3 short paragraphs, not one block.
 - [ ] **Currency & deprecation.** Volatile facts verified against a current source; legacy/superseded mechanisms are explicitly preserved but clearly marked deprecated — not omitted, not taught as current.
 - [ ] **Internal references resolve.** Every same-file reference resolves against the final headings; all drafting placeholders (`§<!--ref:...-->`) are replaced with real numbers or stable anchors, and no bare section number was emitted before the final sweep.
+- [ ] **TOC present and resolves.** The lesson opens with a `## Contents` block as a Markdown ordered list (not dash bullets) of every top-level `## N.` section, the number appears once (as the list marker, not repeated in the link text), and each link's slug matches its heading exactly (regenerated after any renumber).
 - [ ] **Depth bar met.** Sub-sections throughout, 6+ snippets, 2–3 diagrams, an end-to-end walkthrough, concrete numbers, both internals and operational depth (§2).
 
 If a reader still has to re-read a passage to follow it, the passage — not the reader — is the problem.

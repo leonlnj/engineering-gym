@@ -6,6 +6,19 @@ This is the most platform-native lesson in the track: the concepts — device pl
 
 ---
 
+## Contents
+
+1. [Why Kubernetes Cannot Schedule a GPU Natively](#1-why-kubernetes-cannot-schedule-a-gpu-natively)
+2. [The GPU Operator: Managing the Node Stack](#2-the-gpu-operator-managing-the-node-stack)
+3. [Sharing a GPU: MIG and Time-Slicing](#3-sharing-a-gpu-mig-and-time-slicing)
+4. [Steering Workloads with Scheduling Constraints](#4-steering-workloads-with-scheduling-constraints)
+5. [Autoscaling and the Economics of Idle GPUs](#5-autoscaling-and-the-economics-of-idle-gpus)
+6. [End-to-End: A Request to a Scaled-to-Zero Service](#6-end-to-end-a-request-to-a-scaled-to-zero-service)
+7. [Practical Limits and Trade-offs](#7-practical-limits-and-trade-offs)
+8. [Summary](#8-summary)
+
+---
+
 ## 1. Why Kubernetes Cannot Schedule a GPU Natively
 
 ### 1.1 CPU Is Divisible; a GPU Is Not

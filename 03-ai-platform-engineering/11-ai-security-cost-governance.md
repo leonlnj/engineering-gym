@@ -6,6 +6,20 @@ These are not afterthoughts to bolt on at the end. As `00-overview.md` framed it
 
 ---
 
+## Contents
+
+1. [Why AI Changes the Security Picture](#1-why-ai-changes-the-security-picture)
+2. [Prompt Injection: The Signature Vulnerability](#2-prompt-injection-the-signature-vulnerability)
+3. [Data Leakage: Sensitive Data Going Where It Should Not](#3-data-leakage-sensitive-data-going-where-it-should-not)
+4. [The Agent Attack Surface](#4-the-agent-attack-surface)
+5. [Cost Control: FinOps for Tokens](#5-cost-control-finops-for-tokens)
+6. [Governance: Access, Policy, and Build-vs-Buy](#6-governance-access-policy-and-build-vs-buy)
+7. [End-to-End: An Injection Attack, Contained](#7-end-to-end-an-injection-attack-contained)
+8. [Practical Limits and Trade-offs](#8-practical-limits-and-trade-offs)
+9. [Summary](#9-summary)
+
+---
+
 ## 1. Why AI Changes the Security Picture
 
 ### 1.1 The Data/Instruction Confusion

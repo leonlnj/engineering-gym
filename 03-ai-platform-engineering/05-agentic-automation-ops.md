@@ -6,6 +6,19 @@ This is the culmination of the "augment" thread from `00-overview.md`. The desig
 
 ---
 
+## Contents
+
+1. [The Spectrum of Autonomy](#1-the-spectrum-of-autonomy)
+2. [Use Cases](#2-use-cases)
+3. [Designing Guardrails](#3-designing-guardrails)
+4. [Architecture of an Ops Agent](#4-architecture-of-an-ops-agent)
+5. [A Worked Incident: High Latency on `payments`](#5-a-worked-incident-high-latency-on-payments)
+6. [Failure Modes and Safety](#6-failure-modes-and-safety)
+7. [Practical Limits and Trade-offs](#7-practical-limits-and-trade-offs)
+8. [Summary](#8-summary)
+
+---
+
 ## 1. The Spectrum of Autonomy
 
 ### 1.1 Three Levels

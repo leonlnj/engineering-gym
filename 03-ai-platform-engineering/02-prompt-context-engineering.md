@@ -6,6 +6,20 @@ For a platform engineer, the right frame is that you are not "asking a chatbot" 
 
 ---
 
+## Contents
+
+1. [Anatomy of a Request](#1-anatomy-of-a-request)
+2. [Engineering the Context Window](#2-engineering-the-context-window)
+3. [Prompt Engineering Techniques](#3-prompt-engineering-techniques)
+4. [Structured Output](#4-structured-output)
+5. [Grounding and Reducing Hallucination](#5-grounding-and-reducing-hallucination)
+6. [Reliability and Iteration](#6-reliability-and-iteration)
+7. [End-to-End: One Triage Request](#7-end-to-end-one-triage-request)
+8. [Practical Limits and Trade-offs](#8-practical-limits-and-trade-offs)
+9. [Summary](#9-summary)
+
+---
+
 ## 1. Anatomy of a Request
 
 ### 1.1 Roles and the Messages API

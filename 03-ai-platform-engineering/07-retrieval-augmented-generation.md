@@ -6,6 +6,19 @@ This reframes the task for a platform engineer: most of RAG's difficulty, and al
 
 ---
 
+## Contents
+
+1. [Why RAG Instead of Retraining](#1-why-rag-instead-of-retraining)
+2. [The Two Phases: Ingestion and Retrieval](#2-the-two-phases-ingestion-and-retrieval)
+3. [Chunking: The Decision That Quietly Governs Quality](#3-chunking-the-decision-that-quietly-governs-quality)
+4. [Retrieval Quality and Re-ranking](#4-retrieval-quality-and-re-ranking)
+5. [Assembling the Grounded Prompt](#5-assembling-the-grounded-prompt)
+6. [A Worked Query, and the Failure Modes It Exposes](#6-a-worked-query-and-the-failure-modes-it-exposes)
+7. [Practical Limits and Trade-offs](#7-practical-limits-and-trade-offs)
+8. [Summary](#8-summary)
+
+---
+
 ## 1. Why RAG Instead of Retraining
 
 ### 1.1 Three Ways to Add Knowledge

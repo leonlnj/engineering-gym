@@ -6,6 +6,20 @@ For a platform engineer this is the most important seam in the track, because it
 
 ---
 
+## Contents
+
+1. [How Tool Use Works Under the Hood](#1-how-tool-use-works-under-the-hood)
+2. [The Integration Problem](#2-the-integration-problem)
+3. [MCP Architecture](#3-mcp-architecture)
+4. [Exposing the Platform Surface](#4-exposing-the-platform-surface)
+5. [A Worked Round-Trip: "Is payments healthy?"](#5-a-worked-round-trip-is-payments-healthy)
+6. [Auth and Blast Radius](#6-auth-and-blast-radius)
+7. [Middleware and the Guardrail Server](#7-middleware-and-the-guardrail-server)
+8. [Practical Limits and Trade-offs](#8-practical-limits-and-trade-offs)
+9. [Summary](#9-summary)
+
+---
+
 ## 1. How Tool Use Works Under the Hood
 
 ### 1.1 Declaring a Tool
