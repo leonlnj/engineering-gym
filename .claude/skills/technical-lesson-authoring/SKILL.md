@@ -62,8 +62,12 @@ never a bare fact fragment.>
 
 ## 4. Summary
 
-<3–6 sentences of prose a reader can use as a quick recap without re-reading the
-whole file. No bullet lists here — prose forces you to show how the ideas connect.>
+<2–3 short paragraphs of prose (one theme per paragraph — e.g. what it is, why it
+behaves this way, what that means for you), ~3–6 sentences total, a reader can use
+as a quick recap without re-reading the whole file. One idea per sentence — never
+chain three or more clauses into one sentence. No bullet lists here — prose forces
+you to show how the ideas connect, but a single unbroken block is a wall; break it
+at each topic seam (see §3.12).>
 ```
 
 **Structural rules:**
@@ -192,6 +196,21 @@ Aim for **5–8 major sections** per lesson. Fewer than five usually means a con
 - **Bold every key term on first definition**, at the exact sentence it is defined, so readers can skim-locate definitions.
 - **Expand every acronym on first use** — full form, then the abbreviation in parentheses, e.g. *"**Write-Ahead Log (WAL)**"*; the abbreviation alone is fine afterward. (The track's `GUIDELINES.md` lists the domain acronyms to watch for.)
 
+### 3.12 Readability and visual rhythm
+
+Density that reads fine sentence-by-sentence in your head can still land as a wall of text on the page. Two rules keep prose scannable:
+
+- **One idea per sentence.** If a sentence stacks three or more clauses joined by commas or em-dashes, split it. The reader should never have to re-parse a sentence to find its spine.
+- **Paragraphs of 2–4 sentences.** Break a block at every topic seam — a shift from *what* to *why*, or from mechanism to consequence. A paragraph longer than ~4 sentences, or one that renders as a single unbroken line filling the screen, is a wall — split it into two.
+
+This applies everywhere, but density creeps in unnoticed in two spots most: the **Summary** (§1) and `> Nuance:`/`> Note:` callouts (§3.5) — both tend to compress a whole section's worth of ideas into one paragraph. Check those first.
+
+Bad (one 90-word sentence chaining five clauses):
+"An LLM is a next-token predictor: text is split into sub-word tokens, each token ID is looked up as an embedding that encodes meaning as position in space, attention weighs which tokens matter for each other, and inference loops — scoring logits, softmaxing to probabilities, and sampling one token at a time — to produce output."
+
+Good (same content, one idea per sentence, grouped by theme):
+"An LLM predicts one token at a time. Text is split into sub-word tokens, and each token ID is looked up as an embedding — a point in space that encodes meaning. Attention then weighs which tokens matter to each other, and inference loops through scoring logits, softmaxing to probabilities, and sampling a token to produce output."
+
 ---
 
 ## 4. Diagrams
@@ -277,6 +296,7 @@ Before a lesson is done, read it once *as someone seeing the topic for the first
 - [ ] **Objections pre-empted.** Every fix names the first objection a reader feels and answers it in place.
 - [ ] **Sections mapped to the spine.** If the lesson states a framework or thesis, every major section's opening places it within that frame.
 - [ ] **Headings accurate and directional.** Every heading names its content correctly and points the right way.
+- [ ] **Readable rhythm.** No monolithic paragraph or 3+-clause run-on sentence anywhere; the Summary is 2–3 short paragraphs, not one block.
 - [ ] **Currency & deprecation.** Volatile facts verified against a current source; legacy/superseded mechanisms are explicitly preserved but clearly marked deprecated — not omitted, not taught as current.
 - [ ] **Internal references resolve.** Every same-file reference resolves against the final headings; all drafting placeholders (`§<!--ref:...-->`) are replaced with real numbers or stable anchors, and no bare section number was emitted before the final sweep.
 - [ ] **Depth bar met.** Sub-sections throughout, 6+ snippets, 2–3 diagrams, an end-to-end walkthrough, concrete numbers, both internals and operational depth (§2).
@@ -305,3 +325,4 @@ If a reader still has to re-read a passage to follow it, the passage — not the
 - **Do not leave an abstraction or taxonomy unanchored.** Give a concrete named instance and selection guidance.
 - **Do not teach a deprecated mechanism as current, or omit it silently.** Present the current default and mark the superseded alternative deprecated.
 - **Do not let internal section references go stale.** Re-verify every same-file reference after renumbering or inserting sections.
+- **Do not pack prose into one unbroken wall**, or chain three-plus clauses into a single sentence. Break at topic seams; one idea per sentence. This applies everywhere but especially the Summary.
