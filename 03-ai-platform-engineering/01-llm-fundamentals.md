@@ -45,7 +45,7 @@ Where do those integer IDs come from, and why is `pods` specifically `23532`? Th
 ...
 ```
 
-Two things fall out of this. First, the ID is nothing but the **row number** of an entry — its position in the list. It carries no meaning of its own: `23532` is not "more" than `8002`, and ID `8769` is no more related to `8770` than to `42`; they are just neighbouring lines in a file. Second — and this is the part that makes the next section click — *this same ID is the index the model uses to look up the token's meaning*. The vocabulary is the shared contract: the tokenizer assigns the IDs, and the embedding table (Section 2) is built with exactly one row per vocabulary entry, in the same order. The ID is the join key between the two.
+Two things fall out of this. First, the ID is nothing but the **row number** of an entry — its position in the list. It carries no meaning of its own: `23532` is not "more" than `8002`, and ID `8769` is no more related to `8770` than to `42`; they are just neighbouring lines in a file. Second — and this is the part that makes the next section click — *this same ID is the index the model uses to look up the token's meaning*. The vocabulary is the shared contract: the tokenizer assigns the IDs, and the embedding table (the *Embeddings* section) is built with exactly one row per vocabulary entry, in the same order. The ID is the join key between the two.
 
 A vocabulary ID is like a coat-check ticket number. The number `47` printed on the ticket tells you nothing about the coat — it is not warmer or longer than coat `46`. Its only job is to name a peg so the right coat can be fetched later. The tokenizer hands you the ticket; the embedding table is the rack the ticket retrieves from.
 
@@ -55,13 +55,13 @@ A vocabulary ID is like a coat-check ticket number. The number `47` printed on t
 
 ### 2.1 From Token ID to Vector
 
-A token ID like `8769` is just an index (Section 1.3) — it carries no meaning. Crucially, the ID is **not transformed into** a vector by some calculation; there is no formula that turns `8769` into meaning. Instead the ID is used as a **row number to fetch** a vector that was *already stored* during training. The model holds an **embedding table**: a giant matrix with one row per vocabulary entry — same order as the vocabulary, so row `8769` is the meaning of token `8769` — where each row is a vector of numbers (the **embedding**), commonly 768 to 12,288 values. Lookup is a plain array index:
+A token ID like `8769` is just an index (the *Vocabulary File* subsection) — it carries no meaning. Crucially, the ID is **not transformed into** a vector by some calculation; there is no formula that turns `8769` into meaning. Instead the ID is used as a **row number to fetch** a vector that was *already stored* during training. The model holds an **embedding table**: a giant matrix with one row per vocabulary entry — same order as the vocabulary, so row `8769` is the meaning of token `8769` — where each row is a vector of numbers (the **embedding**), commonly 768 to 12,288 values. Lookup is a plain array index:
 
 ```text
 embedding_table[8769]  ->  [ 0.014, -0.221, 0.097, ..., 0.052 ]   # the pre-stored row for "ernetes"
 ```
 
-These vectors are *learned* during training (Section 2.3) such that tokens used in similar contexts end up near each other in the vector space. Meaning, in other words, is not derived from the ID — it is the *contents of the row the ID points to*, and that content becomes a *position* in space.
+These vectors are *learned* during training (the *Not a Hash* subsection below) such that tokens used in similar contexts end up near each other in the vector space. Meaning, in other words, is not derived from the ID — it is the *contents of the row the ID points to*, and that content becomes a *position* in space.
 
 This is the model's substitute for understanding: relatedness becomes *distance*. Consider three words reduced (for illustration) to 3-dimensional vectors:
 
@@ -98,7 +98,7 @@ How does random noise become meaning? Through the same loop that trains the whol
 
 ```python
 # Simplified — one training step; the embedding table is just more weights to nudge
-vecs    = embedding_table[token_ids]        # fetch current rows (Section 2.1)
+vecs    = embedding_table[token_ids]        # fetch current rows (the embedding lookup above)
 pred    = model(vecs)                        # predict the next token
 loss    = cross_entropy(pred, actual_next)   # how wrong was it? (a single number)
 grads   = backprop(loss)                      # which way to nudge EVERY weight, embeddings included
@@ -121,11 +121,11 @@ A learned embedding is less like a filing rule fixed in advance and more like se
 
 ### 3.1 The Problem Attention Solves
 
-A token's embedding (Section 2) is *context-free*: the row for `bank` is identical whether the sentence is about a river or a vault. But meaning depends on surroundings, so the model must mix information *between* token positions to make each token's representation reflect its actual context. The mechanism that does this — the heart of the **Transformer** architecture nearly every modern LLM uses — is **attention**.
+A token's embedding (the *Embeddings* section) is *context-free*: the row for `bank` is identical whether the sentence is about a river or a vault. But meaning depends on surroundings, so the model must mix information *between* token positions to make each token's representation reflect its actual context. The mechanism that does this — the heart of the **Transformer** architecture nearly every modern LLM uses — is **attention**.
 
 ### 3.2 Query, Key, and Value
 
-For each token, the model derives three vectors from its embedding: a **query** (what this token is looking for), a **key** (what this token offers to others), and a **value** (the information it passes along if attended to). To update a token, the model scores its query against *every* token's key (a dot product, like the similarity in Section 2), turns those scores into weights, and produces a weighted blend of the value vectors. High score → that token contributes heavily.
+For each token, the model derives three vectors from its embedding: a **query** (what this token is looking for), a **key** (what this token offers to others), and a **value** (the information it passes along if attended to). To update a token, the model scores its query against *every* token's key (a dot product, like the cosine similarity in the *Embeddings* section), turns those scores into weights, and produces a weighted blend of the value vectors. High score → that token contributes heavily.
 
 Take "the pod crashed because **it** ran out of memory." To resolve `it`, the model scores `it`'s query against every key:
 
@@ -139,7 +139,7 @@ Attention weights for the token "it":
   ...
 ```
 
-Because `pod` wins the weighting, `it`'s updated representation is built mostly from `pod`'s value — the model has, in effect, decided "it" refers to "pod." Stack this operation across dozens of layers and multiple parallel attention "heads" — each learning a different relationship (grammatical, topical, positional), unpacked in Section 3.3 — and the model builds deeply context-sensitive meaning. The cost is that every token attends to every other, so the work grows with the *square* of the sequence length — the root reason long contexts are slow and expensive (Section 5, and lesson 08).
+Because `pod` wins the weighting, `it`'s updated representation is built mostly from `pod`'s value — the model has, in effect, decided "it" refers to "pod." Stack this operation across dozens of layers and multiple parallel attention "heads" — each learning a different relationship (grammatical, topical, positional), unpacked in the *Layers, Heads, and a Harder Sentence* subsection — and the model builds deeply context-sensitive meaning. The cost is that every token attends to every other, so the work grows with the *square* of the sequence length — the root reason long contexts are slow and expensive (the *Context Window* section, and lesson 08).
 
 > Nuance: Which tokens matter is recomputed for *every* token and *every* layer — attention is not a one-time parse. The weights above are illustrative of one head at one layer; the real model blends many such weightings. The takeaway is mechanical, not numeric: meaning flows between positions by learned, content-dependent weighting.
 
@@ -170,7 +170,7 @@ Layer 9 (meaning assembled on top of layer 1's output):
   query "hits ___" -> key "primary"   0.12      # the primary was demoted — down-weighted
 ```
 
-By the upper layer the representation feeding the final score has absorbed "traffic," "failover," and "replica" while suppressing "primary." That single enriched vector for the last position is then projected into a score per vocabulary token (the mechanism is Section 4.1). The resulting top logits favour `the`, then `replica` — not because the model *understands* failover, but because in its training data, text about traffic after a failover overwhelmingly continued toward the replica. It is completing a pattern, not following a plan.
+By the upper layer the representation feeding the final score has absorbed "traffic," "failover," and "replica" while suppressing "primary." That single enriched vector for the last position is then projected into a score per vocabulary token (the mechanism is the *Autoregressive Decoding* subsection). The resulting top logits favour `the`, then `replica` — not because the model *understands* failover, but because in its training data, text about traffic after a failover overwhelmingly continued toward the replica. It is completing a pattern, not following a plan.
 
 > Nuance: These weights are illustrative of a handful of links at two layers; the real model blends many heads across every layer, and no single number is meaningful on its own. The takeaway is structural — meaning is built up in passes, from local to global — not the specific values.
 
@@ -203,7 +203,9 @@ logits = hidden_last · Wout                       # Wout is [4,096 × ~100,000]
 logits       : [ 1.2, -3.4, 8.7, ..., 0.5 ]      # ~100,000 scores — one per vocab token
 ```
 
-That `Wout` is frequently the *same* embedding table from Section 2, transposed (**weight tying**): the matrix that turns IDs into vectors going in is reused to turn the final vector back into per-token scores going out. Tying is not just tidy — it deletes a whole second matrix of `vocab × dim` parameters (for a 100k vocab × 4,096 dim, ~410M weights saved) and forces the "meaning" and "scoring" views of each token to share one representation, which also acts as a mild regulariser. A **softmax** function then turns those logits into a probability distribution (every value 0–1, summing to 1). A **sampler** picks one token from that distribution, appends it to the sequence, and the whole process repeats with the now-longer input. This is **autoregressive** generation: each output token feeds back in to produce the next, until the model emits a special end-of-sequence token or hits a length cap. A 500-token answer is 500 forward passes.
+That `Wout` is frequently the *same* embedding table from the *Embeddings* section, transposed (**weight tying**): the matrix that turns IDs into vectors going in is reused to turn the final vector back into per-token scores going out. Tying is not just tidy — it deletes a whole second matrix of `vocab × dim` parameters (for a 100k vocab × 4,096 dim, ~410M weights saved) and forces the "meaning" and "scoring" views of each token to share one representation, which also acts as a mild regulariser. A **softmax** function then turns those logits into a probability distribution (every value 0–1, summing to 1). A **sampler** picks one token from that distribution, appends it to the sequence, and the whole process repeats with the now-longer input. This is **autoregressive** generation: each output token feeds back in to produce the next, until the model emits a special end-of-sequence token or hits a length cap. A 500-token answer is 500 forward passes.
+
+The two phases have a name and a cost asymmetry worth internalising. Consuming the prompt is one forward pass over *all* input tokens at once (**prefill**); generating the reply is one forward pass *per output token* (**decode**). That split explains two things you pay for directly: the first token is slow on a long prompt because prefill must run before any output appears, and **output tokens are billed higher than input tokens** because each one costs a full forward pass, whereas the entire input is processed in that single parallel prefill. It is also why latency scales with the length of the *output*, not the input — the prefill/decode split and its serving implications (Time To First Token vs. throughput) are lesson 08's subject.
 
 In pseudocode, the entire generation loop is short:
 
@@ -213,7 +215,7 @@ tokens = tokenize(prompt)
 while True:
     logits = model(tokens)          # one forward pass over the whole sequence
     probs  = softmax(logits[-1])    # distribution for the NEXT token only
-    next_id = sample(probs, temperature, top_p)   # pick one token (Section 4.2)
+    next_id = sample(probs, temperature, top_p)   # pick one token (see Temperature and Top-p, below)
     if next_id == END_OF_TEXT:
         break
     tokens.append(next_id)          # feed it back in and repeat
@@ -279,7 +281,7 @@ Overflow it and the oldest or least-relevant content must be dropped or summaris
 
 ### 5.2 The KV-Cache Is Not the Window
 
-The **Key-Value cache (KV-cache)** is easy to confuse with the context window, but they are different *kinds* of thing. The context window is a **logical limit** — a rule about how many tokens may take part in a call (Section 5.1). The KV-cache is a **physical store in GPU memory** holding the attention **keys** and **values** (Section 3.2) the model already computed for the tokens seen so far. They move together — both grow as tokens accumulate — but one is a budget and the other is RAM:
+The **Key-Value cache (KV-cache)** is easy to confuse with the context window, but they are different *kinds* of thing. The context window is a **logical limit** — a rule about how many tokens may take part in a call (the *What the Window Is* subsection). The KV-cache is a **physical store in GPU memory** holding the attention **keys** and **values** (the *Query, Key, and Value* subsection) the model already computed for the tokens seen so far. They move together — both grow as tokens accumulate — but one is a budget and the other is RAM:
 
 | | Context window | KV-cache |
 | :--- | :--- | :--- |
@@ -288,9 +290,9 @@ The **Key-Value cache (KV-cache)** is easy to confuse with the context window, b
 | Measured in | Tokens | Bytes |
 | Set by | The model's architecture | What's been processed so far this request |
 
-Why cache at all? During decode the new token must attend to *every* prior token (Section 3.2). Recomputing the keys and values for the whole sequence on every step would be ruinous — O(n) redundant work per token. So the model stores them once and computes only the *new* token's key and value each step.
+Why cache at all? During decode the new token must attend to *every* prior token (the *Query, Key, and Value* subsection). Recomputing the keys and values for the whole sequence on every step would be ruinous — O(n) redundant work per token. So the model stores them once and computes only the *new* token's key and value each step.
 
-This is exactly where the reader's second question bites: *if the logits change every step (Section 3.3), how can a cache help?* The resolution is to see that two different quantities are in play. The **logits do change every step and are not cached** — they are cheap and depend on the current step's attention, so they are recomputed each time. But the **keys and values of past tokens never change**: in a causal model a token's representation depends only on the tokens *before* it, never the ones generated after, so once "the primary lost its lease" has been processed, its keys and values are fixed for the rest of the generation. The cache stores that stable part; only the newest position is computed fresh. A worked count makes the saving concrete:
+This is exactly where the reader's second question bites: *if the logits change every step (as the "Beyond One Word" subsection showed), how can a cache help?* The resolution is to see that two different quantities are in play. The **logits do change every step and are not cached** — they are cheap and depend on the current step's attention, so they are recomputed each time. But the **keys and values of past tokens never change**: in a causal model a token's representation depends only on the tokens *before* it, never the ones generated after, so once "the primary lost its lease" has been processed, its keys and values are fixed for the rest of the generation. The cache stores that stable part; only the newest position is computed fresh. A worked count makes the saving concrete:
 
 ```text
 Prompt: 1,000 tokens.  Then generate 200 tokens.
@@ -322,9 +324,9 @@ There are two completely separate phases in a model's life, and conflating them 
 
 Two consequences follow directly. First, every model has a **knowledge cutoff** — it knows nothing about events, APIs, or your private systems that postdate or were absent from its training data. Asking it about a service you deployed last week is hopeless; that information never existed in its weights. Second, because the weights encode statistical patterns rather than retrievable records, the model produces a fluent, confident answer even with no basis for one — a **hallucination**. It is not lying; it is doing exactly what it was built to do, generating a plausible continuation, and "plausible" and "true" are not the same thing.
 
-The fix is not to retrain for every fact — that is impractical and slow. The fix is to put the needed facts *into the context window at inference time*, so the model generates from supplied truth rather than memory. That single move — retrieve relevant, current data and inject it into the prompt — is **Retrieval-Augmented Generation (RAG)**, the subject of lesson 07, and it is why embeddings (Section 2) and the context budget (Section 5) matter so much in practice.
+The fix is not to retrain for every fact — that is impractical and slow. The fix is to put the needed facts *into the context window at inference time*, so the model generates from supplied truth rather than memory. That single move — retrieve relevant, current data and inject it into the prompt — is **Retrieval-Augmented Generation (RAG)**, the subject of lesson 07, and it is why embeddings (the *Embeddings* section) and the context budget (the *Context Window* section) matter so much in practice.
 
-> Nuance: RAG is not free, and "it just adds context" undersells both its costs and its other benefits. The obvious cost is the one it seems to fight: every retrieved chunk *spends* the same context-window budget from Section 5, so you cannot retrieve everything — you retrieve the *most relevant* little, which is why retrieval quality matters. It also adds latency (a search runs inside the request) and a new failure mode: retrieve the wrong chunk and the model will ground a confident, wrong answer in it. The benefits, though, go beyond filling context: **freshness** — you update the model's effective knowledge by editing a document, never retraining — and **traceability** — because you know exactly which sources you injected, the answer can cite them, which a model answering from memory cannot. Budgeting the window is lesson 02; the retrieval engine and the full trade-offs are lessons 06 and 07.
+> Nuance: RAG is not free, and "it just adds context" undersells both its costs and its other benefits. The obvious cost is the one it seems to fight: every retrieved chunk *spends* the same context-window budget from the *Context Window* section, so you cannot retrieve everything — you retrieve the *most relevant* little, which is why retrieval quality matters. It also adds latency (a search runs inside the request) and a new failure mode: retrieve the wrong chunk and the model will ground a confident, wrong answer in it. The benefits, though, go beyond filling context: **freshness** — you update the model's effective knowledge by editing a document, never retraining — and **traceability** — because you know exactly which sources you injected, the answer can cite them, which a model answering from memory cannot. Budgeting the window is lesson 02; the retrieval engine and the full trade-offs are lessons 06 and 07.
 
 A trained model is like a brilliant consultant who studied everything written up to a certain date, then walked into a sealed room with no phone or internet. They reason superbly about anything in their training, but they have zero knowledge of what happened after they entered the room — and if you ask about your specific internal system they have never heard of, they will still answer confidently from general patterns rather than admit ignorance. To get a correct answer about your world, you must hand them the relevant documents through the door. That is RAG.
 
@@ -352,15 +354,15 @@ sequenceDiagram
 
 **Step by step:**
 
-**1. Tokenize.** The tokenizer (Section 1) splits the prompt into IDs — e.g. `["The", " pod", " was", " OOM", "Killed", " because", " it", " ran", " out", " of"]` → `[464, 17801, 373, 31436, 42, ...]`. Ten words may become eleven or twelve tokens.
+**1. Tokenize.** The tokenizer (the *Tokens* section) splits the prompt into IDs — e.g. `["The", " pod", " was", " OOM", "Killed", " because", " it", " ran", " out", " of"]` → `[464, 17801, 373, 31436, 51872, ...]`. Ten words may become eleven or twelve tokens.
 
-**2. Embed.** Each ID is looked up in the embedding table (Section 2), producing one context-free vector per token.
+**2. Embed.** Each ID is looked up in the embedding table (the *Embeddings* section), producing one context-free vector per token.
 
-**3. Attend.** Through every Transformer layer, attention (Section 3) mixes the vectors so that, for instance, the representation of `it` absorbs `pod`, and `out of` strongly anticipates a noun. Previously processed tokens' keys and values come from the KV-cache (Section 5.2), so only the newest position is computed fresh.
+**3. Attend.** Through every Transformer layer, attention (the *Transformer and Attention* section) mixes the vectors so that, for instance, the representation of `it` absorbs `pod`, and `out of` strongly anticipates a noun. Previously processed tokens' keys and values come from the KV-cache (the *KV-Cache Is Not the Window* subsection), so only the newest position is computed fresh.
 
-**4. Score.** The final layer emits logits (Section 4.1) — a score for every one of the ~100,000 vocabulary tokens. `memory` scores highest given the OOM context; `disk` and `time` trail.
+**4. Score.** The final layer emits logits (the *Autoregressive Decoding* subsection) — a score for every one of the ~100,000 vocabulary tokens. `memory` scores highest given the OOM context; `disk` and `time` trail.
 
-**5. Sample.** Softmax turns logits into probabilities and the sampler (Section 4.2) picks one — `memory` at low temperature. It is appended, and the loop returns to step 1 with an eleven-then-twelve-token sequence to generate the token after.
+**5. Sample.** Softmax turns logits into probabilities and the sampler (the *Temperature and Top-p* subsection) picks one — `memory` at low temperature. It is appended, and the loop returns to step 1 with an eleven-then-twelve-token sequence to generate the token after.
 
 The entire user-visible "the model wrote a sentence" is this five-step loop run once per token — which is exactly why latency scales with output length and why everything in lessons 02–10 is built to make these predictions reliable, grounded, and affordable.
 
@@ -371,6 +373,7 @@ The entire user-visible "the model wrote a sentence" is this five-step loop run 
 - **Probabilistic, not deterministic**: sampling makes the same prompt yield different output across calls, so you cannot cache an LLM call, assert equality on it, or trust that "it worked once" means it always will — reliability comes from evals over datasets (lesson 10), not equality checks.
 - **Creativity vs. consistency**: high temperature produces varied, exploratory output but more errors; low temperature is repeatable and focused but can be bland or repetitive — match the dial to the task, near-zero for extraction and code, higher for brainstorming.
 - **Context size vs. cost and latency**: attention cost grows with the square of sequence length and the KV-cache grows linearly, so every extra token of context adds latency and money — pass what is relevant, not everything available.
+- **Capability vs. cost**: a model's **parameters** are its learned weights (an "8B" model has ~8 billion), and more of them generally means a smarter model — but also more cost per token and larger, scarcer GPUs to serve it (more memory, slower per token). Reach for the smallest model that clears the task's quality bar, not the largest available; the serving economics are lessons 08 and 11.
 - **Knowledge cutoff vs. freshness**: weights are frozen at training time, so the model is blind to anything newer or private, and closing that gap requires injecting facts at inference time (RAG, lesson 07), not hoping the model "knows."
 - **Fluency vs. truth**: the model optimises for plausible continuations, so its confident tone carries no information about correctness — hallucinations look exactly like correct answers and must be caught by grounding and verification, not trusted because the prose is convincing.
 

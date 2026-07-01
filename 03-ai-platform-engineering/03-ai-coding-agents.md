@@ -29,7 +29,7 @@ raise StepBudgetExceeded(step)               # ran out of budget without finishi
 
 In that snippet the division is literal: the single `model(...)` call is the model, and everything around it — the loop, `run_tool`, and the two `messages.append` lines — is the harness. This is what separates "generate a YAML file" (one prediction) from "find why this deployment fails and fix it" (many cycles of look, hypothesise, act, check). The model never runs anything — `run_tool` does; the model only ever emits text describing the call it wants.
 
-The loop is deliberately *bounded*, not the naive `while True` it is often drawn as. Because the agent decides for itself when it is done, a confused agent can otherwise thrash forever — retrying a failing command, ping-ponging between two edits — burning tokens and money with no human watching. So the harness imposes a **step budget** (and often a wall-clock or cost ceiling): a runaway is capped and surfaced rather than left to spin. This is the same instinct as the permission gates in Section 3 — a guardrail on autonomy, here on *how long* the agent may run rather than *what* it may touch.
+The loop is deliberately *bounded*, not the naive `while True` it is often drawn as. Because the agent decides for itself when it is done, a confused agent can otherwise thrash forever — retrying a failing command, ping-ponging between two edits — burning tokens and money with no human watching. So the harness imposes a **step budget** (and often a wall-clock or cost ceiling): a runaway is capped and surfaced rather than left to spin. This is the same instinct as the permission gates in the *Permissions and Approval Gates* section — a guardrail on autonomy, here on *how long* the agent may run rather than *what* it may touch.
 
 The split is like a brain in a jar wired to a robot body: the model is the brain — it can only think and say what it wants done, with no hands and no memory of yesterday — while the harness is the body and notebook that read files, run commands, refuse the dangerous ones, and bring results back. Intent comes from the model; everything that actually happens to your systems is the harness.
 
@@ -80,9 +80,9 @@ search(pattern)            -> matching files     # locate code
 
 The capability that most distinguishes a good coding agent is **autonomous context gathering**. Recall from lesson 02 that the model only knows what is in its context window. A coding agent does not require you to paste in the relevant files — it explores the repository to find them itself, reading directory structures, grepping for a function, opening the files it judges relevant, and building the working memory it needs before acting. This is why an agent can be dropped into an unfamiliar repo and still make a coherent change: it reconstructs context the way a new engineer would, by looking around.
 
-That same mechanism is the agent's main consumer of the token budget. Every file it reads and every command output it observes fills the context window, so on a large task the agent is constantly deciding what is worth looking at — and can run out of room, a limitation Section 5 returns to.
+That same mechanism is the agent's main consumer of the token budget. Every file it reads and every command output it observes fills the context window, so on a large task the agent is constantly deciding what is worth looking at — and can run out of room, a limitation the *Where They Break Down* section returns to.
 
-It is also why an agent is far costlier than a single call, and the cost grows faster than the step count. Each iteration re-sends the *entire accumulated* context (lesson 02: there is no memory between calls, so prior turns are replayed every time), so a task that grows the context a little each step pays for that whole transcript again on every step:
+It is also why an agent is far costlier than a single call, and the cost grows faster than the step count. Each iteration re-sends the *entire accumulated* context, because the model keeps no memory between calls (lesson 02) and so every prior turn is replayed each time. A task that grows the context a little each step therefore pays for that whole transcript again on every step:
 
 ```text
 # Simplified — input tokens reprocessed across a 10-step task (~2k tokens added/step)
@@ -91,7 +91,23 @@ It is also why an agent is far costlier than a single call, and the cost grows f
   at ~$3 / 1M input tokens  ->  ~$0.33 just to re-read context, before output is billed
 ```
 
-The growth is quadratic in steps, not linear — which is why long agent runs get expensive, why **prompt caching** (lesson 02) matters so much here (the stable prefix is not re-billed at full price), and why "break the task into smaller units" (Section 5) is a cost argument as well as a reliability one.
+The growth is quadratic in steps, not linear — which is why long agent runs get expensive, why **prompt caching** (lesson 02) matters so much here (the stable prefix is not re-billed at full price), and why "break the task into smaller units" (the *Where They Break Down* section) is a cost argument as well as a reliability one.
+
+### 2.3 Keeping the Context Window in Budget
+
+Because the window is finite and every step consumes it, a harness cannot just let the transcript grow until it overflows — a long task would hit the ceiling and fail mid-run. Two mechanisms let a run outlast its raw window, and each trades completeness for room.
+
+The first is **context compaction**: when the transcript approaches the limit, the harness replaces the older turns with an LLM-generated *summary* of them and continues from there. It is the agentic version of the write-once-remember-the-gist habit — the running detail survives as a précis instead of verbatim history:
+
+```text
+# Simplified — what the context holds before and after a compaction pass
+before:  [system][goal][turn 1 ... turn 40]                 ~180k tokens, near limit
+after:   [system][goal][SUMMARY of turns 1–35][turn 36–40]   ~40k tokens, room to continue
+```
+
+The trade-off is that compaction is **lossy**: a fact buried in turn 12 may not survive the summary, so an agent can "forget" a detail it established earlier and repeat work or contradict itself. The second mechanism sidesteps that by never loading the detail into the main window at all: a **subagent**. The harness spawns a fresh agent with its own clean context for a self-contained sub-task — "find every caller of this function" — and returns only its *result* to the parent, whose window sees the answer, not the hundred file reads that produced it. The cost is the mirror image of compaction's: the subagent works blind to the parent's context, so it only suits tasks that are genuinely self-contained.
+
+Both are why "scope the task" (the *Working Effectively on Platform Tasks* section) is the most reliable lever of all: decomposition keeps each unit comfortably inside the window, so the agent never has to summarise away the very context it needs.
 
 ---
 
@@ -110,6 +126,8 @@ Because the agent can run shell commands and edit files, a well-designed harness
   }
 }
 ```
+
+Command permissions are only the innermost layer, though. They decide *which commands* the agent may issue, but a broader defence bounds *how much damage any command can do*: run the agent under a **scoped, least-privilege credential** (a service account with read-only cluster RBAC, not your admin `kubeconfig`), and give it a **sandboxed workspace** (a git worktree or throwaway container) so a stray write lands on a copy rather than your live tree. Together they cap the blast radius from three directions — what it can run, what its credentials permit, and where its writes land. The RBAC and credential mechanics are the subject of lessons 04 and 11; the point here is that the `allow`/`ask`/`deny` list is necessary but not sufficient on its own.
 
 ### 3.2 Plan Mode vs. Act Mode
 
@@ -151,15 +169,15 @@ sequenceDiagram
 
 **1. Observe the symptom.** The agent runs `kubectl get pods -n staging` (a read-only tool call, no approval needed) and sees `payments-7c9` in `CrashLoopBackOff` with 5 restarts.
 
-**2. Get the real error.** It calls `kubectl logs ... --previous` to read the crashed container's logs and finds `FATAL: DB_HOST environment variable not set`. This is the agent checking ground truth rather than guessing — the difference Section 3.2 flagged.
+**2. Get the real error.** It calls `kubectl logs ... --previous` to read the crashed container's logs and finds `FATAL: DB_HOST environment variable not set`. This is the agent checking ground truth rather than guessing — the difference the *Plan Mode vs. Act Mode* section flagged.
 
-**3. Find the cause in code.** It greps the repo for `DB_HOST` and discovers the mismatch: the manifest sets `DATABASE_HOST` while the application reads `DB_HOST`. The context it gathered (Section 2.2) is what makes this connection possible.
+**3. Find the cause in code.** It greps the repo for `DB_HOST` and discovers the mismatch: the manifest sets `DATABASE_HOST` while the application reads `DB_HOST`. The context it gathered (the *Autonomous Context Gathering* section) is what makes this connection possible.
 
-**4. Propose, then gate.** It proposes a one-line edit and a redeploy. Because `kubectl apply` and `Edit` are in the `ask` list (Section 3.1), it pauses for approval — a human confirms the fix is sane.
+**4. Propose, then gate.** It proposes a one-line edit and a redeploy. Because `kubectl apply` and `Edit` are in the `ask` list (the *Permissions and Approval Gates* section), it pauses for approval — a human confirms the fix is sane.
 
 **5. Act and verify.** After approval it edits the manifest, applies it, and re-checks the pod: `Running, 0 restarts`. The verification step is what lets it report success with evidence rather than hope.
 
-The whole episode is the Section 1 loop run five times, with the permission gate from Section 3 inserted at exactly the irreversible step. Strip out the gate and the verification and you have an agent that *might* have fixed it — the discipline is what makes the outcome trustworthy.
+The whole episode is the *Agentic Loop* run five times, with the permission gate from *Permissions and Approval Gates* inserted at exactly the irreversible step. Strip out the gate and the verification and you have an agent that *might* have fixed it — the discipline is what makes the outcome trustworthy.
 
 ---
 
@@ -207,6 +225,8 @@ The model is not "the agent does my job" but amplification: the agent collapses 
 - **Autonomy vs. control**: letting the agent gather context and act on its own judgement is what makes it powerful, but you give up step-by-step control of the path, so bound it with scoped tasks, permission gates, and plan-before-act.
 - **Capability vs. verifiability**: agents excel at producing plausible code, which is exactly why anything they cannot check by running must be checked by you — plausibility is not correctness, especially for fast-moving or internal APIs.
 - **Context gathering vs. context limits**: autonomously reading the repo is the agent's superpower and its bottleneck, since a large codebase overflows the window and the agent silently reasons from a partial view.
+- **Determinism vs. flexibility**: a hand-written script does the same thing every run and is the right tool for a known, repeatable job (a fixed deploy sequence); an agent picks its own steps and is the right tool when the path is unknown up front (diagnosing a novel failure), at the cost of being harder to bound and predict — reach for the agent where the task varies, not where a script already suffices.
+- **Latency vs. interactivity**: a multi-step task is many *sequential* model round-trips, so wall-clock time runs to minutes, not the sub-second of a single call — fine when a human is waiting to review, but disqualifying for anything on a tight latency budget, which is another reason agentic ops belongs behind async, human-paced workflows (lesson 05).
 - **Interactive vs. automated use**: non-determinism is acceptable under human supervision but becomes a liability in an unattended pipeline, so the same agent that is a great pair-programmer needs heavy guardrails before it runs ops unattended (lesson 05).
 
 ---
