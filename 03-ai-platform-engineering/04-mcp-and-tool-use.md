@@ -279,7 +279,7 @@ sequenceDiagram
     K-->>S: "Back-off restarting failed container … OOMKilled"
     S-->>C: [ { "reason": "OOMKilled", ... } ]
     C-->>H: tool_result (same id)
-    H->>U: "No — CrashLoopBackOff, 7 restarts; events show it's being OOMKilled."
+    H->>U: "No — CrashLoopBackOff, 7 restarts — events show it's being OOMKilled."
 ```
 
 *One question, two tool calls: the model checks status, finds it insufficient to explain the failure, calls again for events, and only then answers — the loop, not the single call, is the point.*
