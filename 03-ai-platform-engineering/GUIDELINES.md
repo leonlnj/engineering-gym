@@ -1,6 +1,6 @@
 # 03-ai-platform-engineering Guidelines
 
-> **Authoring & review craft lives in the `technical-lesson-authoring` skill** (`.claude/skills/`). It holds the document structure, the depth bar, the writing rules, diagrams, and the One-Pass Test self-review — invoke it before writing or reviewing a lesson. This file records only what is specific to *this* track.
+> **Authoring & review craft lives in the `lesson-craft` skill** (`.claude/skills/`). It holds the document structure, the depth bar, the writing rules, diagrams, and the One-Pass Test self-review — invoke it before writing or reviewing a lesson. This file records only what is specific to *this* track.
 
 ## Purpose
 

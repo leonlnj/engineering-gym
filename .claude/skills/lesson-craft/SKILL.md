@@ -1,5 +1,5 @@
 ---
-name: technical-lesson-authoring
+name: lesson-craft
 description: >-
   Craft and self-review deep technical learning/reference lessons (the NN-topic.md
   notes in this repo). Use when writing, expanding, or reviewing a lesson or reference
@@ -10,7 +10,7 @@ description: >-
   acronyms, domain examples).
 ---
 
-# Technical Lesson Authoring
+# Lesson Craft
 
 The craft of writing a **deep, self-contained technical lesson** — a file someone can return to as a reference and learn the *why* from, not just the *what*. This skill is content-agnostic: it is the *how to write*. The track's `GUIDELINES.md` is the *what this track is* — its domain, audience, file naming, snippet languages, acronyms, and domain-specific examples. **Read both before writing or reviewing a lesson**: this skill for the craft and the standard depth bar, the track file for the parameters only it can supply.
 

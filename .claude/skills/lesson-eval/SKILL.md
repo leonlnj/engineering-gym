@@ -1,24 +1,25 @@
 ---
-name: lesson-validation
+name: lesson-eval
 description: >-
   Validate and improve an existing technical lesson (the NN-topic.md notes in this repo). Use
   when asked to validate, audit, check, quiz, grade, or improve a finished lesson — as opposed to
-  technical-lesson-authoring, which is for *writing* one. Two modes: COVERAGE generates a fresh mock
+  lesson-craft, which is for *writing* one. Two modes: COVERAGE generates a fresh mock
   assessment blind from the topic spec and grades whether the lesson answers it (catches missing
   content) — each run adds a new, different quiz to a per-lesson bank rather than overwriting; CRAFT
-  audits the prose against the technical-lesson-authoring rubric (catches weak writing). Loads
-  STUDY-PLAN.md + the track's GUIDELINES.md as the content spec, and the
-  technical-lesson-authoring skill as the craft rubric. Web-verifies fast-moving AI facts.
+  audits the prose against the lesson-craft rubric (catches weak writing). Loads the track's
+  GUIDELINES.md (plus STUDY-PLAN.md when the track has one) as the content spec, and the
+  lesson-craft skill as the craft rubric. Web-verifies volatile facts in fast-moving domains.
 ---
 
-# Lesson Validation
+# Lesson Eval
 
 A **process** for auditing a *finished* lesson and improving it. This skill does not redefine what a
 good lesson is — it consumes existing definitions and adds the audit/grade/improve loop:
 
-- **What good content looks like** → the lesson's entry in the track's `STUDY-PLAN.md` (the
-  authoritative spec for *what this lesson must cover*), plus `GUIDELINES.md` (audience, domain).
-- **What good writing looks like** → the `technical-lesson-authoring` skill (structure §1, depth bar
+- **What good content looks like** → the lesson's entry in the track's `STUDY-PLAN.md` when the
+  track has one (the authoritative spec for *what this lesson must cover*), plus `GUIDELINES.md`
+  (audience, domain). Content without a study plan falls back to the declared scope (see A1).
+- **What good writing looks like** → the `lesson-craft` skill (structure §1, depth bar
   §2, the §8 One-Pass Test, the §9 avoid-list).
 
 **Cite those sources in findings; do not restate their rules here.** This skill owns only the
@@ -36,13 +37,18 @@ invisible to a coverage check.
 ### Step 0 — Resolve target and mode
 
 Take from the user's request:
-- **Target lesson** — a path or lesson number under a track (e.g. `04`, or
-  `03-ai-platform-engineering/04-mcp-and-tool-use.md`). If missing or ambiguous, ask which file.
+- **Target lesson** — a path to any lesson file, or a lesson number within a track (e.g. `04`,
+  `03-ai-platform-engineering/04-mcp-and-tool-use.md`, or `misc/security/passkey-login.md`). If
+  missing or ambiguous, ask which file.
 - **Mode** — `coverage` (default) · `craft` · `both`. `both` runs coverage first (find content
   gaps), then craft (quality of what's there, and of anything just added).
 
-Load the track's `GUIDELINES.md` (domain params) before doing anything else. Coverage mode also
-needs `STUDY-PLAN.md`; craft mode also needs the `technical-lesson-authoring` skill.
+Load the nearest `GUIDELINES.md` (domain params) before doing anything else — walk up from the
+lesson's folder toward the repo root and take the first one found. If none exists, **halt and ask
+the user to declare the domain parameters inline** (audience, snippet languages, framing/threads
+if any) — do not guess them; this mirrors the `lesson-craft` workflow. Coverage mode also needs a
+content spec: the track's `STUDY-PLAN.md` when one exists, otherwise the fallback in A1. Craft
+mode also needs the `lesson-craft` skill.
 
 ---
 
@@ -52,9 +58,11 @@ The order matters: build the test **before** reading the answers.
 
 ### A1. Gather the spec — blind
 
-Read **only**: the lesson *title*, its `STUDY-PLAN.md` paragraph, the `GUIDELINES.md`
-purpose/audience, and the track's framing (for this track, the *augment* / *operate* dual thread).
-**Do not open the lesson body yet.** From these plus your own domain knowledge, write a short list of
+Read **only**: the lesson *title*, the `GUIDELINES.md` purpose/audience, the lesson's
+`STUDY-PLAN.md` paragraph when the track has one — otherwise the user's stated scope for the
+lesson (ask for it if unclear) — and the track's declared framing/threads from its
+`GUIDELINES.md`, if any (e.g. `03-ai-platform-engineering` declares an *augment* / *operate*
+dual thread). **Do not open the lesson body yet.** From these plus your own domain knowledge, write a short list of
 the **competencies** a competent treatment must deliver. This list is the external bar.
 
 ### A2. Generate the mock assessment
@@ -62,7 +70,7 @@ the **competencies** a competent treatment must deliver. This list is the extern
 Write **8–15 questions**, weighted toward **apply / trade-off / why** (e.g. *"when would you choose
 X over Y and why"*, *"why is it built this way"*, applied scenarios); include only a few recall
 questions for load-bearing facts. For each question record:
-- the **competency** it tests (from A1) and the **thread** (augment / operate),
+- the **competency** it tests (from A1) and, when the track declares a framing, the **thread**,
 - a short **model answer** (answer key) — so grading is grounded, not impressionistic.
 
 **Make each run a *different* assessment.** First glance at the existing quizzes in the lesson's
@@ -83,21 +91,25 @@ is a varied bank that exercises the topic from many directions, not the same qui
 | Q | Competency | Thread | Verdict | Evidence / gap |
 | :--- | :--- | :--- | :--- | :--- |
 
-Add a one-line score (e.g. *"11/14 covered · 2 partial · 1 missing"*) and the gaps ranked by
+Omit the **Thread** column when the track declares no framing. Add a one-line score (e.g. *"11/14 covered · 2 partial · 1 missing"*) and the gaps ranked by
 importance to the topic.
 
 ### A5. Save the quiz artifact
 
 Each run is saved as a **new** file in the lesson's quiz bank — never overwrite a prior one. The bank
-lives at `<track>/assessments/NN-<topic-slug>/` (create it if absent); name each quiz with a
+lives in an `assessments/` folder sibling to the lesson file, at
+`<lesson-dir>/assessments/<lesson-slug>/` (create it if absent); name each quiz with a
 zero-padded sequence number, `quiz-01.md`, `quiz-02.md`, … (scan the folder and use the next index).
-So `04-mcp-and-tool-use` accumulates `assessments/04-mcp-and-tool-use/quiz-01.md`, `quiz-02.md`, ….
+So `03-ai-platform-engineering/04-mcp-and-tool-use.md` accumulates
+`03-ai-platform-engineering/assessments/04-mcp-and-tool-use/quiz-01.md`, `quiz-02.md`, …, and
+`misc/security/passkey-login.md` would use `misc/security/assessments/passkey-login/quiz-01.md`.
 Structure:
 
 ```markdown
 # Assessment <NN-seq>: <Lesson Title>
 
-> Generated by lesson-validation (coverage mode) on <date>. Source spec: STUDY-PLAN.md entry for NN.
+> Generated by lesson-eval (coverage mode) on <date>. Source spec: STUDY-PLAN.md entry for NN
+> (or the declared scope, for content without a study plan).
 
 ## Questions
 1. <question>  _(competency · thread)_
@@ -114,7 +126,7 @@ Structure:
 ### A6. Improve (gated)
 
 Present the report and **stop**. After the user approves which gaps to close, add the missing content
-to the **correct section** of the lesson, written to the `technical-lesson-authoring` craft and the
+to the **correct section** of the lesson, written to the `lesson-craft` craft and the
 track's snippet languages. The saved quiz records the verdicts *as found* (pre-improvement) — leave
 them as the historical record; append a short "Resolved" note listing which gaps this run closed.
 Then offer to run Mode B on the changed passages.
@@ -123,7 +135,7 @@ Then offer to run Mode B on the changed passages.
 
 ## Mode B — Craft (One-Pass Test audit)
 
-Load `technical-lesson-authoring` and audit the lesson against it — **cite its items, don't copy its
+Load `lesson-craft` and audit the lesson against it — **cite its items, don't copy its
 rules**. Check structure/format (§1), the depth bar (§2), and the §8 One-Pass Test checklist.
 Collect findings into one table, most-severe first:
 
@@ -146,10 +158,11 @@ then re-run the affected §8 items on each changed passage.
 
 ## Currency verification (both modes)
 
-AI topics move fast. Extract volatile claims — model names/IDs, pricing, context windows,
-vLLM/KServe/MIG versions, MCP/API/protocol shapes, CLI flags — and verify each against a current
-source via `WebSearch`/`WebFetch`; use the `claude-api` skill for Anthropic-specific facts rather
-than the open web. Mark each **confirmed / stale / unverifiable**. A stale fact is a **Blocker** in
+Fast-moving domains go stale. Extract the volatile claims for the lesson's domain — for AI:
+model names/IDs, pricing, context windows, vLLM/KServe/MIG versions, MCP/API/protocol shapes; in
+other domains: library and protocol versions, CLI flags, spec/standard status, CVEs and security
+advisories — and verify each against a current source via `WebSearch`/`WebFetch`; use the
+`claude-api` skill for Anthropic-specific facts rather than the open web. Mark each **confirmed / stale / unverifiable**. A stale fact is a **Blocker** in
 craft mode and a **Covered (stale)** verdict in coverage mode. Leave `unverifiable` claims in the
 closeout for the user to confirm. (The web tools are deferred — fetch their schemas with ToolSearch
 at run time.)
