@@ -2,19 +2,33 @@
 
 > **Authoring & review craft lives in the `lesson-craft` skill** (`.claude/skills/`). It holds the document structure, the depth bar, the writing rules, diagrams, and the One-Pass Test self-review — invoke it before writing or reviewing a lesson. This file records only what is specific to *this* track.
 
-This one file serves **both sub-tracks** (`developer-professional/` and `observability-professional/`); the skills walk up from the lesson's folder and find it here. Each sub-track keeps its own `STUDY-PLAN.md`.
+This one file serves **every sub-track** under `04-oracle/` (currently `developer-professional/` and `observability-professional/`); the skills walk up from the lesson's folder and find it here. Each sub-track keeps its own `STUDY-PLAN.md`, which defines that sub-track's specific scope.
 
 ## Purpose
 
-<!-- TODO: What this track is for. It spans two Oracle Cloud Infrastructure (OCI) certifications
-     — Developer Professional and Observability Professional. State what a finished lesson should
-     let a reader do (e.g. pass the exam question cold AND reason about the service in production),
-     and what the notes are NOT (a dump of exam-cram bullet points). -->
+Study notes for Oracle Cloud Infrastructure (OCI) topics, typically organised as one sub-track
+per certification. For a certification sub-track, a finished lesson should let the reader do two
+things: answer the exam's questions on that topic cold, *and* reason about the service in
+production — when to pick it, how it fails, what it costs. The notes are **not** a dump of
+exam-cram bullet points; every service fact should hang off a mechanic or a trade-off the reader
+can reason from.
+
+This is **certification study, not freeform exploration** (contrast with
+`03-ai-platform-engineering`). When a topic pairs a generic concept with an OCI service — DevOps
+vs. the OCI DevOps service, virtual networking vs. VCN — the generic concept is *background*:
+anchor it briefly against what the reader already knows, then spend the depth on **OCI itself** —
+the service's distinctive behaviors, its informative caveats, its quotas and limits, and what the
+exam actually asks. The limitations of a VCN in OCI matter more than another explanation of how
+virtual networks work.
 
 ## Audience
 
-<!-- TODO: The assumed background (e.g. "knows Kubernetes, cloud, and CI/CD well but is new to
-     OCI specifics") and the shared vocabulary lessons should lean on to explain the unfamiliar. -->
+An experienced engineer who knows containers, Kubernetes, CI/CD, and general cloud concepts
+(compute, networking, IAM as ideas) well, but is **new to OCI specifics**. Lessons lean on that
+vocabulary to explain the unfamiliar — e.g. explain OKE by contrast with generic managed
+Kubernetes, OCI IAM by contrast with the IAM models the reader already knows. Do not re-teach
+container, Kubernetes, or CI/CD basics — and the same goes for generic *concepts* (DevOps,
+virtual networking, messaging patterns): one anchoring paragraph at most, then get to OCI.
 
 ## File Naming
 
@@ -22,10 +36,43 @@ This one file serves **both sub-tracks** (`developer-professional/` and `observa
 
 ## Track parameters
 
-These are the inputs the skills defer to this track for. The depth bar itself (snippet/diagram counts, walkthroughs, quantify) is the skill's standard — not repeated here.
+These are the inputs the skills defer to this track for. The depth bar itself (snippet/diagram counts, walkthroughs, quantify) is the skill's standard — not repeated here. The lists below are the shared base across sub-tracks; a sub-track's `STUDY-PLAN.md` may extend the acronyms and trade-off pairs for its own domain.
 
-- **Snippet languages**: <!-- TODO: which languages/forms lessons show mechanics in — e.g. OCI CLI commands, Terraform (OCI provider), Python/Java SDK calls, JSON API payloads, YAML for OKE manifests. Say when to reach for which. -->
-- **Acronyms to expand on first use**: <!-- TODO: the domain acronyms lessons must expand — e.g. OCI, OKE, VCN, IAM, MQL, APM, ADB... -->
-- **Domain trade-off pairs** to watch for and name explicitly: <!-- TODO: the recurring trade-offs of this domain, each as "X vs. Y (one-line reason)". -->
-- **Example "Practical Limits" bullet** in the required style: <!-- TODO: one model bullet — "**Label**: sentence of reasoning." — showing the expected voice. -->
-- **Declared framing/threads** *(optional)*: <!-- TODO: delete this bullet, or declare a cross-cutting framing the lessons share. If declared, lesson-eval tags each quiz question with a thread (track 03 declares an *augment*/*operate* dual thread as its example). -->
+- **Snippet languages**: OCI CLI (`oci …`) is the default for showing service operations — create,
+  configure, invoke, inspect. YAML for OKE/Kubernetes manifests and OCI DevOps build/deploy specs.
+  Python for OCI Functions bodies and SDK-driven interactions (producing to a stream, consuming a
+  queue). Terraform (OCI provider) when the point is infrastructure *definition* rather than
+  operation. Reach for the form the reader would actually use for that task; don't show the same
+  operation in two forms unless the contrast is the point.
+- **Acronyms to expand on first use**: **OCI** (Oracle Cloud Infrastructure), **OKE** (OCI
+  Kubernetes Engine), **OCIR** (OCI Container Registry), **OCID** (Oracle Cloud Identifier),
+  **VCN** (Virtual Cloud Network), **IAM** (Identity and Access Management), **APM** (Application
+  Performance Monitoring), **MQL** (Monitoring Query Language), **ADB** (Autonomous Database),
+  **LB** (Load Balancer). When Oracle's name differs from the generic term, give both once (e.g.
+  "OCI Container Registry (OCIR)").
+- **Domain trade-off pairs** to watch for and name explicitly (recurring OCI examples, not an exhaustive list):
+  - Serverless Functions vs. always-on OKE workloads (cold-start latency and per-invocation cost vs. idle capacity).
+  - Streaming vs. Queue vs. Events (replayable partitioned log vs. competing-consumer delivery vs. rule-routed notifications).
+  - Managed Kafka-compatible Streaming vs. self-managed Kafka (operational burden vs. ecosystem/API completeness).
+  - API Gateway fronting vs. direct load-balancer exposure (policy enforcement and authn at the edge vs. one less hop).
+  - Managed service defaults vs. fine-grained control (what OCI operates for you vs. what you can still tune).
+- **Example "Practical Limits" bullet** in the required style: **Cold start**: a scale-from-zero
+  function invocation pays image pull plus runtime boot before the first byte of your code runs, so
+  a latency-sensitive request path either keeps the function warm or belongs on an always-on
+  service. In this track, "Practical Limits and Trade-offs" sections centre **OCI service caveats,
+  quotas, and limits** (the exam-relevant ones) over generic engineering trade-offs; reach for the
+  trade-off pairs above only where a genuine OCI service choice exists.
+- **Volatile facts** (quota/limit/price figures go stale as Oracle changes them):
+  - *Shape over number* — write each limit so the reasoning survives the number changing: state
+    that the limit exists and what it forces you to do (e.g. "each stream partition has a
+    write-throughput cap, so scaling writes means adding partitions"). The exact figure is
+    supporting detail, never the load-bearing fact.
+  - *Tag and concentrate figures* — every quota/limit/price figure carries an as-of date and a
+    link to the Oracle docs page it came from (e.g. "1 MB/s per partition (as of Jul 2026,
+    [docs](…))"), and numeric limits live in the lesson's "Practical Limits and Trade-offs"
+    section rather than scattered through prose — re-verification is then one section per lesson,
+    one click per fact.
+- **Declared framing/threads**: lessons carry a dual thread — *exam-ready* (state the fact or
+  service behavior the exam will ask for) and *production-reasoning* (the mechanic or trade-off
+  that lets you derive the answer instead of memorising it). `lesson-eval` tags each quiz question
+  with one of these threads.
