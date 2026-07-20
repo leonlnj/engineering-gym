@@ -38,8 +38,8 @@ spec for that lesson — add bullets as you study.
   - OCI Code Editor
 
 - **`02` · Container-based Application Development**
-  - Developer workflow: Dockerfile → build → tag → push
-  - OCI Container Registry (OCIR): repository structure, push/pull
+  - Docker component and working with docker
+  - OCI Container Registry (OCIR)
   - Registry authentication (auth tokens)
   - Image versioning and lifecycle
   - OCIR in build and deployment pipelines
