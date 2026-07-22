@@ -45,11 +45,11 @@ spec for that lesson — add bullets as you study.
   - OCIR in build and deployment pipelines
 
 - **`03` · Managed Kubernetes**
-  - OKE cluster architecture and node pools
-  - Provisioning a cluster and connecting with kubectl
-  - Deploying workloads from OCIR
-  - Exposing services
-  - Scaling and upgrades
+  - OKE cluster architecture: Basic vs. Enhanced clusters
+  - Node pool models: virtual nodes (serverless) vs. managed nodes — trade-offs
+  - Cloud Shell / kubectl access setup for OKE
+  - OSOK (OCI Service Operator for Kubernetes) — provisioning OCI resources from Kubernetes manifests
+  - Scaling and upgrade strategies for node pools
   - OKE-specific behaviors vs. generic managed Kubernetes
 
 - **`04` · Serverless Functions**
