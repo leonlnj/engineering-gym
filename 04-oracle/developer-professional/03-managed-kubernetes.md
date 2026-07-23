@@ -49,7 +49,7 @@ This is also the answer to "how is OKE different from generic managed Kubernetes
 
 ### 2.1 The tier dial
 
-Section 1 named cluster tier as the first data-plane dial; this section is that dial in full. Every OKE cluster is created as one of two tiers, chosen once at creation. A **Basic cluster** gives you core Kubernetes with no additional charge for the control plane, but strips out a specific feature set. An **Enhanced cluster** unlocks that feature set in exchange for a control-plane charge and a stronger uptime guarantee. The charge is roughly $0.10/hour, capped near $70/month (as of Jul 2026, [pricing](https://www.oracle.com/cloud/cloud-native/kubernetes-engine/pricing/)). Enhanced also carries a financially-backed **Service Level Agreement (SLA)** on API server uptime that Basic simply does not offer.
+Section 1 named cluster tier as the first data-plane dial; this section is that dial in full. Every OKE cluster is created as one of two tiers, chosen once at creation. A **Basic cluster** gives you core Kubernetes with no additional charge for the control plane, but strips out a specific feature set. An **Enhanced cluster** unlocks that feature set in exchange for a control-plane charge and a stronger uptime guarantee. The charge is roughly $0.10/hour, capped at ~$74/month (as of Jul 2026, [pricing](https://www.oracle.com/cloud/cloud-native/kubernetes-engine/pricing/)). Enhanced also carries a financially-backed **Service Level Agreement (SLA)** on API server uptime that Basic simply does not offer.
 
 | Capability | Basic cluster | Enhanced cluster |
 | :--- | :--- | :--- |
@@ -58,16 +58,18 @@ Section 1 named cluster tier as the first data-plane dial; this section is that 
 | Virtual nodes (next section) | Not available | Available |
 | Granular add-on management (CoreDNS, kube-proxy, Dashboard) | Not available | Available |
 | Workload identity / fine-grained pod IAM | Not available | Available |
-| Node cycling during upgrades | Not available | Available |
+| Node cycling during upgrades (in-place path only — see *Scaling and Upgrades*) | Not available | Available |
 | Worker node ceiling | Lower | Higher, increasable on request |
 
 (As of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengworkingwithenhancedclusters.htm).)
+
+"Granular add-on management" is a concrete capability, not a vague label: on Enhanced, essential add-ons like CoreDNS and kube-proxy can be individually enabled, disabled, pinned to a specific version, or configured with custom arguments through Kubernetes Engine itself. Basic clusters still run those same add-ons with sane defaults, but any hand-edited customization is not guaranteed to survive — if a customization conflicts with Oracle's own reconciliation of the add-on, Basic silently reverts it back to default (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengintroducingclusteraddons.htm)).
 
 > Nuance: it is easy to read "Enhanced" as simply "the more expensive tier" and stop there. The real distinction is a **feature gate**, not just a price tag — virtual nodes, workload identity, and add-on management are entirely unavailable on Basic, not merely metered differently. A team that needs serverless node pools has no Basic-tier path to them at all; the choice has to be made deliberately, not discovered after the fact.
 
 ### 2.2 The upgrade path is one-way
 
-You can upgrade a Basic cluster to Enhanced later, but only if the Basic cluster already uses **VCN-Native pod networking** rather than the older Flannel overlay — a Basic cluster on Flannel has no upgrade path and must be recreated. The reverse direction does not exist at all: an Enhanced cluster can never be downgraded to Basic (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengworkingwithenhancedclusters.htm)).
+You can upgrade a Basic cluster to Enhanced later, but only if the Basic cluster already uses **VCN-Native pod networking** rather than the older Flannel overlay — a Basic cluster on Flannel has no upgrade path and must be recreated. This isn't an arbitrary migration hurdle: **Enhanced clusters require VCN-Native networking as a baseline** and don't support Flannel at all, so a Flannel-based Basic cluster isn't a partial mismatch upgrading would smooth over — it's categorically incompatible with what Enhanced requires. The reverse direction does not exist at all: an Enhanced cluster can never be downgraded to Basic (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengworkingwithenhancedclusters.htm)).
 
 ```bash
 # Enhanced cluster, VCN-Native networking — the tier and networking mode are both
@@ -77,7 +79,7 @@ oci ce cluster create \
   --compartment-id "$COMPARTMENT_OCID" \
   --vcn-id "$VCN_OCID" \
   --type ENHANCED_CLUSTER \
-  --kubernetes-version "v1.31.1"
+  --kubernetes-version "v1.35.2"
 ```
 
 ### 2.3 Selection guidance
@@ -113,6 +115,8 @@ resources:
 
 > Nuance: on a managed node, `limits` above `requests` is the normal way to let a pod burst into unused node capacity. Try that on a virtual node and the pod is rejected — there is no shared node to burst into, because there is no node. Requests and limits collapsing into one number is not a stricter defaults policy; it is a direct consequence of billing and provisioning per pod instead of per node.
 
+Per-pod billing is quantifiable, not just a qualitative "no node sizing" win. Virtual nodes bill ~$0.015 per vCPU-hour and ~$0.0015 per GB-hour (as of Jul 2026, [pricing comparison](https://blogs.oracle.com/cloud-infrastructure/serverless-kubernetes-costs-eks-aks-gke-oke)) — so a pod requesting `250m` CPU / `256Mi` memory costs roughly (0.25 × $0.015) + (0.25 × $0.0015) ≈ **$0.0041/hour**, or ~$3/month if it runs continuously. Ten such pods cost ~$30/month in pure compute, with zero idle node capacity paid for in between. A managed node sized to hold those same ten pods with headroom to spare keeps costing its full instance-hour rate whether the pods are busy or idle. The trade-off is real, not just qualitative: virtual nodes win when utilization is bursty or unpredictable, while a managed node pool running near-constant, tightly-packed load can come out cheaper per unit of actual work — because it isn't paying the per-pod convenience premium virtual nodes charge for not having to size anything yourself.
+
 ### 3.3 What virtual nodes cannot do
 
 Because a virtual node is not a machine you can reach, an entire category of Kubernetes features that assume node-level access simply does not apply. **DaemonSets** have nothing to run one-per-node on. `kubectl exec`, `kubectl logs -f`, and SSH to the node are all unavailable, because there is no shell to attach to. **Persistent Volume Claims (PVCs)**, `hostPath`, and third-party **Container Network Interface (CNI)** plugins (Flannel, Calico, Cilium) are unsupported — only VCN-Native networking and a narrow set of ephemeral volume types (`emptyDir` capped at one per pod, `ConfigMap`, `Secret`) are allowed (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengcomparingvirtualwithmanagednodes_topic.htm)).
@@ -126,7 +130,9 @@ volumes:
       path: /data
 ```
 
-The **Cluster Autoscaler** (covered fully in *Scaling and Upgrades* below) is also absent from virtual nodes for a reason worth stating plainly: there is no fixed-size node to scale in the first place, so the scaling question that the autoscaler exists to answer does not arise — a virtual node pool already scales per-pod by design.
+The **Cluster Autoscaler** (covered fully in *Scaling and Upgrades* below) is also absent from virtual nodes for a reason worth stating plainly: there is no fixed-size node to scale in the first place, so the scaling question that the autoscaler exists to answer does not arise — a virtual node pool already scales per-pod by design. The same "no machine" fact rules out a GPU or other specialized-shape workload outright: a virtual node's execution surface offers only standard compute, so a pod that needs a GPU shape has no virtual-node path at all and must go on a managed node (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengcomparingvirtualwithmanagednodes_topic.htm)).
+
+With `kubectl exec` and SSH both off the table, debugging a crash-looping pod on a virtual node still has a path — just not the node-level one. `kubectl logs` (without `-f`) still works pod-by-pod, because it reads from the container runtime, not the node. A node-level logging **DaemonSet** doesn't work, since there's no node to run one on; centralized log collection instead runs as a **sidecar** container inside each pod, using an agent like Fluent Bit to ship that pod's own stdout/stderr onward. This is exactly what the single allowed `emptyDir` named above is for: the app container writes logs to that shared volume, and the sidecar reads from the same mount to ship them — one `emptyDir`, shared between the two containers, not a second one the pod would be denied (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengviewingapplicationlogs-virtualnodes.htm)).
 
 ### 3.4 Managed vs. virtual, side by side
 
@@ -152,6 +158,21 @@ Reach for **managed nodes** when a workload needs `DaemonSets`, `PersistentVolum
 
 An OKE cluster's Kubernetes API server is reachable through either a **public endpoint** — routable from the internet, restricted by IAM and any network security rules you attach — or a **private endpoint**, reachable only from inside the cluster's **Virtual Cloud Network (VCN)** or anything peered/connected to it (a bastion host, a VPN, FastConnect). The choice is made at cluster creation and shapes every subsequent `kubectl` command: a private-endpoint cluster needs a network path into the VCN before `kubectl` can reach it at all, while a public-endpoint cluster only needs the generated kubeconfig plus whatever IAM policy governs it.
 
+```bash
+# --endpoint-public-ip-enabled sets the choice at creation; a private
+# endpoint instead requires a VCN subnet to attach the endpoint to
+oci ce cluster create \
+  --name "orders-cluster" \
+  --compartment-id "$COMPARTMENT_OCID" \
+  --vcn-id "$VCN_OCID" \
+  --endpoint-subnet-id "$ENDPOINT_SUBNET_OCID" \
+  --endpoint-public-ip-enabled false
+```
+
+The two flags have to agree with the subnet they target: setting `--endpoint-public-ip-enabled true` against a private subnet doesn't silently downgrade to a private endpoint — the provisioning call fails outright, so the subnet's own public/private status has to match the endpoint visibility you're asking for.
+
+The three connectivity options named above aren't interchangeable mechanics wearing different names. A **bastion host** (via the OCI Bastion service) opens a short-lived, managed SSH session into the VCN on demand — no standing infrastructure between calls. A **VPN** is a persistent IPSec tunnel from an on-premises or other external network into the VCN, always up once configured. **FastConnect** is a dedicated private physical circuit to OCI, bypassing the public internet entirely — the choice among the three is really a durability-and-throughput trade-off: ad hoc access, an always-on tunnel, or a dedicated line.
+
 ### 4.2 Generating the kubeconfig
 
 Whichever endpoint you chose, `kubectl` needs a kubeconfig file that points at it and carries OCI-based authentication. The CLI generates that file directly from the cluster's OCID:
@@ -168,11 +189,13 @@ oci ce cluster create-kubeconfig \
 
 The generated kubeconfig does not embed a static credential; instead it shells out to the OCI CLI on every `kubectl` invocation to mint a short-lived token, so access to the cluster is governed by the same IAM policy as everything else in this track rather than a separate Kubernetes-native credential you would have to rotate by hand.
 
+> Nuance: that convenience carries the same identity-ownership risk this track has already named twice — for `ocirsecret` in Module `02` and for OSOK's credential later in this lesson. A kubeconfig generated under one engineer's personal OCI identity stops minting tokens the moment that person's account is deactivated, silently breaking every automation or teammate relying on that specific file. A shared pipeline or team-wide kubeconfig should be generated under a resource principal or a service-scoped identity, not a person's own login — the same `create-kubeconfig` command takes an `--auth=instance_principal` (or `resource_principal`) flag to mint tokens from the compute instance's or pipeline's own identity instead of the caller's personal one.
+
 ### 4.3 Cloud Shell: the same access, pre-authenticated
 
 **Cloud Shell** is a browser-based terminal that OCI provisions per user, already authenticated as that user's IAM identity — no local OCI CLI install or API-key setup needed before running the `create-kubeconfig` command shown above. It is the fastest way to reach a *public-endpoint* cluster for ad hoc `kubectl` work, exam practice, or a quick node-pool check, precisely because the authentication step Module `01`'s DevOps pipelines had to configure explicitly is already done for you.
 
-> Nuance: Cloud Shell does not grant any special network path into a *private*-endpoint cluster. It runs from an OCI-managed network, not inside your VCN, so reaching a private cluster from Cloud Shell still needs the same VCN connectivity (a bastion, a peering, a service gateway) that any other external caller would need. Cloud Shell removes the *authentication* setup step, not the *networking* one.
+> Nuance: Cloud Shell does not grant any special network path into a *private*-endpoint cluster. It runs from an OCI-managed network, not inside your VCN, so reaching a private cluster from Cloud Shell still needs the same VCN connectivity (a bastion, a peering, a service gateway) that any other external caller would need. Cloud Shell removes the *authentication* setup step, not the *networking* one. It also doesn't remove the credential-lifecycle risk from *Generating the kubeconfig* above — Cloud Shell authenticates as the *same personal IAM identity* logged into the console, so a kubeconfig generated there still breaks the moment that person's account is deactivated, exactly like one generated from a local OCI CLI install.
 
 ### 4.4 Placing this back on the spine
 
@@ -190,7 +213,7 @@ Section 1 named upgrade strategy as the third data-plane dial; this section cove
 # Step 1 of 2 — the control plane only; no worker node is touched by this call
 oci ce cluster update \
   --cluster-id "$CLUSTER_OCID" \
-  --kubernetes-version "v1.32.1"
+  --kubernetes-version "v1.36.1"
 ```
 
 > Nuance: it is tempting to assume "upgrading the cluster" upgrades everything in it, the way patching a single server would. It does not — a control-plane upgrade with no follow-up node-pool upgrade leaves every worker node exactly where it was, and the cluster keeps running on the version skew described next.
@@ -201,7 +224,7 @@ The Kubernetes **skew policy** bounds how far apart the two are allowed to drift
 
 Once the control plane is ahead, a managed node pool can be brought forward two ways. An **in-place upgrade** replaces the boot volume (or the instance itself) of each existing worker node with the new Kubernetes version, node by node, keeping the same node pool resource throughout. An **out-of-place upgrade** instead creates a *new* node pool on the target version, drains workloads onto it, then removes the old pool entirely — slower to set up, but it leaves the previous pool intact as a rollback path until the new one is proven.
 
-The first objection to in-place upgrades lands immediately: what happens to pods running on a node mid-cycle? **Node cycling** — an Enhanced-cluster-only capability named in *Basic vs. Enhanced Clusters* above — answers it by cordoning and draining each node before replacing it, so workloads reschedule onto already-upgraded nodes rather than being cut off mid-request; Basic clusters lack node cycling and require a manual drain before each replacement.
+The first objection to in-place upgrades lands immediately: what happens to pods running on a node mid-cycle? **Node cycling** — an Enhanced-cluster-only capability named in *Basic vs. Enhanced Clusters* above — answers it by cordoning and draining each node before replacing it, so workloads reschedule onto already-upgraded nodes rather than being cut off mid-request; Basic clusters lack node cycling and require a manual drain before each replacement. That gate is specific to *in-place* upgrades, though — node cycling exists to automate cordon-and-drain on a pool being replaced node-by-node in place. An out-of-place upgrade drains onto a brand-new pool instead, so it isn't gated behind node cycling or Enhanced at all; a Basic cluster can run an out-of-place upgrade the same way an Enhanced one does.
 
 ```mermaid
 stateDiagram-v2
@@ -278,7 +301,7 @@ Had `orders-service` instead run on a virtual-node pool, steps 2–4 would not o
 
 ### 6.1 What OSOK does
 
-Sections 1–5 covered how much of the *cluster itself* Oracle manages for you; OSOK extends that same managed-vs-own-it choice to OCI resources that sit *outside* the cluster but that a workload running on it depends on. The **OCI Service Operator for Kubernetes (OSOK)** is a cluster **add-on**, built on the open-source Kubernetes **Operator Framework**, that lets you create and manage OCI resources as Kubernetes **Custom Resources** — applied with `kubectl` the same way you'd apply a `Deployment`. Supported resource types include an **Autonomous Database**, a MySQL HeatWave instance, and others (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengaddingosok.htm)). Without OSOK, provisioning a database for `orders-service` to use means a separate `oci` CLI call or Terraform run, outside the cluster's own deployment flow entirely; OSOK folds that provisioning step into the same manifests and the same `kubectl apply` your application already uses.
+Sections 1–5 covered how much of the *cluster itself* Oracle manages for you; OSOK extends that same managed-vs-own-it choice to OCI resources that sit *outside* the cluster but that a workload running on it depends on. The **OCI Service Operator for Kubernetes (OSOK)** is a cluster **add-on**, built on the open-source Kubernetes **Operator Framework**, that lets you create and manage OCI resources as Kubernetes **Custom Resources** — applied with `kubectl` the same way you'd apply a `Deployment`. Supported resource types include an **Autonomous Database**, a MySQL HeatWave instance, **OCI Streaming**, and **OCI Queue**, among others (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengaddingosok.htm)). Without OSOK, provisioning a database for `orders-service` to use means a separate `oci` CLI call or Terraform run, outside the cluster's own deployment flow entirely; OSOK folds that provisioning step into the same manifests and the same `kubectl apply` your application already uses.
 
 ### 6.2 The reconciliation loop
 
@@ -304,7 +327,7 @@ spec:
 
 ### 6.3 Authentication and installation
 
-OSOK ships as an **Operator Lifecycle Manager (OLM)** bundle — its **Custom Resource Definitions (CRDs)**, **Role-Based Access Control (RBAC)** rules, and controller Deployment install together as one unit rather than as separate manual steps. Because it acts on your behalf against the OCI API, OSOK needs its own credentials, not the cluster's. The documented setup is a dedicated OCI IAM user with policy scoped to exactly the resource types it manages, with that user's credentials stored as a Kubernetes `Secret` rather than baked into the controller image (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengaddingosok.htm)). That mirrors the same principle Module `02` named for the `ocirsecret` pull secret: build it from a service-scoped identity, not a specific engineer's personal credential, so the resource doesn't silently break when that person's access changes.
+OSOK ships as an **Operator Lifecycle Manager (OLM)** bundle — its **Custom Resource Definitions (CRDs)**, **Role-Based Access Control (RBAC)** rules, and controller Deployment install together as one unit rather than as separate manual steps. Because it acts on your behalf against the OCI API, OSOK needs its own credentials, not the cluster's. A dedicated OCI IAM user with policy scoped to exactly the resource types it manages is one documented option, with that user's credentials stored as a Kubernetes `Secret` rather than baked into the controller image — but it isn't the only one: an `auth_type` setting in that same `Secret` can instead point OSOK at a resource principal, an instance principal, or **OKE workload identity**, the same Enhanced-only fine-grained pod IAM named in *Basic vs. Enhanced Clusters* (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengaddingosok.htm)). Whichever option is chosen, the principle Module `02` named for the `ocirsecret` pull secret still holds: build it from a service- or resource-scoped identity, not a specific engineer's personal credential, so the resource doesn't silently break when that person's access changes.
 
 ---
 
@@ -320,7 +343,7 @@ OSOK ships as an **Operator Lifecycle Manager (OLM)** bundle — its **Custom Re
 - **Node cycling during upgrades is Enhanced-only**: a Basic cluster's in-place node pool upgrade requires manually cordoning and draining each node yourself; Enhanced automates that cycling.
 - **The Cluster Autoscaler does not apply to virtual nodes**: there is no fixed-size node for it to scale — virtual nodes scale per-pod by construction, so the autoscaler question only exists on managed-node pools.
 - **Cloud Shell removes the authentication step, not the network one**: it runs pre-authenticated as your IAM identity, but a private-endpoint cluster still needs a real VCN network path (bastion, peering, service gateway) that Cloud Shell does not provide by itself.
-- **OSOK needs its own scoped credential, not the cluster's**: a dedicated IAM user with policy limited to the resource types OSOK manages, stored as a Kubernetes `Secret` — the same "build it from a service identity, not a person's" principle Module `02` applied to `ocirsecret`.
+- **OSOK needs its own scoped credential, not the cluster's**: a dedicated IAM user, a resource principal, an instance principal, or OKE workload identity — whichever `auth_type` is chosen, it's scoped to the resource types OSOK manages and stored as a Kubernetes `Secret`, the same "build it from a service identity, not a person's" principle Module `02` applied to `ocirsecret`.
 
 ---
 
