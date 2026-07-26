@@ -30,9 +30,9 @@ One lesson per Oracle course module, numbered to match. Each module's bullet lis
 spec for that lesson — add bullets as you study.
 
 - **`01` · Cloud Native Fundamentals**
-  - Key Pillars of Cloud Native Development (Microservices, Containers, DevOps, CI/CD) —
-    *(Service Mesh is in the original course-outline pillar list but not yet confirmed as actual
-    lesson content; see open question below)*
+  - Key Pillars of Cloud Native Development (Microservices, Containers, DevOps, CI/CD, Service
+    Mesh) — the lesson covers Service Mesh as the fifth pillar, noting the managed **OCI Service
+    Mesh** offering's retirement (May 31, 2025) and Istio-on-OKE as the current implementation
   - Microservice Architecture: decomposition drivers, and where a monolith still wins
   - The Twelve-Factor methodology as microservice design discipline
   - OCI DevOps Service — the pillar the exam actually tests in depth
@@ -60,16 +60,13 @@ spec for that lesson — add bullets as you study.
 
 - **`03` · Managed Kubernetes**
   - OKE cluster architecture: Basic vs. Enhanced clusters, and the control-plane/data-plane split
-  - Node pool models: managed nodes vs. virtual nodes vs. self-managed nodes — *(self-managed
-    nodes appear in the OKE docs TOC as a third create-cluster option; confirm course coverage
-    before drafting — see open question below)*
+  - Node pool models: managed nodes vs. virtual nodes vs. self-managed nodes
   - Cluster access: kubeconfig generation, Cloud Shell, and public vs. private endpoints
   - Kubernetes Secrets encryption at the cluster level
   - Load balancer and persistent storage provisioning for OKE workloads
   - Scaling and upgrade strategies for node pools
   - OSOK (OCI Service Operator for Kubernetes) — provisioning OCI resources from Kubernetes manifests
-  - Admission controllers and pod security policies — *(named in the OKE docs TOC; confirm course
-    coverage before drafting — see open question below)*
+  - Admission controllers and pod security policies
   - OKE-specific behaviors vs. generic managed Kubernetes
   - Trade-off: managed nodes vs. virtual nodes (operational control and full feature access vs.
     zero node management)
@@ -165,22 +162,13 @@ spec for that lesson — add bullets as you study.
   - Trade-off: metrics vs. logs vs. traces for a given diagnostic question
   - Scope note: what this lesson defers to the `observability-professional` sub-track
 
-**Open questions for modules 01–03, 09–10** (resolve while studying, don't guess):
+**Open questions for modules 09–10** (resolve while studying, don't guess):
 
-- Module 01's Key Pillars list originally named **Service Mesh** alongside Microservices,
-  Containers, DevOps, and CI/CD — confirm whether the course actually teaches it (and on what OCI
-  service, if any) before adding it back; it's dropped from the bullet list for now rather than
-  asserted.
-- Module 03's **self-managed nodes** and **admission controllers / pod security policies** both
-  appear as real topics in the OKE docs TOC but aren't confirmed as course content — study the
-  module before committing lesson depth to either.
 - Module 09's "testing practices" bullet has no OCI docs anchor — ground it in what the course
   actually teaches, or cut it.
 - Connector Hub (routing Logging/Monitoring/Streaming/Functions/Object Storage) is the natural
   glue across modules 06/08/10 but appears in none of them and isn't in the Logging docs TOC —
   add it to module 10 only if the course covers it.
-- Confirm whether Container Instances is in scope before drafting module 04 — it would extend the
-  module's trade-off bullet from a pair to a triple.
 
 ---
 

@@ -8,12 +8,14 @@
 
 1. [The Managed Split: Control Plane vs. Data Plane](#1-the-managed-split-control-plane-vs-data-plane)
 2. [Basic vs. Enhanced Clusters](#2-basic-vs-enhanced-clusters)
-3. [Managed Nodes vs. Virtual Nodes](#3-managed-nodes-vs-virtual-nodes)
+3. [Managed, Virtual, and Self-Managed Nodes](#3-managed-virtual-and-self-managed-nodes)
 4. [Reaching the Cluster: kubeconfig, Cloud Shell, and Endpoints](#4-reaching-the-cluster-kubeconfig-cloud-shell-and-endpoints)
-5. [Scaling and Upgrades](#5-scaling-and-upgrades)
-6. [OSOK: Provisioning OCI Resources from Manifests](#6-osok-provisioning-oci-resources-from-manifests)
-7. [Practical Limits and Trade-offs](#7-practical-limits-and-trade-offs)
-8. [Summary](#8-summary)
+5. [Exposing and Persisting Workloads: Load Balancers and Storage](#5-exposing-and-persisting-workloads-load-balancers-and-storage)
+6. [Scaling and Upgrades](#6-scaling-and-upgrades)
+7. [Cluster Security: Secrets Encryption and Admission Control](#7-cluster-security-secrets-encryption-and-admission-control)
+8. [OSOK: Provisioning OCI Resources from Manifests](#8-osok-provisioning-oci-resources-from-manifests)
+9. [Practical Limits and Trade-offs](#9-practical-limits-and-trade-offs)
+10. [Summary](#10-summary)
 
 ---
 
@@ -88,7 +90,7 @@ Reach for **Basic** for development clusters, learning environments, or any work
 
 ---
 
-## 3. Managed Nodes vs. Virtual Nodes
+## 3. Managed, Virtual, and Self-Managed Nodes
 
 ### 3.1 Two different data planes
 
@@ -134,21 +136,47 @@ The **Cluster Autoscaler** (covered fully in *Scaling and Upgrades* below) is al
 
 With `kubectl exec` and SSH both off the table, debugging a crash-looping pod on a virtual node still has a path — just not the node-level one. `kubectl logs` (without `-f`) still works pod-by-pod, because it reads from the container runtime, not the node. A node-level logging **DaemonSet** doesn't work, since there's no node to run one on; centralized log collection instead runs as a **sidecar** container inside each pod, using an agent like Fluent Bit to ship that pod's own stdout/stderr onward. This is exactly what the single allowed `emptyDir` named above is for: the app container writes logs to that shared volume, and the sidecar reads from the same mount to ship them — one `emptyDir`, shared between the two containers, not a second one the pod would be denied (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengviewingapplicationlogs-virtualnodes.htm)).
 
-### 3.4 Managed vs. virtual, side by side
+### 3.4 Self-managed nodes: the third dial position
 
-| Aspect | Managed node | Virtual node |
-| :--- | :--- | :--- |
-| Underlying machine | A real OCI compute instance you own | None exposed to you — Oracle-operated |
-| Resource allocation | Node-level (pod draws from node headroom) | Pod-level (request = provisioned amount) |
-| Cluster tier required | Basic or Enhanced | Enhanced only |
-| Scaling mechanism | Cluster Autoscaler (see *Scaling and Upgrades*) | None needed — scales per pod |
-| `DaemonSets`, PVCs, `hostPath` | Supported | Not supported |
-| `kubectl exec` / `logs -f` / SSH | Supported | Not supported |
-| Kubernetes version floor | Any supported version | 1.25+ |
+Managed and virtual nodes are two ends of one spectrum — Oracle either sizes and patches the machine for you (managed) or removes the machine entirely (virtual). A **self-managed node** sits past the "managed" end rather than between the two: it is an ordinary OCI compute instance *you* create, boot, and join to the cluster yourself — OKE does not provision it, does not patch it, and tracks no node-pool resource for it at all. Resource-allocation-wise it behaves exactly like a managed node from *Resource allocation: node-level vs. pod-level* above — node-level headroom, no per-pod billing — the axis that actually changes is *who provisions and lifecycles the machine*, not how the scheduler treats it once it's there.
 
-### 3.5 Selection guidance
+Two gates apply before a self-managed node can join at all: the cluster must be **Enhanced** — Basic has no self-managed path, the same tier-gate *The Tier Dial* already named for virtual nodes — and the control plane must run **Kubernetes 1.25 or later** (1.27.10+ if the node needs the VCN-Native Pod Networking CNI). The worker image itself is constrained too: only OKE-published Oracle Linux 7 or 8 images dated March 28, 2023 or later are supported (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengprereqsforselfmanagednodes.htm)).
 
-Reach for **managed nodes** when a workload needs `DaemonSets`, `PersistentVolumeClaims`, direct node access for debugging, or a specific instance shape (GPU, bare metal) — anything that assumes a real machine underneath the pod. Reach for **virtual nodes** for stateless, horizontally-scalable services that fit the supported feature set, where the payoff is real: no node sizing, no OS patching, no Cluster Autoscaler to tune, and a serverless Kubernetes experience layered on top of a platform you already know. A cluster is not forced to pick one exclusively — a single Enhanced cluster commonly runs a stable managed-node pool for stateful or DaemonSet-dependent workloads alongside a virtual-node pool that absorbs bursty, stateless traffic.
+Joining is a cloud-init step you author, not an OKE-generated one — the instance's own boot script fetches the cluster's private API endpoint and CA certificate and runs the join command directly:
+
+```yaml
+#cloud-config
+# You write and own this boot script; OKE never generates or updates it for you
+runcmd:
+  - oke bootstrap --ca ${cluster_ca_cert} --apiserver-host ${api_server_endpoint}
+write_files:
+  - path: /etc/oke/oke-apiserver
+    permissions: '0644'
+    content: ${api_server_endpoint}
+  - encoding: b64
+    path: /etc/kubernetes/ca.crt
+    permissions: '0644'
+    content: ${cluster_ca_cert}
+```
+
+> Nuance: OKE's silence on this path cuts both ways. It never validates that the Kubernetes version baked into your image is compatible with the control plane before letting the node join — the same **skew policy** *Two upgrade surfaces, upgraded separately* covers for managed node pools still applies, but nothing enforces it for you here. A self-managed node on an incompatible version joins successfully and fails in stranger ways later, because compatibility was never OKE's job to check in the first place.
+
+### 3.5 Managed, virtual, and self-managed, side by side
+
+| Aspect | Managed node | Virtual node | Self-managed node |
+| :--- | :--- | :--- | :--- |
+| Underlying machine | A real OCI compute instance, OKE-provisioned | None exposed to you — Oracle-operated | A real OCI compute instance, you-provisioned |
+| Resource allocation | Node-level (pod draws from node headroom) | Pod-level (request = provisioned amount) | Node-level, same as managed |
+| Cluster tier required | Basic or Enhanced | Enhanced only | Enhanced only |
+| Scaling mechanism | Cluster Autoscaler (see *Scaling and Upgrades*) | None needed — scales per pod | None built in — you script it |
+| `DaemonSets`, PVCs, `hostPath` | Supported | Not supported | Supported |
+| `kubectl exec` / `logs -f` / SSH | Supported | Not supported | Supported |
+| Kubernetes version floor | Any supported version | 1.25+ | 1.25+ (1.27.10+ for VCN-Native CNI) |
+| Version-skew compatibility check | OKE validates it | N/A — no node version to skew | You validate it — OKE does not |
+
+### 3.6 Selection guidance
+
+Reach for **managed nodes** when a workload needs `DaemonSets`, `PersistentVolumeClaims`, direct node access for debugging, or a specific instance shape (GPU, bare metal) — anything that assumes a real machine underneath the pod, without wanting to own the join and lifecycle process by hand. Reach for **virtual nodes** for stateless, horizontally-scalable services that fit the supported feature set, where the payoff is real: no node sizing, no OS patching, no Cluster Autoscaler to tune, and a serverless Kubernetes experience layered on top of a platform you already know. Reach for **self-managed nodes** only when managed nodes' own provisioning path is itself the obstacle — a custom OS image or a fleet-management tool (Terraform, a configuration-management system) that must own the instance lifecycle end to end — since everything OKE would otherwise automate (version compatibility, node lifecycle, patching orchestration) becomes your responsibility in exchange. A cluster is not forced to pick one exclusively — a single Enhanced cluster commonly runs a stable managed-node pool for stateful or DaemonSet-dependent workloads alongside a virtual-node pool that absorbs bursty, stateless traffic, with a self-managed pool reserved for the one workload whose provisioning tooling actually demands it.
 
 ---
 
@@ -203,9 +231,73 @@ Reaching the cluster is not a data-plane dial the way tier or node type are — 
 
 ---
 
-## 5. Scaling and Upgrades
+## 5. Exposing and Persisting Workloads: Load Balancers and Storage
 
-### 5.1 Two upgrade surfaces, upgraded separately
+Reaching the cluster (*Reaching the Cluster: kubeconfig, Cloud Shell, and Endpoints*, above) is about *you* getting in; this section is about *traffic and data* getting to a workload once it's already running there — the two pieces of plumbing that turn a scheduled pod into something a user can actually reach and that can actually keep state. Both are ordinary Kubernetes resource types — a `Service`, a `PersistentVolumeClaim` — but on OKE each one's *default behavior* is to provision a real OCI resource behind the scenes, the same "Kubernetes API in front, OCI resource behind" pattern *OSOK: Provisioning OCI Resources from Manifests* later generalizes deliberately.
+
+### 5.1 Service type `LoadBalancer`: the annotation is the configuration surface
+
+A Kubernetes `Service` of type `LoadBalancer` is, on most self-managed clusters, a request nobody can fulfill without a cloud integration wired in by hand. On OKE, the cloud-controller manager fulfills it directly: applying the `Service` provisions a real OCI Load Balancer, no separate `oci` CLI call required. Because a standard Kubernetes `Service` spec has no field for "load balancer shape" or "internal-only," OKE reads that configuration from **annotations** on the same manifest instead — the annotation block *is* the load-balancer configuration surface:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: orders-service-lb
+  annotations:
+    oci.oraclecloud.com/load-balancer-type: "lb"                       # "lb" is the default if omitted
+    service.beta.kubernetes.io/oci-load-balancer-shape: "flexible"
+    service.beta.kubernetes.io/oci-load-balancer-shape-flex-min: "10"
+    service.beta.kubernetes.io/oci-load-balancer-shape-flex-max: "100"
+    service.beta.kubernetes.io/oci-load-balancer-internal: "true"       # omit for a public IP
+spec:
+  type: LoadBalancer
+  selector:
+    app: orders-service
+  ports:
+    - port: 80
+      targetPort: 8080
+```
+
+Delete the `Service` and the OCI Load Balancer it provisioned is torn down with it — the same reconciliation direction OSOK uses for its own Custom Resources (see *The reconciliation loop*, below), just built into the cloud-controller manager rather than an add-on you install separately.
+
+### 5.2 Load Balancer vs. Network Load Balancer
+
+`oci.oraclecloud.com/load-balancer-type` takes two values, and they are not a shape variant of the same thing — they are architecturally different products. The **Load Balancer** (`"lb"`, the default) is a **proxy**: it terminates the connection and opens a new one to your pod, which is what makes SSL termination and path-based routing possible, but it also means the backend sees the load balancer's IP as the source, not the original client's. The **Network Load Balancer** (`"nlb"`) is a **pass-through** device at layers 3/4 — it forwards packets without terminating the connection, which preserves the original client's source IP at the pod and adds materially less latency, at the cost of the proxy-layer features (SSL termination, content routing) the standard Load Balancer offers.
+
+```yaml
+metadata:
+  annotations:
+    oci.oraclecloud.com/load-balancer-type: "nlb"   # pass-through: client IP reaches the pod unmodified
+```
+
+Reach for the standard Load Balancer by default — it is what most Services need and what OKE provisions if you omit the annotation entirely. Reach for a Network Load Balancer specifically when a workload needs to see the real client IP (fraud detection, IP-based rate limiting, geolocation) or needs the lowest latency path a Layer 4 device can offer.
+
+### 5.3 Persistent storage: Block Volume and File Storage
+
+*What virtual nodes cannot do* already named `PersistentVolumeClaims` as one of the features a virtual node cannot use at all; this is what a PVC actually looks like on the managed and self-managed nodes that *can*. OKE's **Block Volume CSI driver** is the default provisioner — `oci-bv` on clusters created with Kubernetes 1.24 or later (`oci`, an older FlexVolume plugin, on 1.23 and earlier, and upgrading past 1.24 does not silently switch the default for you). A block volume supports `ReadWriteOnce` — one node at a time — which is the right fit for a single-writer workload like a database, but the wrong one for a workload that needs the same volume mounted read-write from several pods simultaneously; **File Storage (FSS) CSI**, provisioned through a second `StorageClass` pointing at a mount target, is what supports `ReadWriteMany` instead.
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: orders-db-data
+spec:
+  storageClassName: oci-bv        # default Block Volume CSI class on Kubernetes 1.24+
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+```
+
+A block volume carries a constraint worth internalizing before it surprises you in production: it is created in one specific **Availability Domain**, the same AD as whichever node the pod using it first schedules onto — the CSI driver enforces this with `volumeBindingMode: WaitForFirstConsumer`, deliberately delaying volume creation until the scheduler has already picked a node, rather than creating the volume first and hoping a node in the right AD is available. The practical consequence is that a pod backed by a block-volume PVC cannot freely reschedule across ADs the way a stateless pod can — losing that AD effectively pins the pod's rescheduling options to nodes in the volume's AD, or to no node at all if none exist there.
+
+---
+
+## 6. Scaling and Upgrades
+
+### 6.1 Two upgrade surfaces, upgraded separately
 
 Section 1 named upgrade strategy as the third data-plane dial; this section covers it alongside the closely related question of scaling. An OKE cluster has two things that carry a Kubernetes version, and they are upgraded through two entirely separate actions. Upgrading the **control plane** means specifying a newer Kubernetes version for the cluster resource itself — a control-plane-only operation that touches no worker node. Upgrading a **node pool** is a second, independent action performed per pool, and different pools in the same cluster are allowed to run different Kubernetes versions simultaneously (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Concepts/contengaboutupgradingclusters.htm)).
 
@@ -220,7 +312,7 @@ oci ce cluster update \
 
 The Kubernetes **skew policy** bounds how far apart the two are allowed to drift: worker nodes must run the same version as the control plane or an earlier compatible one, and from Kubernetes 1.28 onward the control plane may run up to three minor versions ahead of a node pool before that pool must catch up (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Concepts/contengaboutupgradingclusters.htm)).
 
-### 5.2 In-place vs. out-of-place node pool upgrades
+### 6.2 In-place vs. out-of-place node pool upgrades
 
 Once the control plane is ahead, a managed node pool can be brought forward two ways. An **in-place upgrade** replaces the boot volume (or the instance itself) of each existing worker node with the new Kubernetes version, node by node, keeping the same node pool resource throughout. An **out-of-place upgrade** instead creates a *new* node pool on the target version, drains workloads onto it, then removes the old pool entirely — slower to set up, but it leaves the previous pool intact as a rollback path until the new one is proven.
 
@@ -243,7 +335,7 @@ stateDiagram-v2
 
 *Once the control plane moves ahead, the node pool's own upgrade is a separate, later action — and from there it branches into the in-place or out-of-place path this section names.*
 
-### 5.3 Scaling: manual, autoscaled, and the virtual-node exception
+### 6.3 Scaling: manual, autoscaled, and the virtual-node exception
 
 A managed node pool's size is either set manually (an explicit node count) or handed to the **Cluster Autoscaler**, installed as a cluster **add-on** that watches for unschedulable pods and adds or removes nodes to match:
 
@@ -256,9 +348,9 @@ oci ce addon install \
   --configurations '[{"key":"nodepools","value":"[\"'"$NODE_POOL_OCID"'\"]"}]'
 ```
 
-As *Managed Nodes vs. Virtual Nodes* already established, a virtual-node pool has no Cluster Autoscaler to install at all — it scales per-pod the moment a pod is scheduled, so the "how many nodes should I run" question the autoscaler exists to answer never comes up on that path.
+As *Managed, Virtual, and Self-Managed Nodes* already established, a virtual-node pool has no Cluster Autoscaler to install at all — it scales per-pod the moment a pod is scheduled, so the "how many nodes should I run" question the autoscaler exists to answer never comes up on that path.
 
-### 5.4 Worked walkthrough: a scale-up from HPA to a running pod
+### 6.4 Worked walkthrough: a scale-up from HPA to a running pod
 
 This traces one concrete event — traffic to `orders-service` rising — through both the pod-level and node-level scaling machinery, picking up the image and pull secret Module `02`'s walkthrough left in place.
 
@@ -297,13 +389,53 @@ Had `orders-service` instead run on a virtual-node pool, steps 2–4 would not o
 
 ---
 
-## 6. OSOK: Provisioning OCI Resources from Manifests
+## 7. Cluster Security: Secrets Encryption and Admission Control
 
-### 6.1 What OSOK does
+The dials so far chose what runs your pods (*Managed, Virtual, and Self-Managed Nodes*) and how you reach and expose them (*Reaching the Cluster* and *Exposing and Persisting Workloads*); this section covers what protects the cluster's own control-plane data, and what gates a pod before it is ever admitted to run at all.
 
-Sections 1–5 covered how much of the *cluster itself* Oracle manages for you; OSOK extends that same managed-vs-own-it choice to OCI resources that sit *outside* the cluster but that a workload running on it depends on. The **OCI Service Operator for Kubernetes (OSOK)** is a cluster **add-on**, built on the open-source Kubernetes **Operator Framework**, that lets you create and manage OCI resources as Kubernetes **Custom Resources** — applied with `kubectl` the same way you'd apply a `Deployment`. Supported resource types include an **Autonomous Database**, a MySQL HeatWave instance, **OCI Streaming**, and **OCI Queue**, among others (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengaddingosok.htm)). Without OSOK, provisioning a database for `orders-service` to use means a separate `oci` CLI call or Terraform run, outside the cluster's own deployment flow entirely; OSOK folds that provisioning step into the same manifests and the same `kubectl apply` your application already uses.
+### 7.1 Kubernetes Secrets encryption at rest
 
-### 6.2 The reconciliation loop
+By default, a Kubernetes **Secret** sits in `etcd` only base64-**encoded** — encoding, not encryption; anyone with direct `etcd` access reads it in plaintext. OCI already encrypts the underlying Block Volume `etcd` runs on with an Oracle-managed key, which covers "someone steals the disk," but not "an operator with `etcd`-level access reads a Secret's contents directly." Choosing **customer-managed encryption** — an option in the cluster's **Custom Create** workflow, not Quick Create — closes that second gap by tying Secrets encryption to a master encryption key (MEK) you hold in **OCI Vault**. Mechanically it is envelope encryption: a fresh data encryption key (DEK) encrypts each Secret, and the DEK itself is encrypted by your Vault MEK — the same envelope pattern Module `09` covers in full for Vault generally.
+
+```text
+# Prerequisite policy, the same dynamic-group-and-policy pattern Module 01 used for
+# build pipelines — the cluster's own identity needs permission to use the Vault key
+Allow dynamic-group oke-clusters-dg to use keys in compartment orders where target.key.id = '<key_ocid>'
+```
+
+The choice is locked in at creation, the same one-way irreversibility *The upgrade path is one-way* already named for Basic-to-Enhanced: you cannot turn customer-managed encryption on for a cluster created without it, and once it is on, it cannot be turned back off.
+
+> Warning: deleting the Vault MEK does not only block *new* Secrets — every *existing* Secret becomes immediately inaccessible, and cluster upgrades fail outright. If the deletion actually completes, the only way back is deleting and recreating the cluster. Rotating the key, by contrast, is safe: existing Secrets stay readable because the prior key version is retained in Vault, and only newly-written Secrets pick up the new version.
+
+### 7.2 Admission controllers and pod security
+
+An **admission controller** intercepts a request to the API server after authentication and authorization but before the object is actually persisted — the last checkpoint a pod passes through before it exists in the cluster at all. OKE enables the **PodSecurity** admission controller by default on any cluster running Kubernetes 1.23 or later; it checks each new pod's security context against one of three built-in policies — **Privileged**, **Baseline**, or **Restricted** — applied per *namespace* through a label, not configured pod by pod.
+
+**PodSecurityPolicy (PSP)**, the older mechanism, is not a second option to weigh against PodSecurity — it no longer exists to choose. PSP was deprecated upstream in Kubernetes 1.21 and removed outright in 1.25; OKE does not support PSP, or the PodSecurityPolicy admission controller, on any cluster running Kubernetes 1.25 or later (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengusingpspswithoke.htm)). A cluster still depending on PSP has to migrate to PodSecurity — mapping each policy to the nearest of the three built-ins — *before* it reaches 1.25, not after; there is no grace period once the upgrade lands.
+
+```yaml
+# Namespace-level label — Restricted is the strictest of the three built-in policies
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: orders-prod
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+```
+
+### 7.3 What this section defers
+
+Cluster **audit logs** — who called the API server, and when — along with application log collection and cluster-level metrics, are *enabled* on the cluster covered by this lesson but *analysed* in Module `10`; this section stops at the admission and encryption mechanics that protect the cluster itself, not the observability pipeline built on top of them.
+
+---
+
+## 8. OSOK: Provisioning OCI Resources from Manifests
+
+### 8.1 What OSOK does
+
+Sections 1–7 covered how much of the *cluster itself* Oracle manages for you; OSOK extends that same managed-vs-own-it choice to OCI resources that sit *outside* the cluster but that a workload running on it depends on. The **OCI Service Operator for Kubernetes (OSOK)** is a cluster **add-on**, built on the open-source Kubernetes **Operator Framework**, that lets you create and manage OCI resources as Kubernetes **Custom Resources** — applied with `kubectl` the same way you'd apply a `Deployment`. Supported resource types include an **Autonomous Database**, a MySQL HeatWave instance, **OCI Streaming**, and **OCI Queue**, among others (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengaddingosok.htm)). Without OSOK, provisioning a database for `orders-service` to use means a separate `oci` CLI call or Terraform run, outside the cluster's own deployment flow entirely; OSOK folds that provisioning step into the same manifests and the same `kubectl apply` your application already uses.
+
+### 8.2 The reconciliation loop
 
 OSOK follows the standard Kubernetes **operator** pattern: you declare the *desired* state of an OCI resource as a Custom Resource, and OSOK's controller continuously reconciles OCI's *actual* state to match it — creating the resource if it doesn't exist, and (depending on the resource type) updating or tearing it down as the manifest changes.
 
@@ -325,13 +457,13 @@ spec:
 
 > Nuance: it is easy to read a Custom Resource as just a convenient label OSOK slaps on an existing OCI resource after the fact. It is the other way around — the manifest is the *source of truth* the controller reconciles OCI toward, so deleting the Kubernetes resource is itself the mechanism that de-provisions the OCI resource, not a side effect you have to separately clean up.
 
-### 6.3 Authentication and installation
+### 8.3 Authentication and installation
 
 OSOK ships as an **Operator Lifecycle Manager (OLM)** bundle — its **Custom Resource Definitions (CRDs)**, **Role-Based Access Control (RBAC)** rules, and controller Deployment install together as one unit rather than as separate manual steps. Because it acts on your behalf against the OCI API, OSOK needs its own credentials, not the cluster's. A dedicated OCI IAM user with policy scoped to exactly the resource types it manages is one documented option, with that user's credentials stored as a Kubernetes `Secret` rather than baked into the controller image — but it isn't the only one: an `auth_type` setting in that same `Secret` can instead point OSOK at a resource principal, an instance principal, or **OKE workload identity**, the same Enhanced-only fine-grained pod IAM named in *Basic vs. Enhanced Clusters* (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengaddingosok.htm)). Whichever option is chosen, the principle Module `02` named for the `ocirsecret` pull secret still holds: build it from a service- or resource-scoped identity, not a specific engineer's personal credential, so the resource doesn't silently break when that person's access changes.
 
 ---
 
-## 7. Practical Limits and Trade-offs
+## 9. Practical Limits and Trade-offs
 
 - **Basic vs. Enhanced is a feature gate, not just a price difference**: virtual nodes, workload identity, granular add-on management, and node cycling are entirely unavailable on Basic regardless of budget ([docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengworkingwithenhancedclusters.htm), as of Jul 2026) — pick the tier for the features you'll need, not just the cheapest option today.
 - **The Basic-to-Enhanced upgrade only works from VCN-Native networking**: a Basic cluster still on Flannel overlay networking has no upgrade path to Enhanced and must be recreated; the reverse direction (Enhanced to Basic) never exists ([docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengworkingwithenhancedclusters.htm), as of Jul 2026).
@@ -344,13 +476,20 @@ OSOK ships as an **Operator Lifecycle Manager (OLM)** bundle — its **Custom Re
 - **The Cluster Autoscaler does not apply to virtual nodes**: there is no fixed-size node for it to scale — virtual nodes scale per-pod by construction, so the autoscaler question only exists on managed-node pools.
 - **Cloud Shell removes the authentication step, not the network one**: it runs pre-authenticated as your IAM identity, but a private-endpoint cluster still needs a real VCN network path (bastion, peering, service gateway) that Cloud Shell does not provide by itself.
 - **OSOK needs its own scoped credential, not the cluster's**: a dedicated IAM user, a resource principal, an instance principal, or OKE workload identity — whichever `auth_type` is chosen, it's scoped to the resource types OSOK manages and stored as a Kubernetes `Secret`, the same "build it from a service identity, not a person's" principle Module `02` applied to `ocirsecret`.
+- **Self-managed nodes get none of OKE's version-compatibility validation**: only OKE-published Oracle Linux 7/8 images (2023-03-28 or later) are supported, and OKE never checks that a self-managed node's Kubernetes version respects the skew policy against the control plane — that responsibility, and everything else about the node's lifecycle, is yours alone ([docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengprereqsforselfmanagednodes.htm), as of Jul 2026).
+- **Customer-managed Secrets encryption is a Custom-Create-only, one-way choice**: it cannot be selected through Quick Create, cannot be added to an already-running cluster, and cannot be turned back off once enabled ([docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengencryptingdata.htm), as of Jul 2026) — decide it at the same moment you decide the cluster tier, not afterward.
+- **Deleting the Vault key behind Secrets encryption is not recoverable in place**: every existing Secret becomes immediately inaccessible and upgrades fail; a completed key deletion leaves cluster recreation as the only way forward ([docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengencryptingdata.htm), as of Jul 2026) — key rotation is safe, key deletion is not.
+- **PodSecurityPolicy is gone, not merely discouraged**: removed upstream in Kubernetes 1.25 and unsupported by OKE from 1.25 onward; a cluster still depending on PSP must migrate to the PodSecurity admission controller before it upgrades past 1.24, not after ([docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengusingpspswithoke.htm), as of Jul 2026).
+- **A block volume PVC pins a pod to one Availability Domain**: `volumeBindingMode: WaitForFirstConsumer` creates the volume only after the scheduler picks a node, in that node's AD — losing that AD leaves the pod with nowhere else in the cluster to reschedule to.
+- **`ReadWriteMany` is not a Block Volume capability**: a workload needing the same volume mounted read-write from multiple pods needs the separate File Storage (FSS) CSI path, not a Block Volume `StorageClass` — Block Volume PVCs default to `ReadWriteOnce`.
+- **Load Balancer and Network Load Balancer are different products, not two sizes of one**: the standard Load Balancer proxies and terminates the connection (enabling SSL termination and path routing, at the cost of hiding the client's real IP); the Network Load Balancer passes packets through unmodified at layers 3/4, preserving client IP at lower latency but without proxy-layer features ([docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengcreatingnetworkloadbalancers.htm), as of Jul 2026).
 
 ---
 
-## 8. Summary
+## 10. Summary
 
-OKE's core idea is a managed split, not full management. Oracle always operates the control plane — highly available, IAM-governed, patched without your involvement — but three further choices remain entirely yours: the cluster tier (Basic's no-charge simplicity versus Enhanced's SLA and feature set), the node type (a managed node you patch and size versus a virtual node Oracle operates per pod), and how upgrades and scaling happen underneath a running workload.
+OKE's core idea is a managed split, not full management. Oracle always operates the control plane — highly available, IAM-governed, patched without your involvement — but several further choices remain entirely yours: the cluster tier (Basic's no-charge simplicity versus Enhanced's SLA and feature set), the node type (a managed node you patch and size, a virtual node Oracle operates per pod, or a self-managed node you provision and lifecycle end to end), and how upgrades and scaling happen underneath a running workload.
 
-Those choices compound. Enhanced unlocks virtual nodes, workload identity, and node cycling that Basic simply cannot offer at any price, and the tier decision is effectively one-way once a cluster exists. Virtual nodes remove node management entirely but only for workloads that fit a real feature ceiling — no `DaemonSets`, no `PersistentVolumeClaims`, no direct node access — while managed nodes keep full Kubernetes flexibility at the cost of patching and capacity planning you own yourself.
+Those choices compound. Enhanced unlocks virtual nodes, self-managed nodes, workload identity, and node cycling that Basic simply cannot offer at any price, and the tier decision is effectively one-way once a cluster exists. Virtual nodes remove node management entirely but only for workloads that fit a real feature ceiling — no `DaemonSets`, no `PersistentVolumeClaims`, no direct node access — while managed nodes keep full Kubernetes flexibility at the cost of patching and capacity planning you own yourself, and self-managed nodes push that same ownership even further, to a join process and a version-skew check OKE never validates on your behalf. Getting traffic and data to a workload once it's scheduled is its own layer above node choice — a `LoadBalancer` Service and a `PersistentVolumeClaim` each provision a real OCI resource by default — and protecting the cluster itself rests on two further, mostly one-time decisions: customer-managed Secrets encryption, chosen at creation, and the PodSecurity admission controller, which replaced the now-removed PodSecurityPolicy.
 
-Everything from here builds on a cluster that is already running. Module `04`'s **OCI Functions** contrasts its own scale-to-zero, no-node-at-all execution model directly against the managed- and virtual-node spectrum this lesson just covered, and Module `05`'s API Gateway will route traffic into the exact `orders-service` deployment this lesson's walkthrough scaled up.
+Everything from here builds on a cluster that is already running. Module `04`'s **OCI Functions** contrasts its own scale-to-zero, no-node-at-all execution model directly against the managed-, virtual-, and self-managed-node spectrum this lesson just covered, and Module `05`'s API Gateway will route traffic into the exact `orders-service` deployment this lesson's walkthrough scaled up.

@@ -267,6 +267,37 @@ Module `03` covers OKE's cluster and node-pool mechanics in depth; this is the o
 
 **OCI Functions** (Module `04`) pulls from OCIR by a different path worth contrasting explicitly: a function's deployment authenticates as a first-class OCI principal under ordinary IAM policy, the same resource-principal pattern as §2.2 — there is no Kubernetes-style pull secret to wire up at all. Same registry, two different consumers, two different authentication shapes; Module `04` builds directly on the credential model introduced here.
 
+### 5.3 Image security: scanning and signing
+
+Everything so far governs *who can push and pull*; scanning and signing govern *whether the content itself should be trusted* — a different question the registry answers with two separate mechanisms, both scoped to the exam depth this module needs (full policy-enforcement depth is Module `09`'s subject).
+
+**Scanning** is not a flag you flip on the repository — it is a separate **container scan target** resource, backed by the **Vulnerability Scanning Service**, that names one or more repositories to watch on your behalf:
+
+```bash
+# A scan target watches one or more repositories; the recipe defines what CVE
+# database and cadence the scan runs against
+oci vulnerability-scanning container scan target create \
+  --compartment-id "$COMPARTMENT_OCID" \
+  --container-scan-recipe-id "$RECIPE_OCID" \
+  --target-registry file://target-registry.json
+```
+
+Once a target is watching a repository, every new push is scanned automatically; for a repository that already held images before the target existed, the four most recently pushed are scanned retroactively rather than the whole history. Results are matched against the public CVE database, bucketed by severity (Critical down to Minor), kept for 13 months so a repository's risk trend is comparable over time, and a target automatically re-scans its images whenever a new CVE is published — a finding can appear against an image weeks after it was pushed, with nothing about the image itself having changed.
+
+**Signing** answers a different question — not "does this image have known vulnerabilities" but "did it come from who I think, unmodified." An image **signature** binds a **Vault** master encryption key to a specific image **digest**, never a tag — the same fingerprint-not-nameplate distinction §3.1 already drew, and the reason a signature can exist at all: only a digest is a fixed enough target to sign.
+
+```bash
+# Signs the exact digest identified by --image-id and uploads the signature in one step
+oci artifacts container image-signature sign-upload \
+  --compartment-id "$COMPARTMENT_OCID" \
+  --image-id "$IMAGE_OCID" \
+  --kms-key-id "$VAULT_KEY_OCID" \
+  --kms-key-version-id "$VAULT_KEY_VERSION_OCID" \
+  --signing-algorithm SHA_256_RSA_PKCS_PSS
+```
+
+Verifying a signature checks back against Vault — confirming the key existed and the signer could use it at the moment of signing — so trust in the image is only as good as trust in who could reach that Vault key, the same key-custody question Module `09` covers for Vault generally. OKE and OCI Functions can each be configured to refuse an image without a valid signature at deploy time; that enforcement policy, and how it interacts with the key's own lifecycle, is where Module `09` picks this up.
+
 ---
 
 ## 6. Worked Walkthrough: One Image, Commit to Pod
@@ -320,6 +351,8 @@ Deploying by digest rather than by `stable-prod` means the deployment can never 
 - **First-push auto-creation lands in the root compartment**: `is-repository-created-on-first-push` is convenient for casual use but places the new repository outside whatever compartment the pipeline runs in ([docs](https://docs.oracle.com/en-us/iaas/tools/oci-cli/latest/oci_cli_docs/cmdref/artifacts/container/configuration/update.html), as of Jul 2026), which can leave it uncovered by a compartment-scoped policy — pre-create repositories explicitly for anything beyond quick experiments.
 - **OKE never pulls implicitly, same tenancy or not**: every pod pulling from OCIR needs an explicit Kubernetes `imagePullSecret` built from an Auth Token; IAM-native does not mean automatic ([docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengpullingimagesfromocir.htm), as of Jul 2026).
 - **Short-lived credentials trade convenience for exposure window**: Bearer Tokens and Security Tokens (UPST) never sit in a config file the way an Auth Token can, so a leak has a bounded blast radius measured in hours rather than until someone remembers to revoke it — at the cost of needing a live token-exchange step instead of a static password.
+- **Scanning only backfills four images**: adding a container scan target to a repository that already holds images retroactively scans only the four most recently pushed; results are kept 13 months and a target re-scans automatically when a new CVE is published ([docs](https://docs.oracle.com/en-us/iaas/Content/Registry/Tasks/registryscanningimagesforvulnerabilities.htm), as of Jul 2026) — an old, unpushed-since image can carry an undetected vulnerability until something pushes to it again or the target is (re)watching it directly.
+- **A signature binds a digest, never a tag**: signing verifies a specific set of bytes via a Vault master encryption key, and trust in the signature is only as strong as trust in who could reach that key at signing time ([docs](https://docs.oracle.com/en-us/iaas/Content/Registry/Tasks/registrysigningimages_topic.htm), as of Jul 2026) — enforcing signed-only deploys is Module `09` territory, not a registry-level default.
 
 ---
 

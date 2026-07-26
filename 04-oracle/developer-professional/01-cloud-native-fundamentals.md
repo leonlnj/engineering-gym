@@ -159,9 +159,25 @@ One scoping fact completes the model: a project and everything under it are **re
 
 ### 4.2 Code repositories and external connections
 
-A project can host **code repositories** — private Git repos native to OCI, cloned over HTTPS or SSH like any Git remote. Alternatively, an **external connection** attaches an existing GitHub or GitLab repository: you store a personal access token as a secret in **OCI Vault**, and the connection resource references that secret. That indirection is also the rotation story: rotate the token in Vault and the connection picks up the new value on next use — the connection itself never changes. The distinction matters for triggers (§4.6): native repos emit push events inside OCI directly, while external repos deliver them through the connection.
+A project can host **code repositories** — private Git repos native to OCI, cloned over HTTPS or SSH like any Git remote. Alternatively, an **external connection** attaches an existing GitHub or GitLab repository: you store a personal access token as a secret in **OCI Vault**, and the connection resource references that secret. That indirection is also the rotation story: rotate the token in Vault and the connection picks up the new value on next use — the connection itself never changes. The distinction matters for triggers (§4.7): native repos emit push events inside OCI directly, while external repos deliver them through the connection.
 
-### 4.3 Build pipelines and the `build_spec.yaml` contract
+### 4.3 Pull requests on native code repositories
+
+A **pull request (PR)** exists only on a native code repository — an external GitHub or GitLab connection (§4.2) keeps its own review flow on GitHub or GitLab itself, since OCI never owns that repository's data. A PR proposes merging a **source branch** into a **target branch**; it carries **reviewers**, inline and file-level **comments**, and a commit diff against the target. An author cannot approve their own PR — approval has to come from someone else on the reviewer list, and an approver can revoke their approval any time before the PR is actually merged.
+
+What *gates* the merge is configured on the repository, not on the PR itself, and the two settings answer different questions. A **protected branch** rule on the target branch controls *how* changes may arrive — "pull request merge only" rejects any direct push, forcing every change through review. A **merge check** controls *what must be true* before a compliant PR is allowed to merge — a minimum reviewer-approval count, and optionally a **build status check**. That build check has nothing to validate unless a trigger (§4.7) is already wired to run a build pipeline on commits to the source branch: the PR feature reuses that ordinary push-triggered build rather than defining a separate PR-triggered one, which is why native repos still trigger on push only (§4.7) even though PRs are a native-repo-only feature.
+
+```bash
+# Reject direct pushes to main — every change must arrive through a reviewed, approved PR
+oci devops protected-branch create-or-update \
+  --repository-id "$REPO_OCID" \
+  --branch-name "main" \
+  --protection-levels '["PULL_REQUEST_MERGE_ONLY"]'
+```
+
+Merging a PR is, from the trigger's point of view, just another commit landing on the target branch — indistinguishable from any other push. That is what actually starts the deployment-bound build in the walkthrough (§5.1): the commit that reaches `main` in step 1 got there through a reviewed and approved PR, not a direct push.
+
+### 4.4 Build pipelines and the `build_spec.yaml` contract
 
 A **build pipeline** is an ordered set of stages; the central stage type, *managed build*, runs your commands on an Oracle-managed build runner — a fresh VM per run, so there is no runner fleet for you to patch or scale. The freshness cuts both ways: caches start cold, so every run re-pulls base images and dependencies — the price of never patching a runner is paying that download tax on every build. Because the runner is destroyed after the run, any cache living *on* it dies with it; mitigations move the cache somewhere that survives — slim base images, pre-baked dependency images pulled from OCIR, registry-backed layer caching. The same disposability is a security property: no state from one build can leak into, or poison, the next. What the runner executes is defined by a **`build_spec.yaml`** file, read from the repository root by default (an alternate path can be configured on the stage).
 
@@ -192,7 +208,7 @@ outputArtifacts:
 
 Three mechanisms in that file carry most of the exam weight. **`vaultVariables`** resolves a Vault secret OCID into an environment variable at run time — secrets never sit in the spec (factor III done right). Resolution happens once, when the run starts: a secret rotated mid-run does not affect an in-flight build and takes effect from the next one. **`exportedVariables`** is the baton in the relay: a value computed in the build (here, the image tag) that later stages and even the deployment pipeline can reference. **`outputArtifacts`** names what the build produced so a subsequent *deliver artifacts* stage can push it to a registry.
 
-### 4.4 Artifacts: the bridge from build to deploy
+### 4.5 Artifacts: the bridge from build to deploy
 
 A build's output does not flow to deployment by magic; the bridge is an explicit **artifact** resource in the project. An artifact is a *pointer with placeholders* — for a container image, the OCIR path; for a Kubernetes manifest, an Object Storage or inline manifest — and its path may contain `${...}` placeholders that are substituted from pipeline variables at run time:
 
@@ -211,7 +227,7 @@ oci devops deploy-artifact create \
 
 The *deliver artifacts* stage in the build pipeline maps the build's `outputArtifacts` (by name) onto these artifact resources — that mapping is the connecting artifact between the two pipelines. If a deployment deploys an old image forever, the classic cause is a delivery stage mapping to a fixed tag instead of a substituted one. (The anatomy of the registry path itself — region key, tenancy namespace, repository — is unpacked in module `02`.)
 
-### 4.5 Deployment pipelines: environments, targets, strategies
+### 4.6 Deployment pipelines: environments, targets, strategies
 
 A **deployment pipeline** releases delivered artifacts into an **environment** — a project resource that points at a real target: an OKE cluster, a Functions application, or a compute **instance group**. An instance group is the non-container target: a set of plain compute VMs the pipeline deploys onto directly, by running a deployment-configuration script on each host (download the package from the artifact registry, install, restart) with a rollout paced by percentage or count of instances. Choose OKE when the workload is containerized; choose an instance group when the application runs directly on VMs — a legacy or not-yet-containerized app you still want inside the same automated delivery flow.
 
@@ -231,7 +247,7 @@ Control stages complete the pipeline vocabulary. An **approval** stage inserts a
 
 Schema changes are also where blue-green's promise needs honesty: traffic can switch back instantly, but the database cannot un-migrate. Rollback stays real only while both versions tolerate the current schema — the **expand/contract** discipline (add columns and write both in one release; remove the old shape only releases later) is what keeps it true.
 
-### 4.6 Triggers: closing the loop
+### 4.7 Triggers: closing the loop
 
 A **trigger** starts a build pipeline on a source event, and the event set is *source-gated* — an exam-relevant asymmetry. A native OCI code repository can trigger on **push only**; external sources attached through a connection (GitHub, GitLab, Bitbucket Cloud) can additionally trigger on **pull-request events** (created, updated, merged). Push triggers can filter on branch and on file paths (include/exclude globs); file filters apply to push events only. And the set is *only* events — there is no native cron: a nightly rebuild needs an external clock invoking the pipeline through the CLI or API. The trigger is what turns the pieces above from "pipelines you run by hand" into continuous delivery: commit → trigger → build → deliver → deploy, with no human in the path except stages you deliberately gate with approvals.
 
@@ -267,7 +283,7 @@ One concrete release, end to end. The service is `orders-service`; a developer m
 
 1. **Push.** Commit `9f3c2ab` lands on `main` in the project's code repository. The repository emits a push event.
 2. **Trigger.** A trigger filtered to `main` matches the event and starts build pipeline `orders-build`. No artifact is produced by this step — it only starts the run.
-3. **Managed build.** A fresh Oracle-managed runner clones the repo at `9f3c2ab` and executes `build_spec.yaml` (§4.3). The step computes `IMAGE_TAG=9f3c2ab` and builds the image `iad.ocir.io/acme/orders-service:9f3c2ab`. `IMAGE_TAG` is exported.
+3. **Managed build.** A fresh Oracle-managed runner clones the repo at `9f3c2ab` and executes `build_spec.yaml` (§4.4). The step computes `IMAGE_TAG=9f3c2ab` and builds the image `iad.ocir.io/acme/orders-service:9f3c2ab`. `IMAGE_TAG` is exported.
 4. **Deliver artifacts.** The stage maps output artifact `orders_image` to the project's `orders-image` artifact resource and pushes the image to OCIR — authenticated by the resource principal from §4.1's dynamic group, not by a stored password.
 5. **Deployment pipeline starts.** `orders-deploy` receives the pipeline parameters, including `IMAGE_TAG=9f3c2ab`.
 6. **Manifest substitution.** The pipeline's Kubernetes-manifest artifact contains a placeholder; substitution resolves it to the exact image built in step 3:
