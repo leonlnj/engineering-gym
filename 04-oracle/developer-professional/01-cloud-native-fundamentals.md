@@ -49,6 +49,28 @@ graph TD
 
 > Note: The managed **OCI Service Mesh** product reached end of life on May 31, 2025. Older course material still names it as the fifth pillar's implementation; if an exam question offers it against Istio on OKE, the current answer is Istio. The *concept* of a mesh — sidecar proxies handling mutual TLS, retries, and traffic splitting between services — is unchanged.
 
+### 1.3 Cloud-native, cloud-enabled, and cloud-based: three points on one spectrum
+
+The intro already drew one line of this distinction — "a lift-and-shifted monolith on a compute instance is in the cloud and is not cloud-native." This section is that line formalized into three named tiers, because the exam tests the middle one too, not just the two extremes.
+
+A **cloud-based** application is unchanged software simply hosted on cloud infrastructure — the lift-and-shift the intro named: the same monolith, the same one-database-one-release-train architecture, now running on an OCI Compute instance instead of a rack in your own data center. A **cloud-enabled** application is that same app retrofitted with *some* cloud capability, without an architectural rewrite — it now reads a secret from **OCI Vault** instead of a config file, or writes uploads to **Object Storage** instead of local disk, or sits behind an OCI Load Balancer for basic redundancy. The architecture underneath — one codebase, one release, one database — never changed; only a dependency or two moved to a managed service. A **cloud-native** application is built (or rebuilt) as independently deployable, containerized services from the start — everything the rest of this lesson, and this track, actually covers.
+
+| Tier | Architecture | Concrete OCI move | What it buys you |
+| :--- | :--- | :--- | :--- |
+| Cloud-based | Unchanged monolith | Lift-and-shift onto an OCI Compute instance | Off your own hardware; nothing else changes |
+| Cloud-enabled | Unchanged monolith, cloud dependency swapped in | Config moves to OCI Vault; file storage moves to Object Storage | A managed dependency or two; still one release train |
+| Cloud-native | Independently deployable services | Containers on OCIR/OKE/Functions, delivered by OCI DevOps | Independent deployability and scaling — this lesson's actual subject |
+
+> Nuance: "we moved it to OCI" answers none of this by itself. The same VM lift-and-shift is cloud-based whether the VM sits on OCI, another cloud, or on-prem virtualization — the tier is about what the *architecture* does with the platform, not which platform it happens to run on. An exam question describing an app that "now runs on OCI Compute" without mentioning containers, independent services, or automated pipelines is describing the cloud-based tier, not cloud-native.
+
+### 1.4 Benefits and challenges of cloud-native development
+
+The pillars in §1.2 are not free — they are the price of the benefits below, and naming the trade honestly is itself exam-relevant framing. The benefits: **elasticity**, scaling a single busy service instead of an entire application (Modules `03`–`04` quantify this per service); **independent release cadence**, shipping one service without a coordinated release of everything else (the CI/CD pillar, §4); and **fault isolation**, one service failing without necessarily taking the rest down with it.
+
+The challenges are the same list §2.1 introduces for microservices specifically, but they widen once DevOps and CI/CD enter the picture too: **distributed-systems complexity** (a function call becomes a network call that can fail, be slow, or arrive twice), **operational surface area** (a registry, a cluster, build and deployment pipelines — each pillar is one more real thing to run, patch, and secure, not just a diagram box), and **organizational cost** (a team needs working knowledge of containers, Kubernetes, and IAM before the architecture pays for itself — the same skills this track's audience is assumed to already have, per the track's own guidelines).
+
+Read against §1.2's table: each pillar exists as a direct answer to one named challenge above, not as an independent feature to adopt piecemeal — which is exactly why the five pillars form the dependency chain §1.1 already described, rather than five separate menu choices.
+
 ---
 
 ## 2. Microservice Architecture

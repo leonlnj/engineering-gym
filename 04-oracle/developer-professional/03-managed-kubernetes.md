@@ -45,6 +45,35 @@ graph TD
 
 This is also the answer to "how is OKE different from generic managed Kubernetes": the *concept* of a managed control plane is common to any cloud's offering, but the specific dials — a Basic/Enhanced tier split, a serverless virtual-node option, and OCI's own IAM-native governance of the whole thing — are what you actually need to reason about for the exam and in production. The rest of this lesson works through each dial in turn.
 
+### 1.3 Prerequisites: what must exist before any cluster can be created
+
+None of the dials below matter until the resources a cluster is built *on top of* already exist. A **compartment** to hold everything; a **VCN** sized for the whole cluster — a `/16` CIDR block is large enough for almost any real deployment, and undersizing it here is a redo, not a resize; and **at least two subnets**, splitting worker nodes, load balancers, the Kubernetes API endpoint, and pods across them depending on the networking mode chosen. An internet or NAT gateway, a route table, and security lists or network security groups complete the VCN side. Finally, **service-limit headroom** — compute, block volume, and networking are the three categories OKE draws from most — is worth verifying *before* a create call fails partway through, not after.
+
+This is exactly what feeds the flags this lesson's own snippets already use without dwelling on where they come from: `--vcn-id` and `--endpoint-subnet-id` in §2.2 and §4.1 both name resources that this section is the checklist for.
+
+### 1.4 Policy configuration: the IAM policies that let you create and manage a cluster
+
+Two distinct policy needs sit under "can I create a cluster," and conflating them is the exam trap. The first is the ordinary **human/group** side: a group needs statements granting it permission to create and manage the cluster and its node pools —
+
+```text
+Allow group oke-admins to manage cluster-family in compartment orders
+Allow group oke-admins to manage instance-family in compartment orders
+Allow group oke-admins to use subnets in compartment orders
+Allow group oke-admins to use vnics in compartment orders
+Allow group oke-admins to use network-security-groups in compartment orders
+Allow group oke-admins to manage public-ips in compartment orders
+Allow group oke-admins to inspect compartments in compartment orders
+```
+
+The second is a policy grant this track hasn't needed yet: the **OKE service itself** as the principal, not a human group and not a dynamic-group resource principal (the pattern Module `01` used for build pipelines and Module `04` uses for functions). OKE needs its own permission to connect pod virtual network interface cards (VNICs) to your VCN's subnets on your behalf:
+
+```text
+# A third IAM-actor shape: the OCI service itself, not a group or a dynamic group
+Allow service oke to use vnics in compartment orders
+```
+
+A missing `use vnics` grant on either side — the group's or the service's — is the concrete, testable failure mode: cluster creation fails or pods never get network addresses, and the fix is almost always this exact statement, on whichever side was skipped.
+
 ---
 
 ## 2. Basic vs. Enhanced Clusters
@@ -433,26 +462,29 @@ Cluster **audit logs** — who called the API server, and when — along with ap
 
 ### 8.1 What OSOK does
 
-Sections 1–7 covered how much of the *cluster itself* Oracle manages for you; OSOK extends that same managed-vs-own-it choice to OCI resources that sit *outside* the cluster but that a workload running on it depends on. The **OCI Service Operator for Kubernetes (OSOK)** is a cluster **add-on**, built on the open-source Kubernetes **Operator Framework**, that lets you create and manage OCI resources as Kubernetes **Custom Resources** — applied with `kubectl` the same way you'd apply a `Deployment`. Supported resource types include an **Autonomous Database**, a MySQL HeatWave instance, **OCI Streaming**, and **OCI Queue**, among others (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengaddingosok.htm)). Without OSOK, provisioning a database for `orders-service` to use means a separate `oci` CLI call or Terraform run, outside the cluster's own deployment flow entirely; OSOK folds that provisioning step into the same manifests and the same `kubectl apply` your application already uses.
+Sections 1–7 covered how much of the *cluster itself* Oracle manages for you; OSOK extends that same managed-vs-own-it choice to OCI resources that sit *outside* the cluster but that a workload running on it depends on. The **OCI Service Operator for Kubernetes (OSOK)** is a cluster **add-on**, built on the open-source Kubernetes **Operator Framework**, that lets you create and manage OCI resources as Kubernetes **Custom Resources** — applied with `kubectl` the same way you'd apply a `Deployment`. Supported resource types include a **MySQL DB System**, an **Autonomous Database**, **OCI Streaming**, and **OCI Queue**, among others (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengaddingosok.htm)). Without OSOK, provisioning a database for `orders-service` to use means a separate `oci` CLI call or Terraform run, outside the cluster's own deployment flow entirely; OSOK folds that provisioning step into the same manifests and the same `kubectl apply` your application already uses.
 
 ### 8.2 The reconciliation loop
 
 OSOK follows the standard Kubernetes **operator** pattern: you declare the *desired* state of an OCI resource as a Custom Resource, and OSOK's controller continuously reconciles OCI's *actual* state to match it — creating the resource if it doesn't exist, and (depending on the resource type) updating or tearing it down as the manifest changes.
 
 ```yaml
-# Declares an Autonomous Database as a Kubernetes resource; OSOK's controller
-# reconciles this against the OCI Database API, creating it if absent
-apiVersion: database.oci.oracle.com/v1alpha1
-kind: AutonomousDatabase
+# Declares a MySQL DB System as a Kubernetes resource; OSOK's controller
+# reconciles this against the OCI MySQL API, creating it if absent
+apiVersion: mysql.oracle.com/v1beta1
+kind: DbSystem
 metadata:
-  name: orders-adb
+  name: orders-mysql
 spec:
   compartmentId: "$COMPARTMENT_OCID"
-  dbName: "ORDERSDB"
-  cpuCoreCount: 1
+  shapeName: MySQL.2
+  subnetId: "$SUBNET_OCID"
+  adminUsername:
+    secret:
+      secretName: mysql-admin-secret
   adminPassword:
-    k8sSecret:
-      name: adb-admin-secret
+    secret:
+      secretName: mysql-admin-secret
 ```
 
 > Nuance: it is easy to read a Custom Resource as just a convenient label OSOK slaps on an existing OCI resource after the fact. It is the other way around — the manifest is the *source of truth* the controller reconciles OCI toward, so deleting the Kubernetes resource is itself the mechanism that de-provisions the OCI resource, not a side effect you have to separately clean up.
@@ -483,6 +515,8 @@ OSOK ships as an **Operator Lifecycle Manager (OLM)** bundle — its **Custom Re
 - **A block volume PVC pins a pod to one Availability Domain**: `volumeBindingMode: WaitForFirstConsumer` creates the volume only after the scheduler picks a node, in that node's AD — losing that AD leaves the pod with nowhere else in the cluster to reschedule to.
 - **`ReadWriteMany` is not a Block Volume capability**: a workload needing the same volume mounted read-write from multiple pods needs the separate File Storage (FSS) CSI path, not a Block Volume `StorageClass` — Block Volume PVCs default to `ReadWriteOnce`.
 - **Load Balancer and Network Load Balancer are different products, not two sizes of one**: the standard Load Balancer proxies and terminates the connection (enabling SSL termination and path routing, at the cost of hiding the client's real IP); the Network Load Balancer passes packets through unmodified at layers 3/4, preserving client IP at lower latency but without proxy-layer features ([docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengcreatingnetworkloadbalancers.htm), as of Jul 2026).
+- **A cluster needs at least two subnets, sized generously**: worker nodes, load balancers, the API endpoint, and pods split across subnets depending on networking mode, and a `/16` VCN CIDR is the practical floor for real deployments — undersizing the VCN up front means recreating it, not resizing it ([docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Concepts/contengnetworkconfig.htm), as of Jul 2026).
+- **A missing `use vnics` grant is a common silent OKE creation failure**: this exact statement is needed on *two* different principals — the human/group creating the cluster, and the OKE service itself connecting pod VNICs to your subnets — and skipping either one blocks creation or leaves pods without network addresses ([docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Concepts/contengpolicyconfig.htm), as of Jul 2026).
 
 ---
 

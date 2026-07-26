@@ -37,6 +37,10 @@ A node used to answer three questions that a function still needs answered — F
 
 This is also the fastest way to answer "how is Functions different from a virtual node, which also removes the machine": a virtual node still has a Kubernetes pod, a node-pool-shaped identity option (workload identity), and no billed idle time only *while running* — a function has none of those three even conceptually. The rest of this lesson works through the right-hand column in order.
 
+### 1.3 OCI Functions use cases
+
+These are the shapes a function typically fills, not an exhaustive list — each one is really an instance of "no node" being the right trade rather than a limitation. **Event-driven backend logic**: a function reacts to something happening elsewhere in OCI — an object landing in a bucket, a row changing, a message arriving — without a service sitting idle waiting for it. **An API Gateway backend**: a function behind a gateway route (Module `05`) serving request/response logic without provisioning compute for it directly. **Scheduled automation**: a periodic task — a nightly cleanup, a report generation — invoked on a cron schedule rather than kept running (§4.8). **A data-processing step in a larger pipeline**: one stage that transforms a message and hands it to Streaming or Queue (§4.4's success destinations), rather than a whole standing service built around a single transformation.
+
 ---
 
 ## 2. Applications and Functions: The Boundary That Replaces the Node
@@ -85,6 +89,12 @@ oci fn function update \
 ### 2.3 Observability toggles, and what's deferred
 
 The application's logging toggle is a gate, not the logging pipeline itself: turning it on routes a function's `stdout`/`stderr` into **OCI Logging**, and tracing and metrics have their own dials layered on top. Module `10` covers what to do with all three once they're flowing; this lesson only needs you to know the switch exists and lives on the application, not the function.
+
+### 2.4 Prerequisites: what must exist before an application or function can be created
+
+*Identity and Reach* (below) builds the mechanics of identity and networking individually; this is the checklist view of what has to already exist before `oci fn application create` (§2.1) succeeds at all. A **compartment** to hold the application; a **VCN and subnet** for it to place functions into (with a **service gateway** route out if a function needs private access to another OCI service — the *Networking* sub-section covers what that actually reaches); and the **dynamic-group and policy** grants (the *identity* sub-section) that let a function's resource principal act once it's running. Skip any one of the three and creation itself fails, before a single function is ever deployed.
+
+Console users get a real shortcut here worth knowing: the IAM Policy Builder ships a canned **"Functions" use case** — selecting "Let users create, deploy, and manage functions and applications" writes all of the necessary policy statements in one step, rather than composing them by hand.
 
 ---
 
@@ -159,6 +169,12 @@ oci fn function update --function-id "$FUNCTION_OCID" --memory-in-mbs 512
 
 A function's image is a repository image like any other, so Module `02`'s digest-pinning and immutability tools apply to it directly, and Module `09` adds two more: OCIR **scanning** the image for known vulnerabilities, and requiring the image be **signed** before OCI Functions will deploy it. Neither gets depth here — this lesson only needs you to know both exist and reach the same image this section just built.
 
+### 3.5 Pre-built functions: when Oracle already wrote the handler
+
+§3.1 named three ways to get an image — FDK, existing image, custom Dockerfile — all of which end with *your* code in the container. The **Pre-Built Functions catalog** (Console → Developer Services → Functions → Pre-Built Functions) is a fourth path that skips needing any of the three: Oracle has already written, built, and maintains the handler for a fixed set of common tasks, and deploying one is a configuration step, not a build step. Real catalog entries ground what "common tasks" means concretely: an **APM Log Sender** function that forwards service logs to an Application Performance Monitoring domain, a **Cost Reports FOCUS Converter** that reshapes OCI cost-report files into the FinOps Open Cost and Usage Specification, **Database Secret Rotation** functions that rotate a database credential on a schedule, and **Object Storage** functions that zip or unzip objects in a bucket (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functions_pbf_catalog.htm)).
+
+The trade is the same managed-vs-control pattern this track keeps naming for other services: a pre-built function costs nothing to write, build, or maintain, but it only ever does exactly what Oracle built it to do — configuration parameters (a bucket name, a target APM domain) are yours to set, but the handler logic itself is not. Reach for the catalog when the task matches one of these entries exactly; reach back to §3.1's own build paths the moment the logic needs to differ even slightly from what's on the shelf.
+
 ---
 
 ## 4. Invocation: The Paths In and the Timeouts Behind Them
@@ -187,7 +203,7 @@ A function rarely waits for a person to run a CLI command. **API Gateway** (Modu
 
 Distinct from all of these: a DevOps **deployment pipeline** (Module `01` §4.5) can target a Functions *application* as an environment — but that's a **deploy**-time action, releasing a new image, not an invoke-time one. Don't conflate "what deploys this function" with "what invokes it." Worth remembering from that same Module `01` table: a Functions environment always releases **rolling**-style, because blue-green and canary both need a standby half to switch to, and an application has none.
 
-A function can also declare **triggers** directly on itself — zero, one, or several — each bound to an Events pattern or a time-based schedule, so the function fires without an external caller at all. Scheduled functions are always invoked in **Detached** mode (§4.4) for a reason that will make sense once that section defines what Detached means: a schedule has no caller sitting around to receive a synchronous response.
+A function can also declare **triggers** directly on itself — zero, one, or several — each bound to an Events pattern or a time-based schedule, so the function fires without an external caller at all. Scheduled functions are always invoked in **Detached** mode (§4.4) for a reason that will make sense once that section defines what Detached means: a schedule has no caller sitting around to receive a synchronous response — the full scheduling mechanics are in §4.8, once Detached and provisioned concurrency are both on the table.
 
 ### 4.3 The container lifecycle: cold start, warm reuse, idle removal
 
@@ -260,6 +276,26 @@ oci fn function update \
 ```
 
 The objection this invites immediately: if provisioned concurrency removes the cold start, why not turn it on everywhere? Because it inverts the economics that make Functions attractive in the first place — a PCU is reserved and billed continuously whether it's serving a request or not, the same standing cost §1 contrasted against a managed node's idle time. Reach for it only where cold-start latency is genuinely unacceptable (a synchronous user-facing path), not as a default; a rarely-invoked function is exactly the case scale-to-zero billing was built for, and provisioned concurrency throws that away.
+
+### 4.8 Scheduling OCI Functions: cron-driven, always-Detached invocation
+
+§4.2 named scheduling as a way a function fires with no external caller at all; this is that mechanism in full, and it deliberately lands here rather than earlier — it needs both Detached (§4.4) and provisioned concurrency (§4.7) already on the table to make complete sense. A **Resource Schedule** is its own OCI resource, separate from the function it targets: it pairs a **cron expression** with a **resource attachment** pointing at one function (or another schedulable resource — compute instances, instance pools, and Autonomous Databases are also supported).
+
+```bash
+# Attaches a cron schedule directly to a function; the function fires with no
+# caller involved — invocation type is fixed to Detached, not a choice here
+oci resource-scheduler schedule create \
+  --compartment-id "$COMPARTMENT_OCID" \
+  --display-name "nightly-receipt-rollup" \
+  --action START_RESOURCE \
+  --recurrence-type CRON \
+  --recurrence-details "30 13 * * mon-fri" \
+  --resources '[{"id": "'"$FUNCTION_OCID"'"}]'
+```
+
+The cron expression is the standard five-field syntax (`0 */2 15 * *` fires every two hours on the 15th of each month, for instance), with one caveat worth internalizing before it causes a real incident: **Resource Scheduler runs entirely in UTC** and does not shift for daylight saving time — a schedule written against "9am local" silently drifts by an hour twice a year unless the cron expression itself is written in UTC from the start.
+
+Every schedule-triggered invocation runs **Detached**, not a configurable choice: there is no caller present to receive a `200` and its payload synchronously, so the function's own success/failure destination (§4.4) — not a returned HTTP response — is how a scheduled run's result reaches anywhere at all.
 
 ---
 
@@ -361,6 +397,8 @@ Had `order-receipt-fn` been invoked with `--fn-invoke-type detached` instead, st
 - **Idle-container teardown has no fixed published duration**: don't design around a specific "warm for N minutes" number — treat cold start as always possible on any given call.
 - **Deployment pipeline strategies are target-gated for Functions too**: a Functions environment always releases rolling-style, the same constraint Module `01` named for instance groups — there is no standby half to blue-green or canary switch to.
 - **Container Instances is a fourth point on this spectrum, not covered here**: a single always-on container with no cluster and no Functions-style scale-to-zero — worth knowing it exists as the middle ground between a virtual node and a function, but out of this lesson's scope.
+- **Resource Scheduler runs in UTC only, with no daylight-saving adjustment**: a schedule intended for a local wall-clock time has to be written in UTC from the start, or it silently drifts by an hour twice a year ([docs](https://docs.oracle.com/en-us/iaas/Content/resource-scheduler/tasks/create-manage.htm), as of Jul 2026).
+- **Pre-Built Functions trade zero build effort for zero handler control**: the catalog's configuration parameters (a bucket name, a target domain) are yours to set, but the handler logic itself is fixed to whatever Oracle built — the moment the task needs to differ from a catalog entry, it's back to §3.1's own build paths ([docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functions_pbf_catalog.htm), as of Jul 2026).
 
 ---
 
