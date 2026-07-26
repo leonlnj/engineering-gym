@@ -296,6 +296,11 @@ The per-module loop:
 
 1. **Study** the Oracle course module; extend that module's bullet list above with what the
    course actually covers (keep bullets as subtopics — competencies to deliver, not lesson prose).
+   If you have the official course Table of Contents for the module, paste it and have Claude
+   audit the bullet list against it first — split each module's bullets into two labeled groups,
+   *From the official course TOC* and *Additional depth beyond the TOC (grounded in official OCI
+   docs)*, adding any real TOC-named gaps found. Treat the TOC as a floor, not a ceiling: content
+   beyond it stays, as long as it's grounded in real OCI docs — just labeled honestly.
 2. **Draft**: ask Claude to write `NN-<topic-slug>.md` from the enriched spec, using the
    `lesson-craft` skill with `../GUIDELINES.md`.
 3. **Quiz**: study the lesson, then run `lesson-eval` coverage mode — the quiz is generated blind
