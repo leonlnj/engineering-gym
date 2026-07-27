@@ -19,8 +19,10 @@ good lesson is — it consumes existing definitions and adds the audit/grade/imp
 - **What good content looks like** → the lesson's entry in the track's `STUDY-PLAN.md` when the
   track has one (the authoritative spec for *what this lesson must cover*), plus `GUIDELINES.md`
   (audience, domain). Content without a study plan falls back to the declared scope (see A1).
-- **What good writing looks like** → the `lesson-craft` skill (structure §1, depth bar
-  §2, the §8 One-Pass Test, the §9 avoid-list).
+- **What good writing looks like** → the `lesson-craft` skill (structure §1, depth bar §2, the §8
+  One-Pass Test) — read under the track's declared **format mode** (see lesson-craft's "Format
+  modes" section, which states exactly what a mode does and doesn't change: `deep-prose` or
+  `scannable-reference`).
 
 **Cite those sources in findings; do not restate their rules here.** This skill owns only the
 procedure, the severity rubric, the report templates, and the approval gate.
@@ -46,7 +48,9 @@ Take from the user's request:
 Load the nearest `GUIDELINES.md` (domain params) before doing anything else — walk up from the
 lesson's folder toward the repo root and take the first one found. If none exists, **halt and ask
 the user to declare the domain parameters inline** (audience, snippet languages, framing/threads
-if any) — do not guess them; this mirrors the `lesson-craft` workflow. Coverage mode also needs a
+if any) — do not guess them; this mirrors the `lesson-craft` workflow. While loading it, also check
+for a **`Format mode: <name>`** line; if absent, it defaults silently to `deep-prose` (same as
+`lesson-craft`'s "Format modes" section), for Mode B to consult. Coverage mode also needs a
 content spec: the track's `STUDY-PLAN.md` when one exists, otherwise the fallback in A1. Craft
 mode also needs the `lesson-craft` skill.
 
@@ -136,8 +140,12 @@ Then offer to run Mode B on the changed passages.
 ## Mode B — Craft (One-Pass Test audit)
 
 Load `lesson-craft` and audit the lesson against it — **cite its items, don't copy its
-rules**. Check structure/format (§1), the depth bar (§2), and the §8 One-Pass Test checklist.
-Collect findings into one table, most-severe first:
+rules**. Before citing any §1-structure, §3.4-analogy, or bullet-vs-prose finding — the three items
+`lesson-craft`'s "Format modes" section names as mode-dependent — look up the track's declared mode
+(from Step 0) and audit that point against *that mode's* rules instead: under `scannable-reference`
+mode, bullets-over-prose or a dated Limits table are compliant, not findings. Every other item in
+`lesson-craft`, including the full §8 One-Pass Test checklist, is audited unconditionally, regardless
+of mode. Collect findings into one table, most-severe first:
 
 | Location | Severity | Rule | Finding | Proposed fix |
 | :--- | :--- | :--- | :--- | :--- |
@@ -148,8 +156,10 @@ item (e.g. *"§2 depth bar — <6 snippets"*, *"§8 wrong-models-refuted"*). Sev
 - **Blocker** — factual error or stale fact taught as current; missing Summary; a stated count not
   fully shown (misleads the reader).
 - **Major** — depth-bar miss (no walkthrough, <6 snippets, undivided section), unrefuted wrong mental
-  model, missing trade-off / pre-empted objection, inverted-depth headline.
-- **Minor** — terminology, analogy, or formatting nits.
+  model, missing trade-off / pre-empted objection, inverted-depth headline, or a `deep-prose`-mode
+  lesson with a required analogy entirely absent (§3.4/Format modes) — a missing required element,
+  not a style nit.
+- **Minor** — terminology nits, an analogy that is present but weak or imprecise, or formatting.
 
 Present the table and **stop**. After approval, apply fixes (voice and snippet languages preserved),
 then re-run the affected §8 items on each changed passage.

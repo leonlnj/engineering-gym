@@ -16,13 +16,68 @@ The craft of writing a **deep, self-contained technical lesson** — a file some
 
 The benchmark is not "is this correct?" but "can a first-time reader follow it in one pass without stopping to ask a question?" Most confusion comes not from a wrong fact but from a missing link the author had in their head and never wrote down. Everything below exists to close those gaps.
 
+## Format modes
+
+**Everything in this skill is substance, and mode-agnostic, except three things**: §1's document
+structure and section naming (including the "Practical Limits and Trade-offs" section's name and
+shape), §3.4's analogy requirement, and the bullet-vs-prose rule stated in each mode below. Every
+other rule in this skill — the depth bar (§2, already "not a per-track dial"), the mental-model
+writing rules (§3.2), trade-offs (§3.6), walkthroughs (§3.7), quantification (§3.8), currency
+(§3.9), tone (§3.10), terminology (§3.11), readability (§3.12), diagrams (§4), tables (§5), code
+snippets (§6), and cross-references (§7) — applies to every lesson in every track, under either
+mode. A mode changes how a mechanic is *packaged* — a bullet instead of a paragraph, a table
+instead of a prose recap — never whether the mechanic, its *why*, its trade-off, or its selection
+guidance is present at all. A track picks one of the two named modes below for all of its lessons.
+
+**Selection**: a track declares its mode with a one-line **`Format mode: <name>`** entry in its
+`GUIDELINES.md`. If a track's `GUIDELINES.md` has no such line, **default silently to
+`deep-prose`** — this is this skill's original, single-mode behavior, so every track that predates
+this mechanism keeps working unchanged with no new question to answer. A track opts into
+`scannable-reference` explicitly by adding the one-line declaration; there is nothing ambiguous
+about the common case that would warrant a halt-and-ask.
+
+### Mode: `deep-prose` (default)
+
+The original genre this skill was built for: a file someone reads start to end to *learn* a topic,
+not scan under time pressure.
+
+- **Structure**: §1's document template, verbatim — including the `## N. Practical Limits and
+  Trade-offs` section, bulleted with a bold label + reasoning per item.
+- **Analogies**: required for every non-trivial concept (§3.4) — a peer wouldn't grasp it from its
+  name alone.
+- **Prose over bullets**: a list of fact fragments is not a lesson — prose carries the explanation;
+  bullets are reserved for the final limits/trade-offs section.
+
+### Mode: `scannable-reference`
+
+For a track whose lessons are read under time pressure — certification study, an on-call runbook —
+where a reader needs to find a fact, config, or limit fast, not read a narrative.
+
+- **Scan-first, not narrative.** Open each point with the key phrase **bolded**. Keep paragraphs to
+  3 sentences or fewer. Prefer a bulleted list over prose for prerequisites, conditions, steps,
+  enumerations, and property comparisons — reserve prose for the one or two sentences of *why* a
+  bullet can't hold.
+- **Analogies off by default.** State the mechanic directly instead of reaching for a real-world
+  analogy. Keep at most a one-line analogy for a genuinely abstract idea with no direct technical
+  description.
+- **Lead with the takeaway.** The first bolded phrase of a section or subsection is the fact to
+  remember; supporting detail follows it, never precedes it.
+- **Inline the gotchas.** A constraint, trap, or failure mode is a `> ⚠️` or `> Note:` callout in
+  the section it applies to, not held back for an end-of-file list.
+- **A compact, dated Limits and Sources table replaces "Practical Limits and Trade-offs"** — columns
+  *Limit | What it forces | As-of + docs* — so every volatile numeric limit still carries an as-of
+  date and a doc link (re-verification stays one table, one click per fact), while the *reasoning*
+  for each limit lives inline, at its callout, not in the table.
+- **Depth is unchanged.** Tables, 2–3 diagrams, real code/config snippets, and a worked walkthrough
+  are still required — only the surrounding prose becomes bullets-first.
+
 ---
 
 ## Execution Workflow
 
 Run these in order for any lesson you write, expand, or review:
 
-1. **Locate environment parameters.** Before drafting any prose, search the working directory for the track's parameter file (`*GUIDELINES.md`, or the `README.md` that serves that role) and load its **Snippet languages**, **Acronyms**, and **Domain trade-off pairs**. If no such file is found, **halt and ask the user to declare the current track parameters** — do not guess them. (This skill supplies the craft and the depth bar; the track file supplies these domain inputs.)
+1. **Locate environment parameters.** Before drafting any prose, search the working directory for the track's parameter file (`*GUIDELINES.md`, or the `README.md` that serves that role) and load its **Snippet languages**, **Acronyms**, **Domain trade-off pairs**, and **Format mode** (see "Format modes" above — defaults silently to `deep-prose` if no mode is declared). If no parameter file is found at all, **halt and ask the user to declare the current track parameters** — do not guess them. (This skill supplies the craft and the depth bar; the track file supplies these domain inputs.)
 2. **Draft against the craft.** Write to the structure (§1), the depth bar (§2), and the writing rules (§3–§7). Do not hard-code a section number when pointing at another part of the same file — see §7.
 3. **Final Self-Review sweep.** Run the One-Pass Test (§8) end to end, resolve every deferred cross-reference placeholder to a real number or stable anchor, and confirm currency/deprecation before declaring the lesson done.
 
@@ -60,15 +115,22 @@ before the reader has formed a wrong mental model.>
 
 ---
 
-## 3. Practical Limits and Trade-offs
-
-<Bulleted list of real-world constraints, failure modes, and design trade-offs.
-Each bullet starts with a **bold label** followed by a sentence of explanation —
-never a bare fact fragment.>
+<More topic sections as needed — N total.>
 
 ---
 
-## 4. Summary
+## N-1. Practical Limits and Trade-offs
+
+<Always the second-to-last section, whatever N is. Bulleted list of real-world
+constraints, failure modes, and design trade-offs. Each bullet starts with a
+**bold label** followed by a sentence of explanation — never a bare fact
+fragment. This is the `deep-prose` mode shape; under `scannable-reference` mode
+this section becomes a dated "Limits and Sources" table instead (see "Format
+modes" above).>
+
+---
+
+## N. Summary
 
 <2–3 short paragraphs of prose (one theme per paragraph — e.g. what it is, why it
 behaves this way, what that means for you), ~3–6 sentences total, a reader can use
@@ -84,6 +146,7 @@ at each topic seam (see §3.12).>
 - Sub-sections use `### N.M` (e.g. `### 1.1`, `### 2.3`). Never use `##` for a sub-section — it renders as a top-level section.
 - **Decompose each major section into `### N.M` sub-sections.** A `## N.` section that is one undivided block of prose is almost always under-developed — break it into the two-to-four mechanical parts it is really made of, each with its own sub-heading, explanation, and (where it helps) snippet or diagram.
 - **Open with a `## Contents` list of the top-level `## N.` sections** (not the `### N.M` sub-sections), placed right after the intro's `---` and before `## 1.`. Use a real Markdown ordered list (`1.`, `2.`, ...) with the section number *only* as the list marker — do not also repeat the number inside the link text (e.g. `1. [Tokens: The Unit the Model Sees](#1-tokens-the-unit-the-model-sees)`, not `- [1. Tokens...]`), otherwise the rendered list shows the number twice. Generate it from the final headings in the Self-Review sweep (§8), not while drafting — see §7 for the anchor-slug rule.
+- **Never add a standalone "why this matters" section.** The why belongs inside the section where the mechanism is introduced (§3.1); the Summary is the only place for restatement.
 
 ---
 
@@ -112,9 +175,11 @@ For every mechanism or design decision, answer: *why is it built this way, and w
 Bad: "The store uses a write-ahead log."
 Good: "The store uses a **write-ahead log** because applying a change straight to the main data file means a crash mid-write can leave it corrupt; recording the change in an append-only log *first* lets the store replay or roll back after a crash, so a partial write never leaves the data inconsistent."
 
+Never paste source material verbatim or vendor hype — rewrite in your own words and ground every claim in a mechanism or trade-off, per this rule.
+
 ### 3.2 Build the mental model in one pass
 
-The rules below close the gaps that force re-reads. The One-Pass Test (§9) enforces them.
+The rules below close the gaps that force re-reads. The One-Pass Test (§8) enforces them.
 
 - **Show the connecting artifact.** When one stage feeds another (X produces Y, Y is consumed by Z), show the concrete data structure or shared contract that joins them. Never narrate a transformation while hiding the thing being transformed — the bridge *is* the lesson.
   - Bad: "the request becomes a row."
@@ -139,13 +204,16 @@ The rules below close the gaps that force re-reads. The One-Pass Test (§9) enfo
 
 The rules above keep a *passage* coherent; these keep the *whole document* coherent. A lesson can be locally flawless and still fail because the reader can't see how the major sections fit together.
 
-- **Map every section to the lesson's spine.** When a lesson states a framework, taxonomy, or thesis, open every later major section by stating where it sits in that frame. A reader should never reach a section and wonder "how does this connect to what came before?" — a silent topic-switch is the macro version of the missing-link problem.
-  - Bad: a section that opens straight into its mechanics.
-  - Good: open with placement first — "So far there have been two levers: *what* goes in and *how* it is shaped. This is a third, distinct one — it constrains *what comes back*."
+- **Map every section to the lesson's spine — in one sentence.** When a lesson states a framework, taxonomy, or thesis, open each later `## N.` major section (not every `### N.M` subsection) with **one sentence** naming where it sits in that frame, then move straight into new content. A reader should never reach a section and wonder "how does this connect to what came before?" — a silent topic-switch is the macro version of the missing-link problem. But the valve runs both ways: a subsection that spends half a paragraph recapping "as section 1 showed…" before it says anything new is placement *over*-applied — it forces the reader to hold the whole document in their head just to reach the next fact, which is the same missing-link problem from the other direction.
+  - Bad (no placement): a section that opens straight into its mechanics.
+  - Bad (over-placement): a section whose first paragraph re-explains, re-summarizes, or quotes back a prior section's content before introducing its own.
+  - Good: one sentence of placement — "So far there have been two levers: *what* goes in and *how* it is shaped. This is a third, distinct one — it constrains *what comes back*." — immediately followed by the section's own material.
 
 - **Headings are signposts — make them accurate and directional.** A heading must name its content correctly and, where it expresses a relationship or transformation, point the right way. Re-read each heading against its section: does it mislabel the scope or state a relationship backwards?
 
 - **Be honest about coverage.** When you present a *selected subset* rather than the full set, say so — name that it is a curated high-leverage subset, why these, and where the rest are covered. An undisclosed subset reads as exhaustive and misleads.
+
+- **Don't let prose restate a table or diagram.** Where a table or diagram already shows a fact, adjacent prose earns its place only by adding a *why* or a mechanic the rows can't hold — not by narrating the rows back. A reader who reads both the table and a paragraph re-listing its contents has been asked to read the same fact twice.
 
 ### 3.4 Analogies
 
@@ -170,7 +238,7 @@ When a concept is commonly misunderstood or oversimplified, surface it with a Ma
 
 Every significant design choice has a cost. Always name both sides: what is gained and what is given up. Calling out trade-offs is what separates an engineering note from a vendor pitch. (The track's `GUIDELINES.md` lists the common trade-off pairs for its domain.)
 
-- **Placement:** weave each trade-off into the prose where the mechanism is introduced — *"The gain is X; the cost is Y."* Then consolidate the most important ones in the final "Practical Limits and Trade-offs" section so a skimming reader gets the full picture.
+- **Placement:** weave each trade-off into the prose where the mechanism is introduced — *"The gain is X; the cost is Y."* Then consolidate the most important ones in the lesson's final limits/trade-offs section — named and shaped per the active format mode (see "Format modes") — so a skimming reader gets the full picture.
 - **Pre-empt the obvious objection.** When you introduce a fix, name the *first* objection a sharp reader raises the instant they read it — and answer it on the spot. This is the trade-off the reader immediately *feels*. If you present a cache as "just keep recent results", the reader instantly thinks "but stale entries return wrong answers" — so address invalidation there, not pages later.
 
 ### 3.7 Worked walkthroughs
@@ -198,7 +266,7 @@ Good: "A and B are current; C was the original and is now deprecated, folded int
 
 Educational and precise. Avoid over-brevity — a reader should fully understand the topic from the file alone. At the same time, do not pad; every sentence should earn its place. Lean on the reader's existing vocabulary (stated in the track's `GUIDELINES.md`) to explain the unfamiliar.
 
-Aim for **5–8 major sections** per lesson. Fewer than five usually means a concept was not fully unpacked; more than eight usually means the lesson covers two topics and should be split.
+Aim for **5–8 major sections** under `deep-prose` mode. Fewer than five usually means a concept was not fully unpacked; more than eight usually means the lesson covers two topics and should be split. Under `scannable-reference` mode this range runs higher — commonly 8–10 — since each section is shorter and cheaper to add; the same underlying principle still applies: too few means the topic was summarised, too many means it should split into two lessons.
 
 ### 3.11 Terminology
 
@@ -207,10 +275,11 @@ Aim for **5–8 major sections** per lesson. Fewer than five usually means a con
 
 ### 3.12 Readability and visual rhythm
 
-Density that reads fine sentence-by-sentence in your head can still land as a wall of text on the page. Two rules keep prose scannable:
+Density that reads fine sentence-by-sentence in your head can still land as a wall of text on the page. Three rules keep prose scannable:
 
 - **One idea per sentence.** If a sentence stacks three or more clauses joined by commas or em-dashes, split it. The reader should never have to re-parse a sentence to find its spine.
 - **Paragraphs of 2–4 sentences.** Break a block at every topic seam — a shift from *what* to *why*, or from mechanism to consequence. A paragraph longer than ~4 sentences, or one that renders as a single unbroken line filling the screen, is a wall — split it into two.
+- **Lead with the takeaway.** Open each subsection — and most paragraphs — with a short, plain sentence stating the load-bearing point, *before* the qualifications, nuance, or supporting detail. A reader who only reads first sentences should still walk away with the lesson's spine; a reader who continues gets the depth. Bury the point inside a paragraph of equally-weighted detail and the reader can no longer tell which sentence was the one to remember.
 
 This applies everywhere, but density creeps in unnoticed in two spots most: the **Summary** (§1) and `> Nuance:`/`> Note:` callouts (§3.5) — both tend to compress a whole section's worth of ideas into one paragraph. Check those first.
 
@@ -248,6 +317,8 @@ graph TD
 - Diagrams must be tied to the surrounding text — no decorative diagrams.
 - Keep node labels short. Use `["Label text"]` for boxes with spaces/special characters.
 - For multi-line node labels in `graph` diagrams, use `<br/>`, never `\n` — GitHub's renderer prints `\n` literally inside the box.
+- Wrap every node label in double quotes inside its brackets, even a short one — `id1["Label Text (with detail)"]` — and never nest an unescaped double quote inside an already-quoted label; invalid syntax fails silently as an unrendered block, not an error you'll see while drafting.
+- In a `sequenceDiagram`, give any participant with spaces or punctuation a clean alphanumeric alias: `participant U as End User`, not a raw multi-word name.
 
 ---
 
@@ -267,7 +338,7 @@ The `:---` row is required (marks the header and left-aligns). Use left-alignmen
 
 ## 6. Code snippets
 
-Whenever a mechanism has a concrete form — an API call, a config, a data format, a payload, an algorithm — *show it* rather than describing it in prose. A snippet of the real thing teaches more than a paragraph about it, and writing the real form surfaces detail prose lets you gloss over. (The track's `GUIDELINES.md` specifies which **languages** to use.)
+Whenever a mechanism has a concrete form — an API call, a config, a data format, a payload, an algorithm — *show it* rather than describing it in prose. A snippet of the real thing teaches more than a paragraph about it, and writing the real form surfaces detail prose lets you gloss over. (The track's `GUIDELINES.md` specifies which **languages** to use.) If a specific concept isn't covered by the track's named languages, pick whatever a practitioner would actually reach for to do that task — never fall back to unformatted prose or an unfenced block. This is not a preference for one language family over another: a track's own deliberate choice of pseudocode (e.g. `02-redis-internal`'s C-style pseudocode for low-level internals) is a real answer here, not a fallback to avoid.
 
 **Style rules:**
 - Introduce every snippet with exactly one sentence explaining what it demonstrates.
@@ -281,11 +352,7 @@ Whenever a mechanism has a concrete form — an API call, a config, a data forma
 
 - **Backward references** (to a previous lesson): use in the intro or at the start of a section that zooms into something a prior lesson introduced at a higher level. Do not re-explain a concept a prior lesson already covered at the same depth — one sentence pointing back is enough.
 - **Forward references** (to a future lesson): use at the end of a section or a diagram caption when the current lesson deliberately leaves something at a high level.
-- **Intra-document references** (to another part of the *same* file): a bare section number like "§3.2" goes stale the instant a section is inserted or reordered — and because you generate the file top-to-bottom, you usually write the reference *before* the final layout is settled, so re-verifying "later" is too late. Avoid the moving-target bug; pick one:
-  - **Prefer name-based references** in prose — "see the *Transports* section" — which never go stale on renumber.
-  - **Or use an explicit named anchor**: drop `<a id="transports"></a>` beside the section and link `[Transports](#transports)`. The `id` is stable even when the heading number changes. (A plain `[...](#34-transports)` link is *not* safe — GitHub's auto-slug embeds the heading number, so it breaks on renumber.)
-  - **Or defer the number**: while drafting, write a placeholder such as `§<!--ref:transports-->` instead of a number, and resolve every placeholder to a real number only in the final Self-Review sweep (§8). **Never emit a hard `§N.M` mid-draft.**
-  - The sweep greps for `Section [0-9]` / `§[0-9]` **and** for any leftover `ref:` placeholder, catching both stale numbers and unresolved refs.
+- **Intra-document references** (to another part of the *same* file): a bare section number like "§3.2" goes stale the instant a section is inserted or reordered. **Default to a name-based reference in prose** — "see the *Transports* section" — which never goes stale on renumber; this covers the large majority of cases. Two narrower alternatives if you need an actual clickable link: a named anchor (`<a id="transports"></a>` beside the section, linked as `[Transports](#transports)` — stable even when the heading number changes; a plain `#34-transports` link is *not* safe, since GitHub's auto-slug embeds the heading number) or, only while actively drafting, a deferred placeholder (`§<!--ref:transports-->`) resolved to a real number in the final Self-Review sweep (§8). **Never emit a hard `§N.M` mid-draft.** The sweep greps for `Section [0-9]` / `§[0-9]` and any leftover `ref:` placeholder, catching both stale numbers and unresolved refs.
 
 - **The `## Contents` TOC is the one sanctioned use of a plain `#N-heading-slug` link.** It is exempt from the moving-target bug above only because it is regenerated from the final headings in the same Self-Review sweep that resolves everything else — it is never written mid-draft and left stale. Build each slug from GitHub's auto-slug rule: lowercase the heading (number included), drop every character that is not a letter, digit, space, or hyphen, then turn spaces into hyphens (e.g. `## 2. The KV-Cache: The Memory That Governs Capacity` → `#2-the-kv-cache-the-memory-that-governs-capacity`). The link *text*, though, drops the leading number — the ordered-list marker supplies it (see §1) — so the entry reads `2. [The KV-Cache: The Memory That Governs Capacity](#2-the-kv-cache-the-memory-that-governs-capacity)`. Regenerating the TOC — not just resolving `§` refs — is part of the sweep.
 
@@ -305,7 +372,10 @@ Before a lesson is done, read it once *as someone seeing the topic for the first
 - [ ] **Follow-ups answered.** Every mechanism answers the obvious "but then what about…?".
 - [ ] **A non-trivial example exists.** At least one worked example is realistic, not only the minimal toy case.
 - [ ] **Objections pre-empted.** Every fix names the first objection a reader feels and answers it in place.
-- [ ] **Sections mapped to the spine.** If the lesson states a framework or thesis, every major section's opening places it within that frame.
+- [ ] **Sections mapped to the spine, in one sentence.** Every major section's opening places it within the frame in a single sentence — not a recap paragraph — before moving to new content.
+- [ ] **No prose echoes a table or diagram.** Where a table or diagram already shows a fact, adjacent prose adds a *why* or mechanic rather than restating the rows.
+- [ ] **Takeaway-first.** Each subsection opens with a short, plain sentence stating its load-bearing point before the qualifications and nuance.
+- [ ] **No framing narration.** The lesson states facts and mechanics, not commentary about why it's telling the reader something ("exam bait," "this is exam-relevant").
 - [ ] **Headings accurate and directional.** Every heading names its content correctly and points the right way.
 - [ ] **Readable rhythm.** No monolithic paragraph or 3+-clause run-on sentence anywhere; the Summary is 2–3 short paragraphs, not one block.
 - [ ] **Currency & deprecation.** Volatile facts verified against a current source; legacy/superseded mechanisms are explicitly preserved but clearly marked deprecated — not omitted, not taught as current.
@@ -314,27 +384,3 @@ Before a lesson is done, read it once *as someone seeing the topic for the first
 - [ ] **Depth bar met.** Sub-sections throughout, 6+ snippets, 2–3 diagrams, an end-to-end walkthrough, concrete numbers, both internals and operational depth (§2).
 
 If a reader still has to re-read a passage to follow it, the passage — not the reader — is the problem.
-
----
-
-## 9. What to avoid
-
-- **Do not produce bare bullet-point lists.** A list of fact fragments is not a lesson. Prose carries the explanation. Bullets are acceptable only in "Practical Limits and Trade-offs", where each starts with a **bold label** + a sentence of reasoning.
-- **Do not skip analogies or trade-offs for brevity.** They are required.
-- **Do not leave a major section as undivided prose.** No `### N.M` sub-sections means you summarised rather than unpacked — decompose it.
-- **Do not describe in prose a mechanism you could show.** If it has a concrete form — a config, a payload, a data format, an algorithm, a computed number — show it.
-- **Do not end a file without a Summary section.**
-- **Do not paste source material verbatim or vendor hype.** Rewrite in your own words and ground every claim in a mechanism or trade-off.
-- **Do not add a standalone "why this matters" section.** The why belongs inside the section where the mechanism is introduced; the Summary is the only place for restatement.
-- **Do not narrate a transformation while hiding the artifact that links the two stages.**
-- **Do not define an artifact without explaining how it comes to be.**
-- **Do not introduce a term confusable with a prior one without contrasting them.**
-- **Do not present a fix without its first obvious objection.**
-- **Do not switch topics between sections without placing the new section in the lesson's frame.**
-- **Do not let the headline concept be the least-developed.**
-- **Do not present a curated subset as exhaustive, or write a heading that mislabels or reverses its content.**
-- **Do not state a count you do not fully show.** Enumerate all N, label consistently, and call out any step that emits no artifact.
-- **Do not leave an abstraction or taxonomy unanchored.** Give a concrete named instance and selection guidance.
-- **Do not teach a deprecated mechanism as current, or omit it silently.** Present the current default and mark the superseded alternative deprecated.
-- **Do not let internal section references go stale.** Re-verify every same-file reference after renumbering or inserting sections.
-- **Do not pack prose into one unbroken wall**, or chain three-plus clauses into a single sentence. Break at topic seams; one idea per sentence. This applies everywhere but especially the Summary.
