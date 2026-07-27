@@ -6,13 +6,19 @@
 
 Lesson-by-lesson notes from a Redis internals video series. Each file is a self-contained, standalone recap — technically detailed enough to serve as a future reference, and educational enough to explain *why*, not just *what*. The goal is not a transcript: a good lesson lets someone who missed the video understand the concept deeply, including the reasoning behind every design decision.
 
+## Audience
+
+An engineer who uses Redis from an application and knows general systems concepts (memory, threads,
+sockets, disk I/O), but has not read Redis's internals. Lean on that vocabulary; do not re-teach
+general OS or networking basics.
+
 ## File Naming
 
 `NN-<topic-slug>.md` — sequential number, lowercase, hyphenated words. Example: `04-memory-allocator.md`.
 
 ## Track parameters
 
-These are the inputs the skill defers to this track for. The depth bar itself (snippet/diagram counts, walkthroughs, quantify) is the skill's standard — not repeated here.
+These are the inputs the skills defer to this track for. The depth bar itself (snippet/diagram counts, walkthroughs, quantify) is the skill's standard — not repeated here.
 
 - **Snippet languages**: C-style pseudocode for low-level internals (system calls, data structures, event loops); real syntax (Python, Go, Redis CLI commands) when showing how Redis is used from an application.
 - **Acronyms to expand on first use**: RESP (Redis Serialization Protocol), RDB, AOF, TTL, FD (file descriptor), HA (high availability).

@@ -18,13 +18,14 @@ The benchmark is not "is this correct?" but "can a first-time reader follow it i
 
 ## Format modes
 
-**Everything in this skill is substance, and mode-agnostic, except three things**: §1's document
-structure and section naming (including the "Practical Limits and Trade-offs" section's name and
-shape), §3.4's analogy requirement, and the bullet-vs-prose rule stated in each mode below. Every
-other rule in this skill — the depth bar (§2, already "not a per-track dial"), the mental-model
-writing rules (§3.2), trade-offs (§3.6), walkthroughs (§3.7), quantification (§3.8), currency
-(§3.9), tone (§3.10), terminology (§3.11), readability (§3.12), diagrams (§4), tables (§5), code
-snippets (§6), and cross-references (§7) — applies to every lesson in every track, under either
+**Everything in this skill is substance, and mode-agnostic, except four things** — the complete
+list, cited by every other rule in this skill and by `lesson-eval` rather than restated: the
+*Document structure* section's structure and naming (including the "Practical Limits and
+Trade-offs" section's name and shape), the *Analogies* section's requirement, the bullet-vs-prose
+rule stated in each mode below, and the *Tone* section's target section-count range. Every other
+rule in this skill — the depth bar (already "not a per-track dial"), the mental-model writing
+rules, trade-offs, walkthroughs, quantification, currency, terminology, readability, diagrams,
+tables, code snippets, and cross-references — applies to every lesson in every track, under either
 mode. A mode changes how a mechanic is *packaged* — a bullet instead of a paragraph, a table
 instead of a prose recap — never whether the mechanic, its *why*, its trade-off, or its selection
 guidance is present at all. A track picks one of the two named modes below for all of its lessons.
@@ -41,10 +42,10 @@ about the common case that would warrant a halt-and-ask.
 The original genre this skill was built for: a file someone reads start to end to *learn* a topic,
 not scan under time pressure.
 
-- **Structure**: §1's document template, verbatim — including the `## N. Practical Limits and
-  Trade-offs` section, bulleted with a bold label + reasoning per item.
-- **Analogies**: required for every non-trivial concept (§3.4) — a peer wouldn't grasp it from its
-  name alone.
+- **Structure**: the *Document structure* section's template, verbatim — including the
+  `## N-1. Practical Limits and Trade-offs` section, bulleted with a bold label + reasoning per item.
+- **Analogies**: required for every non-trivial concept (see *Analogies*) — a peer wouldn't grasp it
+  from its name alone.
 - **Prose over bullets**: a list of fact fragments is not a lesson — prose carries the explanation;
   bullets are reserved for the final limits/trade-offs section.
 
@@ -77,7 +78,7 @@ where a reader needs to find a fact, config, or limit fast, not read a narrative
 
 Run these in order for any lesson you write, expand, or review:
 
-1. **Locate environment parameters.** Before drafting any prose, search the working directory for the track's parameter file (`*GUIDELINES.md`, or the `README.md` that serves that role) and load its **Snippet languages**, **Acronyms**, **Domain trade-off pairs**, and **Format mode** (see "Format modes" above — defaults silently to `deep-prose` if no mode is declared). If no parameter file is found at all, **halt and ask the user to declare the current track parameters** — do not guess them. (This skill supplies the craft and the depth bar; the track file supplies these domain inputs.)
+1. **Locate environment parameters — the canonical lookup, cited (not repeated) elsewhere in this repo.** Before drafting any prose, walk up from the lesson's target folder toward the repo root and take the first `GUIDELINES.md` found (or the `README.md` that serves that role). This is how a shared file covers multiple sub-tracks — e.g. `04-oracle/GUIDELINES.md` serves both `developer-professional/` and `observability-professional/`, neither of which has its own. Load its **Snippet languages**, **Acronyms**, **Domain trade-off pairs**, and **Format mode** (see "Format modes" above — a *missing* `Format mode:` line is not itself grounds to halt; it defaults silently to `deep-prose`). If the walk reaches the repo root with **no** parameter file found at all, **halt and ask the user to declare the current track parameters** — do not guess them. (This skill supplies the craft and the depth bar; the track file supplies these domain inputs.)
 2. **Draft against the craft.** Write to the structure (§1), the depth bar (§2), and the writing rules (§3–§7). Do not hard-code a section number when pointing at another part of the same file — see §7.
 3. **Final Self-Review sweep.** Run the One-Pass Test (§8) end to end, resolve every deferred cross-reference placeholder to a real number or stable anchor, and confirm currency/deprecation before declaring the lesson done.
 
@@ -135,9 +136,10 @@ modes" above).>
 <2–3 short paragraphs of prose (one theme per paragraph — e.g. what it is, why it
 behaves this way, what that means for you), ~3–6 sentences total, a reader can use
 as a quick recap without re-reading the whole file. One idea per sentence — never
-chain three or more clauses into one sentence. No bullet lists here — prose forces
-you to show how the ideas connect, but a single unbroken block is a wall; break it
-at each topic seam (see §3.12).>
+chain three or more clauses into one sentence. No bullet lists here, under either
+format mode — prose forces you to show how the ideas connect, but a single
+unbroken block is a wall; break it at each topic seam (see *Readability and visual
+rhythm*).>
 ```
 
 **Structural rules:**
@@ -152,13 +154,13 @@ at each topic seam (see §3.12).>
 
 ## 2. The depth bar (standard requirement)
 
-These notes are for *learning a topic deeply*, not skimming it. The bar below is the **standard for every lesson** — it is not a per-track dial. The repo exemplar to model depth on is `02-redis-internal/03-event-loops.md` (decomposes every section, shows real data structures and system calls across many snippets, traces one request end-to-end, draws several diagrams). **Treat it as the *minimum*, not the target.**
+These notes are for *learning a topic deeply*, not skimming it. The bar below is the **standard for every lesson** — it is not a per-track dial. The repo exemplar to model *depth* on is `02-redis-internal/03-event-loops.md` (decomposes every section, shows real data structures and system calls across many snippets, traces one request end-to-end, draws several diagrams). It is a `deep-prose`-mode file, so model its depth, not its *format*, on a track running `scannable-reference` mode. **Treat it as the *minimum*, not the target.**
 
 - **Sub-sections throughout.** Every `## N.` section is decomposed into `### N.M` parts. Zero sub-sections means the topic was summarised, not unpacked.
 - **6+ code/config/data snippets** where the topic supports it. Show the real mechanics — a config, an API payload, a data format, an algorithm — not a prose description of them.
-- **2–3 diagrams.** See §5.
-- **At least one end-to-end worked walkthrough** for any topic with a request or data lifecycle. See §4 "Worked walkthroughs".
-- **Concrete numbers.** See §4 "Quantify".
+- **2–3 diagrams.** See *Diagrams*.
+- **At least one end-to-end worked walkthrough** for any topic with a request or data lifecycle. See *Worked walkthroughs*.
+- **Concrete numbers.** See *Quantify*.
 - **Balanced depth.** Go deep on *both* how the thing works internally *and* the operational reality of building, running, and operating it. A lesson that does only one is half-finished.
 - **Depth proportional to prominence.** The concept the lesson headlines must be the *most* thoroughly developed. If a secondary topic carries concrete techniques while the headline gets only a definition and a diagram, the lesson is inverted — deepen the headline.
 
@@ -189,12 +191,12 @@ The rules below close the gaps that force re-reads. The One-Pass Test (§8) enfo
 
 - **Explain origin, not just definition.** For any artifact the system relies on — a table, an index, a cache, a generated config — show *how it comes to be* (built, derived, learned), not only what it is once finished. A reader who knows only the end state cannot reason about why it has the properties it does. (Complements *Explain the why*: that covers *why it is designed this way*; this covers *how it came to exist*.)
 
-- **Name and refute the wrong mental model.** For any concept a reader is likely to misread, state the plausible-but-wrong intuition out loud and say why it is wrong — don't just assert the right one. Deliver it with a `> Nuance:` callout (§3.4).
+- **Name and refute the wrong mental model.** For any concept a reader is likely to misread, state the plausible-but-wrong intuition out loud and say why it is wrong — don't just assert the right one. Deliver it with a `> Nuance:` callout (see *Nuances and caveats*).
   - Example: "An index is *not* a second copy of the data sorted differently. It stores only the keys plus pointers back to the rows — which is why it speeds lookups without doubling storage."
 
 - **Answer the obvious follow-up.** At each mechanism, answer the "but then what about…?" a curious reader asks the moment they understand it — don't leave the thread dangling.
 
-- **Disambiguate confusable terms.** When you introduce a term that sounds like, or sits next to, one already introduced, contrast them explicitly — what is the same, what is different. A small two-column table (§6) is usually clearest. Silent adjacency is how a reader fuses two distinct concepts into one wrong one.
+- **Disambiguate confusable terms.** When you introduce a term that sounds like, or sits next to, one already introduced, contrast them explicitly — what is the same, what is different. A small two-column table (see *Tables*) is usually clearest. Silent adjacency is how a reader fuses two distinct concepts into one wrong one.
 
 - **Anchor every abstraction in a concrete instance.** The moment you define an abstract role, layer, or protocol concept — client/server, producer/consumer, "a transport", "a handler" — give one named, concrete example in the same breath. The worked-walkthrough rule covers things with a lifecycle; this covers static definitions, which strand the reader the same way when left abstract.
 
@@ -265,6 +267,8 @@ Good: "A and B are current; C was the original and is now deprecated, folded int
 ### 3.10 Tone
 
 Educational and precise. Avoid over-brevity — a reader should fully understand the topic from the file alone. At the same time, do not pad; every sentence should earn its place. Lean on the reader's existing vocabulary (stated in the track's `GUIDELINES.md`) to explain the unfamiliar.
+
+**No framing narration.** State facts and mechanics, not commentary about why the lesson is telling the reader something — never "this is exam-relevant" or "this is exam bait." If a fact matters for a stated purpose (e.g. certification study), let the track's declared framing (`GUIDELINES.md`) shape *what* gets covered; don't narrate that framing back to the reader inside the prose.
 
 Aim for **5–8 major sections** under `deep-prose` mode. Fewer than five usually means a concept was not fully unpacked; more than eight usually means the lesson covers two topics and should be split. Under `scannable-reference` mode this range runs higher — commonly 8–10 — since each section is shorter and cheaper to add; the same underlying principle still applies: too few means the topic was summarised, too many means it should split into two lessons.
 

@@ -1,5 +1,5 @@
 <!--
-  Each module's bullet list below is the SPEC that `lesson-eval` coverage mode grades the lesson
+  Each module's bullet list below is the SPEC that `lesson-eval` quiz mode grades the lesson
   against — write it BEFORE writing the lesson, so the bar is set outside-in.
   The subtopics below are derived from Oracle's official course Teaching Objectives and module
   outline (pasted in by the author). Extend each list with course-specific bullets while studying
@@ -303,7 +303,7 @@ The per-module loop:
    beyond it stays, as long as it's grounded in real OCI docs — just labeled honestly.
 2. **Draft**: ask Claude to write `NN-<topic-slug>.md` from the enriched spec, using the
    `lesson-craft` skill with `../GUIDELINES.md`.
-3. **Quiz**: study the lesson, then run `lesson-eval` coverage mode — the quiz is generated blind
+3. **Quiz**: study the lesson, then run `lesson-eval` quiz mode — the quiz is generated blind
    from the spec, so it measures readiness against the outside-in bar, not the lesson's own
    wording. Feed gaps back into lesson edits.
 4. Repeat per module; quiz banks accumulate under `assessments/`. The bank doubles as self-test

@@ -22,7 +22,7 @@ Assume the reader knows Kubernetes, cloud, and CI/CD well, but is new to AI inte
 
 ## Track parameters
 
-These are the inputs the skill defers to this track for. The depth bar itself (snippet/diagram counts, walkthroughs, quantify) is the skill's standard — not repeated here.
+These are the inputs the skills defer to this track for. The depth bar itself (snippet/diagram counts, walkthroughs, quantify) is the skill's standard — not repeated here.
 
 - **Snippet languages**: **YAML** for Kubernetes manifests and CI config, **Python** for LLM/SDK calls and RAG pipelines, **JSON** for MCP/tool-definition schemas and API payloads, and CLI commands (`kubectl`, `helm`, cloud CLIs) for operational steps. Reach for pseudocode only for an algorithm no real tool expresses cleanly.
 - **Acronyms to expand on first use**: **LLM** (Large Language Model), **MCP** (Model Context Protocol), **RAG** (Retrieval-Augmented Generation), **GPU** (Graphics Processing Unit), **vLLM**, **KServe**, **MIG** (Multi-Instance GPU), **TTFT** (Time To First Token), **KV-cache** (Key-Value cache), **RBAC** (Role-Based Access Control), **SLO** (Service Level Objective), **IaC** (Infrastructure as Code).

@@ -1,5 +1,5 @@
 <!--
-  Each lesson's paragraph below is the SPEC that `lesson-eval` coverage mode grades the lesson
+  Each lesson's paragraph below is the SPEC that `lesson-eval` quiz mode grades the lesson
   against — write it BEFORE writing the lesson, so the bar is set outside-in.
   Suggestion: derive the phases and lesson paragraphs from the official OCI Observability
   Professional exam blueprint topics, so quizzes measure exam-readiness rather than

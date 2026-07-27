@@ -14,8 +14,8 @@ The repo's two skills form a write/grade pair, and the order below is what makes
 1. **Fill in `GUIDELINES.md` first.** Both skills read it before doing anything; the TODOs mark the parameters only you can supply.
 2. **Write the lesson's `STUDY-PLAN.md` paragraph before writing the lesson** — taken from Oracle's official exam blueprint, not from what you already know. That paragraph is the spec `lesson-eval` grades against.
 3. **Draft the lesson with `/lesson-craft`.** It enforces the depth bar (walkthroughs, snippets, diagrams, the why behind each mechanism) so notes come out as reference material, not paraphrased slides.
-4. **Run `/lesson-eval` (coverage mode) when the lesson feels done.** It generates a quiz *blind* — from the study-plan spec, before reading your lesson — then grades the lesson against it. Gaps it finds are things the exam could ask that your notes can't answer.
-5. **Close the gaps, then run craft mode** to audit the prose itself.
+4. **Run `/lesson-eval` (quiz mode) when the lesson feels done.** It generates a quiz *blind* — from the study-plan spec, before reading your lesson — then grades the lesson against it. Gaps it finds are things the exam could ask that your notes can't answer.
+5. **Close the gaps, then run review mode** to audit the prose itself.
 
 ## Why blueprint-first matters
 

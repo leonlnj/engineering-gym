@@ -1,45 +1,26 @@
 # Engineering Gym AI Agent Instructions (Root)
 
-This file defines **repo-wide defaults** and a **folder context discovery policy**.
+This file is a pointer for GitHub Copilot. The repo's actual conventions live elsewhere and are not
+duplicated here, so they can't drift out of sync:
 
-## Purpose
-- Keep root instructions generic and reusable.
-- Let each top-level folder define its own detailed working rules.
+- **`CLAUDE.md`** (repo root) — repo-wide conventions and working guidelines (what to touch, when to
+  ask, what "done" means).
+- **A track's `GUIDELINES.md`** (or the `README.md` that serves that role) — that track's domain
+  parameters: purpose, audience, file naming, snippet languages, acronyms, trade-off pairs.
+- **`.claude/skills/lesson-craft` and `.claude/skills/lesson-eval`** — the shared writing craft
+  (document structure, depth bar, the One-Pass Test) and the audit/grade/improve loop for a
+  finished lesson.
 
-## Folder Context Discovery Policy
-When assisting the user, resolve context in this order:
-
-1. **Active file path** (editor context).
-2. **User-stated folder or file** in the prompt.
-3. **Nearest folder-local instruction file** from the working path upward.
-4. Root defaults from this file.
-
-## Folder-local Instruction Files
-For any top-level learning track folder, look for one of these files (in order):
-- `GUIDELINES.md`
-- `README.md`
-- `.copilot-instructions.md`
-
-If found, treat it as the source of truth for that folder.
-
-## Conflict Resolution
-- Folder-local instruction overrides root defaults for files in that folder.
-- If multiple local docs exist, use the first match in the lookup order above.
-- If no folder-local file exists, apply root defaults only.
+Read `CLAUDE.md` first; it also explains how track-local files are found.
 
 ## Authoring Guidance for New Folders
-When a new top-level folder is created, add a concise local guideline file that includes:
+
+When a new top-level `NN-<topic>` folder is created, add a concise local `GUIDELINES.md` that
+includes:
 - Scope of the folder
 - Preferred document/code structure
-- Setup/Test/Cleanup expectations (or explicit “not required”)
+- Setup/Test/Cleanup expectations (or explicit "not required")
 - Tooling/runtime assumptions
 - Any diagram or explanation style preferences
 
 Keep local guidance practical and not overly specific so it stays reusable.
-
-## Root Defaults (Apply Unless Overridden)
-- Be educational: explain why, not only how.
-- Include trade-offs for key decisions.
-- Prefer concise, purposeful examples and diagrams.
-- Keep commands copy-paste ready and grouped by execution phase when relevant.
-

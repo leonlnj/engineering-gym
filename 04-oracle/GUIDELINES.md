@@ -83,8 +83,6 @@ These are the inputs the skills defer to this track for. The depth bar itself (s
 - **Declared framing/threads**: lessons carry a dual thread — *exam-ready* (state the fact or
   service behavior the exam will ask for) and *production-reasoning* (the mechanic or trade-off
   that lets you derive the answer instead of memorising it). This is an **authoring lens for what
-  to cover** — make sure both are present — **not a label to narrate in the prose**. Write the
-  fact and the mechanic; do not add commentary about the fact's relevance ("this is exam bait,"
-  "naming this trade is itself exam-relevant"), which only makes the reader separate editorial
-  from content. `lesson-eval` tags each quiz question with one of these threads — that tagging
-  lives in the assessment, not the lesson text.
+  to cover** — make sure both are present — not a label to narrate in the prose (see `lesson-craft`
+  §3.10 Tone's "No framing narration" rule, which applies here). `lesson-eval` tags each quiz
+  question with one of these threads — that tagging lives in the assessment, not the lesson text.

@@ -8,9 +8,9 @@ Personal self-learning repository. Each top-level folder (`NN-<topic>`) is an in
 
 ## Conventions
 
-- Each learning track folder owns its **domain** conventions. Before working in any `NN-*` folder, read its local `GUIDELINES.md` (or `README.md`) first — that file is the source of truth for the track's purpose, audience, file naming, and domain parameters (snippet languages, acronyms, example trade-offs).
-- The **writing craft** shared across tracks — document structure, depth bar, mental-model rules, diagrams, the One-Pass Test self-review — lives once in the `lesson-craft` skill (`.claude/skills/`). When writing or reviewing the `NN-*.md` learning notes, use that skill together with the folder's `GUIDELINES.md`. (The exercise-style track `01-system-design` is a different genre and keeps its own structure.)
-- To **validate or improve a finished lesson**, use the `lesson-eval` skill: a *coverage* mode that generates a mock assessment from the topic and checks the lesson answers it (content gaps), and a *craft* mode that audits the prose against the authoring rubric (writing quality).
+- Each learning track folder owns its **domain** conventions, split across up to three files with distinct jobs: `GUIDELINES.md` is the source of truth for the track's purpose, audience, file naming, and domain parameters (snippet languages, acronyms, trade-off pairs) — the skills locate it by walking up from the lesson's folder toward the repo root, so one shared `GUIDELINES.md` can cover several sub-tracks (see `lesson-craft`'s Execution Workflow for the exact lookup); a track's `STUDY-PLAN.md`, where one exists, is the per-lesson content spec `lesson-eval` grades against; a track's `README.md` (e.g. `04-oracle/README.md`) is about *method* — how to work the track's tooling — and is distinct from a `GUIDELINES.md`-role `README.md` in a track that has no dedicated guidelines file. Read whichever of these exist before working in a `NN-*` folder. (The exercise-style track `01-system-design` is a different genre and keeps its own structure.)
+- The **writing craft** shared across tracks — document structure, depth bar, mental-model rules, diagrams, the One-Pass Test self-review — lives once in the `lesson-craft` skill (`.claude/skills/`). When writing or reviewing the `NN-*.md` learning notes, use that skill together with the folder's `GUIDELINES.md`.
+- To **validate or improve a finished lesson**, use the `lesson-eval` skill: a *quiz* mode (default) that generates a mock assessment from the topic and checks the lesson answers it (content gaps), and a *review* mode that audits the prose against the authoring rubric (writing quality).
 
 ## Guidelines
 
@@ -25,10 +25,16 @@ use judgment.
 **Don't assume. Don't hide confusion. Surface trade-offs.**
 
 - State your assumptions explicitly. If uncertain, ask.
-- If the track's `GUIDELINES.md` parameters are missing or ambiguous, stop and ask — never guess
-  the audience, snippet languages, or scope (the skills' halt-and-ask rule).
-- If a request has multiple readings ("improve this lesson" — coverage? craft? both?), present
-  them; don't pick silently.
+- If a track's parameter file doesn't exist at all, stop and ask — this is the skills' own halt
+  rule (see `lesson-craft`'s Execution Workflow); never guess the audience, snippet languages, or
+  scope. If the file exists but leaves a needed parameter ambiguous, ask too — that goes further
+  than the skill's own rule, which is a mechanical lookup, not a completeness check (a *missing*
+  `Format mode:` line specifically is not ambiguous — it is a documented silent default, not a case
+  to ask about).
+- If a request has multiple readings, present them; don't pick silently — e.g. "check this lesson"
+  could mean run `lesson-eval` or just skim it by eye. Mode selection *within* `lesson-eval`
+  (`quiz`/`review`/`both`) follows the skill's own stated default — that one choice is not itself
+  an ask-first case.
 - If a simpler approach exists, say so. Push back when warranted.
 
 ### 2. Structure Is Not Content

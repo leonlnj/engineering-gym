@@ -3,12 +3,11 @@ name: lesson-eval
 description: >-
   Validate and improve an existing technical lesson (the NN-topic.md notes in this repo). Use
   when asked to validate, audit, check, quiz, grade, or improve a finished lesson — as opposed to
-  lesson-craft, which is for *writing* one. Two modes: COVERAGE generates a fresh mock
-  assessment blind from the topic spec and grades whether the lesson answers it (catches missing
-  content) — each run adds a new, different quiz to a per-lesson bank rather than overwriting; CRAFT
-  audits the prose against the lesson-craft rubric (catches weak writing). Loads the track's
+  lesson-craft, which is for *writing* one. Two modes: QUIZ generates a fresh mock assessment
+  blind from the topic spec and grades whether the lesson answers it (missing content); REVIEW
+  audits the prose against the lesson-craft rubric (weak writing). Loads the track's
   GUIDELINES.md (plus STUDY-PLAN.md when the track has one) as the content spec, and the
-  lesson-craft skill as the craft rubric. Web-verifies volatile facts in fast-moving domains.
+  lesson-craft skill as the craft rubric.
 ---
 
 # Lesson Eval
@@ -27,10 +26,10 @@ good lesson is — it consumes existing definitions and adds the audit/grade/imp
 **Cite those sources in findings; do not restate their rules here.** This skill owns only the
 procedure, the severity rubric, the report templates, and the approval gate.
 
-The two angles are complementary. **Coverage** asks *"is the right content here at all?"* —
-generated outside-in from the topic, so the lesson cannot teach to its own test. **Craft** asks
-*"is what's here written well?"*. Content gaps are invisible to a craft audit; prose flaws are
-invisible to a coverage check.
+The two angles are complementary. **Quiz** asks *"is the right content here at all?"* —
+generated outside-in from the topic, so the lesson cannot teach to its own test. **Review** asks
+*"is what's here written well?"*. Content gaps are invisible to a review; prose flaws are
+invisible to a quiz.
 
 ---
 
@@ -42,21 +41,20 @@ Take from the user's request:
 - **Target lesson** — a path to any lesson file, or a lesson number within a track (e.g. `04`,
   `03-ai-platform-engineering/04-mcp-and-tool-use.md`, or `misc/security/passkey-login.md`). If
   missing or ambiguous, ask which file.
-- **Mode** — `coverage` (default) · `craft` · `both`. `both` runs coverage first (find content
-  gaps), then craft (quality of what's there, and of anything just added).
+- **Mode** — `quiz` (default) · `review` · `both`. `both` runs quiz first (find content gaps),
+  then review (quality of what's there, and of anything just added). `coverage` and `craft` are
+  accepted as aliases for `quiz` and `review`, for anyone used to the old names.
 
-Load the nearest `GUIDELINES.md` (domain params) before doing anything else — walk up from the
-lesson's folder toward the repo root and take the first one found. If none exists, **halt and ask
-the user to declare the domain parameters inline** (audience, snippet languages, framing/threads
-if any) — do not guess them; this mirrors the `lesson-craft` workflow. While loading it, also check
-for a **`Format mode: <name>`** line; if absent, it defaults silently to `deep-prose` (same as
-`lesson-craft`'s "Format modes" section), for Mode B to consult. Coverage mode also needs a
-content spec: the track's `STUDY-PLAN.md` when one exists, otherwise the fallback in A1. Craft
-mode also needs the `lesson-craft` skill.
+Locate and load the track's parameter file exactly as `lesson-craft`'s Execution Workflow step 1
+does — same search, same halt-and-ask rule; not restated here. While loading it, also check for a
+**`Format mode: <name>`** line for Mode B to consult (see `lesson-craft`'s "Format modes" section
+for the default when it's absent). Quiz mode also needs a content spec: the track's
+`STUDY-PLAN.md` when one exists, otherwise the fallback in A1. Review mode also needs the
+`lesson-craft` skill.
 
 ---
 
-## Mode A — Coverage (assessment-driven)
+## Mode A — Quiz (assessment-driven)
 
 The order matters: build the test **before** reading the answers.
 
@@ -90,7 +88,7 @@ is a varied bank that exercises the topic from many directions, not the same qui
 - **Missing** — not addressed; state the gap.
 - **Covered (stale)** — answered but the fact looks outdated; route to *Currency verification* below.
 
-### A4. Coverage report (deliverable)
+### A4. Quiz report (deliverable)
 
 | Q | Competency | Thread | Verdict | Evidence / gap |
 | :--- | :--- | :--- | :--- | :--- |
@@ -107,12 +105,13 @@ zero-padded sequence number, `quiz-01.md`, `quiz-02.md`, … (scan the folder an
 So `03-ai-platform-engineering/04-mcp-and-tool-use.md` accumulates
 `03-ai-platform-engineering/assessments/04-mcp-and-tool-use/quiz-01.md`, `quiz-02.md`, …, and
 `misc/security/passkey-login.md` would use `misc/security/assessments/passkey-login/quiz-01.md`.
-Structure:
+Structure (`<seq>` is this quiz's own sequence number, matching its `quiz-NN.md` filename — not the
+lesson number, which appears in the source-spec line below):
 
 ```markdown
-# Assessment <NN-seq>: <Lesson Title>
+# Assessment <seq>: <Lesson Title>
 
-> Generated by lesson-eval (coverage mode) on <date>. Source spec: STUDY-PLAN.md entry for NN
+> Generated by lesson-eval (quiz mode) on <date>. Source spec: STUDY-PLAN.md entry for NN
 > (or the declared scope, for content without a study plan).
 
 ## Questions
@@ -137,14 +136,14 @@ Then offer to run Mode B on the changed passages.
 
 ---
 
-## Mode B — Craft (One-Pass Test audit)
+## Mode B — Review (One-Pass Test audit)
 
 Load `lesson-craft` and audit the lesson against it — **cite its items, don't copy its
-rules**. Before citing any §1-structure, §3.4-analogy, or bullet-vs-prose finding — the three items
+rules**. Before citing any structure, analogy, or bullet-vs-prose finding — the items
 `lesson-craft`'s "Format modes" section names as mode-dependent — look up the track's declared mode
 (from Step 0) and audit that point against *that mode's* rules instead: under `scannable-reference`
 mode, bullets-over-prose or a dated Limits table are compliant, not findings. Every other item in
-`lesson-craft`, including the full §8 One-Pass Test checklist, is audited unconditionally, regardless
+`lesson-craft`, including the full One-Pass Test checklist, is audited unconditionally, regardless
 of mode. Collect findings into one table, most-severe first:
 
 | Location | Severity | Rule | Finding | Proposed fix |
@@ -173,7 +172,7 @@ model names/IDs, pricing, context windows, vLLM/KServe/MIG versions, MCP/API/pro
 other domains: library and protocol versions, CLI flags, spec/standard status, CVEs and security
 advisories — and verify each against a current source via `WebSearch`/`WebFetch`; use the
 `claude-api` skill for Anthropic-specific facts rather than the open web. Mark each **confirmed / stale / unverifiable**. A stale fact is a **Blocker** in
-craft mode and a **Covered (stale)** verdict in coverage mode. Leave `unverifiable` claims in the
+review mode and a **Covered (stale)** verdict in quiz mode. Leave `unverifiable` claims in the
 closeout for the user to confirm. (The web tools are deferred — fetch their schemas with ToolSearch
 at run time.)
 
@@ -182,5 +181,5 @@ at run time.)
 ## Closeout
 
 End any run with a short summary: what was reported, what was applied vs. deferred, the quiz artifact
-path (coverage), and any claims left `unverifiable`. Never apply edits before the user approves the
+path (quiz mode), and any claims left `unverifiable`. Never apply edits before the user approves the
 report.

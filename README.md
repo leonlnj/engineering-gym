@@ -4,7 +4,10 @@ This repo is setup to experiment/practice random exercises that I stumbled upon
 
 ## AI-Assisted Development
 
-This repository includes GitHub Copilot instructions at `.github/copilot-instructions.md` that help AI agents understand exercise patterns, setup procedures, and common troubleshooting steps. If you're using GitHub Copilot, it will automatically reference this file to provide better assistance.
+This repository is set up for AI-assisted work. `CLAUDE.md` holds repo-wide conventions, each track's
+`GUIDELINES.md` holds that track's domain parameters, and `.claude/skills/` (`lesson-craft`,
+`lesson-eval`) holds the shared authoring and review craft for the `NN-*.md` learning notes. GitHub
+Copilot users get the same pointers via `.github/copilot-instructions.md`.
 
 ## Setup
 
