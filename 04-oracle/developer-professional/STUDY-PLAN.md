@@ -281,12 +281,11 @@ spec for that lesson — add bullets as you study.
   - *Additional depth beyond the TOC (grounded in official OCI docs):*
     - Trade-off: metrics vs. logs vs. traces for a given diagnostic question
     - Scope note: what this lesson defers to the `observability-professional` sub-track
-
-**Open questions for module 10** (resolve while studying, don't guess):
-
-- Connector Hub (routing Logging/Monitoring/Streaming/Functions/Object Storage) is the natural
-  glue across modules 06/08/10 but appears in none of them and isn't in the Logging docs TOC —
-  add it to module 10 only if the course covers it.
+    - Connector Hub: routing Logging/Monitoring/Queue/Streaming sources to Functions/Streaming/
+      Notifications/Object Storage/Monitoring/Log Analytics targets, with an optional Functions or
+      Logging task — the natural glue across modules `06`/`08`/`10`; not confirmed as part of the
+      official course TOC, included and labeled as such the same way module `06` included
+      Streaming with Apache Kafka
 
 ---
 
