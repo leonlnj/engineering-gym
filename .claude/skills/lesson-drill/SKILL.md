@@ -13,15 +13,11 @@ description: >-
 # Lesson Drill
 
 An **interactive study loop**, distinct from `lesson-craft` (writes a lesson) and `lesson-eval`
-(audits a lesson's coverage/prose). This skill tests the *reader*: it asks one question, waits for
-a typed answer, grades it against the lesson, and tracks misses across sessions so drilling
-compounds instead of restarting cold each time.
-
-Where `lesson-eval` quiz mode generates a written assessment *blind from the spec* to check
-whether the lesson answers it — content-gap auditing, answer key visible in the same file —
-`lesson-drill` generates questions *from the finished lesson*, withholds every answer until the user commits to
-one, and grades strictly. It also does not cap recall questions the way `lesson-eval` does: a cert
-exam rewards fast, correct recall of load-bearing facts, so this skill drills those at volume.
+(a written audit, answer key visible in the same file). This skill tests the *reader*: it asks one
+question, withholds the answer until the user commits to one, grades strictly against the lesson,
+and tracks misses across sessions so drilling compounds instead of restarting cold. Unlike
+`lesson-eval` quiz mode, it doesn't cap recall questions — a cert exam rewards fast, correct recall
+of load-bearing facts, so this skill drills those at volume.
 
 ---
 
@@ -65,8 +61,7 @@ Generate fresh from the lesson body — never reuse a prior session's exact phra
 
 Rules:
 - **Previously-missed items go first.** Anything unresolved in the progress log is re-asked —
-  reworded, not copied verbatim — before any new material. This is where the spacing effect
-  actually happens; don't skip it because it's easier to write fresh questions.
+  reworded, not copied verbatim — before any new material.
 - One question asks one thing. Never embed the answer or a hint in the question text.
 - If a figure appears (a quota, a timeout, a limit), the question should test whether the user
   knows what it *forces*, not just the digit — matching `GUIDELINES.md`'s "shape over number" rule

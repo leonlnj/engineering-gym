@@ -12,30 +12,24 @@ description: >-
 
 # Lesson Craft
 
-The craft of writing a **deep, self-contained technical lesson** — a file someone can return to as a reference and learn the *why* from, not just the *what*. This skill is content-agnostic: it is the *how to write*. The track's `GUIDELINES.md` is the *what this track is* — its domain, audience, file naming, snippet languages, acronyms, and domain-specific examples. **Read both before writing or reviewing a lesson**: this skill for the craft and the standard depth bar, the track file for the parameters only it can supply.
+The craft of writing a **deep, self-contained technical lesson** — a file someone returns to as a reference and learns the *why* from, not just the *what*. This skill is content-agnostic: it's the *how to write*. The track's `GUIDELINES.md` is the *what this track is* (domain, audience, file naming, snippet languages, acronyms, examples). **Read both before writing or reviewing a lesson.**
 
 The benchmark is not "is this correct?" but "can a first-time reader follow it in one pass without stopping to ask a question?" Most confusion comes not from a wrong fact but from a missing link the author had in their head and never wrote down. Everything below exists to close those gaps.
 
 ## Format modes
 
-**Everything in this skill is substance, and mode-agnostic, except four things** — the complete
-list, cited by every other rule in this skill and by `lesson-eval` rather than restated: the
-*Document structure* section's structure and naming (including the "Practical Limits and
-Trade-offs" section's name and shape), the *Analogies* section's requirement, the bullet-vs-prose
-rule stated in each mode below, and the *Tone* section's target section-count range. Every other
-rule in this skill — the depth bar (already "not a per-track dial"), the mental-model writing
-rules, trade-offs, walkthroughs, quantification, currency, terminology, readability, diagrams,
-tables, code snippets, and cross-references — applies to every lesson in every track, under either
-mode. A mode changes how a mechanic is *packaged* — a bullet instead of a paragraph, a table
-instead of a prose recap — never whether the mechanic, its *why*, its trade-off, or its selection
-guidance is present at all. A track picks one of the two named modes below for all of its lessons.
+**Four things are mode-dependent** — cited by every other rule in this skill and by `lesson-eval`
+rather than restated: the *Document structure* section's structure and naming (including
+"Practical Limits and Trade-offs"), the *Analogies* section's requirement, the bullet-vs-prose rule
+in each mode below, and the *Tone* section's target section-count range. Everything else — depth
+bar, mental-model rules, trade-offs, walkthroughs, quantification, currency, terminology,
+readability, diagrams, tables, snippets, cross-references — applies unconditionally, under either
+mode. A mode changes *packaging* (a bullet instead of a paragraph, a table instead of a prose
+recap), never whether the mechanic, its why, its trade-off, or its selection guidance is present. A
+track picks one mode for all of its lessons.
 
 **Selection**: a track declares its mode with a one-line **`Format mode: <name>`** entry in its
-`GUIDELINES.md`. If a track's `GUIDELINES.md` has no such line, **default silently to
-`deep-prose`** — this is this skill's original, single-mode behavior, so every track that predates
-this mechanism keeps working unchanged with no new question to answer. A track opts into
-`scannable-reference` explicitly by adding the one-line declaration; there is nothing ambiguous
-about the common case that would warrant a halt-and-ask.
+`GUIDELINES.md`. No such line → default silently to `deep-prose`, no halt.
 
 ### Mode: `deep-prose` (default)
 
@@ -78,7 +72,16 @@ where a reader needs to find a fact, config, or limit fast, not read a narrative
 
 Run these in order for any lesson you write, expand, or review:
 
-1. **Locate environment parameters — the canonical lookup, cited (not repeated) elsewhere in this repo.** Before drafting any prose, walk up from the lesson's target folder toward the repo root and take the first `GUIDELINES.md` found (or the `README.md` that serves that role). This is how a shared file covers multiple sub-tracks — e.g. `04-oracle/GUIDELINES.md` serves both `developer-professional/` and `observability-professional/`, neither of which has its own. Load its **Snippet languages**, **Acronyms**, **Domain trade-off pairs**, and **Format mode** (see "Format modes" above — a *missing* `Format mode:` line is not itself grounds to halt; it defaults silently to `deep-prose`). If the walk reaches the repo root with **no** parameter file found at all, **halt and ask the user to declare the current track parameters** — do not guess them. (This skill supplies the craft and the depth bar; the track file supplies these domain inputs.)
+1. **Locate environment parameters — the canonical lookup, cited (not repeated) elsewhere in this repo.** Before drafting any prose:
+   - Walk up from the lesson's target folder toward the repo root; take the first `GUIDELINES.md`
+     found (or the `README.md` that serves that role). One shared file can cover several
+     sub-tracks — e.g. `04-oracle/GUIDELINES.md` serves both `developer-professional/` and
+     `observability-professional/`.
+   - Load its **Snippet languages**, **Acronyms**, **Domain trade-off pairs**, and **Format mode**
+     (a *missing* `Format mode:` line is not grounds to halt — see "Format modes" above).
+   - No parameter file found anywhere up to the repo root → **halt and ask** the user to declare
+     the track parameters; never guess them. This skill supplies the craft and depth bar; the
+     track file supplies these domain inputs.
 2. **Draft against the craft.** Write to the structure (§1), the depth bar (§2), and the writing rules (§3–§7). Do not hard-code a section number when pointing at another part of the same file — see §7.
 3. **Final Self-Review sweep.** Run the One-Pass Test (§8) end to end, resolve every deferred cross-reference placeholder to a real number or stable anchor, and confirm currency/deprecation before declaring the lesson done.
 
@@ -147,14 +150,14 @@ rhythm*).>
 - Top-level sections use `## N.` (e.g. `## 1.`, `## 2.`).
 - Sub-sections use `### N.M` (e.g. `### 1.1`, `### 2.3`). Never use `##` for a sub-section — it renders as a top-level section.
 - **Decompose each major section into `### N.M` sub-sections.** A `## N.` section that is one undivided block of prose is almost always under-developed — break it into the two-to-four mechanical parts it is really made of, each with its own sub-heading, explanation, and (where it helps) snippet or diagram.
-- **Open with a `## Contents` list of the top-level `## N.` sections** (not the `### N.M` sub-sections), placed right after the intro's `---` and before `## 1.`. Use a real Markdown ordered list (`1.`, `2.`, ...) with the section number *only* as the list marker — do not also repeat the number inside the link text (e.g. `1. [Tokens: The Unit the Model Sees](#1-tokens-the-unit-the-model-sees)`, not `- [1. Tokens...]`), otherwise the rendered list shows the number twice. Generate it from the final headings in the Self-Review sweep (§8), not while drafting — see §7 for the anchor-slug rule.
+- **Open with a `## Contents` list of the top-level `## N.` sections** (not `### N.M` sub-sections), placed right after the intro's `---` and before `## 1.`. A real Markdown ordered list, number as the list marker only — don't also repeat it in the link text (e.g. `1. [Tokens: The Unit the Model Sees](#1-tokens-the-unit-the-model-sees)`, not `- [1. Tokens...]`). Generate it in the final Self-Review sweep (§8), not while drafting — see §7 for the anchor-slug rule.
 - **Never add a standalone "why this matters" section.** The why belongs inside the section where the mechanism is introduced (§3.1); the Summary is the only place for restatement.
 
 ---
 
 ## 2. The depth bar (standard requirement)
 
-These notes are for *learning a topic deeply*, not skimming it. The bar below is the **standard for every lesson** — it is not a per-track dial. The repo exemplar to model *depth* on is `02-redis-internal/03-event-loops.md` (decomposes every section, shows real data structures and system calls across many snippets, traces one request end-to-end, draws several diagrams). It is a `deep-prose`-mode file, so model its depth, not its *format*, on a track running `scannable-reference` mode. **Treat it as the *minimum*, not the target.**
+These notes are for *learning a topic deeply*, not skimming it. The bar below is the **standard for every lesson** — not a per-track dial. Model *depth* on `02-redis-internal/03-event-loops.md` (decomposes every section, real data structures and system calls, an end-to-end request trace, several diagrams) — it's `deep-prose`-mode, so a `scannable-reference` track models its depth, not its format. **Treat it as the minimum, not the target.**
 
 - **Sub-sections throughout.** Every `## N.` section is decomposed into `### N.M` parts. Zero sub-sections means the topic was summarised, not unpacked.
 - **6+ code/config/data snippets** where the topic supports it. Show the real mechanics — a config, an API payload, a data format, an algorithm — not a prose description of them.
@@ -187,9 +190,9 @@ The rules below close the gaps that force re-reads. The One-Pass Test (§8) enfo
   - Bad: "the request becomes a row."
   - Good: show the identifier the request carries, then show that the *same* identifier is the primary key of the row — so the reader sees the ID is a shared key across both stages, not magic.
 
-- **Match the claim to what you show.** If a heading or sentence names a count — "four-step exchange", "three modes", "two phases" — enumerate and label *all* of them consistently. A block labelled "Step 2 … Step 4" with steps 1 and 3 absent reads as broken and the reader stops to find the missing pieces. Corollary: when a step legitimately produces **no artifact** — it runs inside one component and emits nothing on the wire — say so explicitly (*"step 3 happens inside the worker; there is no message for it"*) so the reader doesn't hunt for one. (Inverse of *Show the connecting artifact*: there the bug is hiding an artifact that exists; here it is leaving the reader hunting for one that doesn't.)
+- **Match the claim to what you show.** If a heading or sentence names a count — "four-step exchange", "three modes" — enumerate and label *all* of them; a block labelled "Step 2 … Step 4" with steps 1 and 3 missing reads as broken. When a step legitimately produces **no artifact**, say so explicitly (*"step 3 happens inside the worker; there is no message for it"*) rather than leave the reader hunting for one. (Inverse of *Show the connecting artifact*: there the bug hides an artifact that exists; here it leaves the reader hunting for one that doesn't.)
 
-- **Explain origin, not just definition.** For any artifact the system relies on — a table, an index, a cache, a generated config — show *how it comes to be* (built, derived, learned), not only what it is once finished. A reader who knows only the end state cannot reason about why it has the properties it does. (Complements *Explain the why*: that covers *why it is designed this way*; this covers *how it came to exist*.)
+- **Explain origin, not just definition.** For any artifact the system relies on — a table, an index, a cache, a generated config — show *how it comes to be* (built, derived, learned), not only what it is once finished. A reader who knows only the end state cannot reason about why it has the properties it does.
 
 - **Name and refute the wrong mental model.** For any concept a reader is likely to misread, state the plausible-but-wrong intuition out loud and say why it is wrong — don't just assert the right one. Deliver it with a `> Nuance:` callout (see *Nuances and caveats*).
   - Example: "An index is *not* a second copy of the data sorted differently. It stores only the keys plus pointers back to the rows — which is why it speeds lookups without doubling storage."
@@ -198,18 +201,15 @@ The rules below close the gaps that force re-reads. The One-Pass Test (§8) enfo
 
 - **Disambiguate confusable terms.** When you introduce a term that sounds like, or sits next to, one already introduced, contrast them explicitly — what is the same, what is different. A small two-column table (see *Tables*) is usually clearest. Silent adjacency is how a reader fuses two distinct concepts into one wrong one.
 
-- **Anchor every abstraction in a concrete instance.** The moment you define an abstract role, layer, or protocol concept — client/server, producer/consumer, "a transport", "a handler" — give one named, concrete example in the same breath. The worked-walkthrough rule covers things with a lifecycle; this covers static definitions, which strand the reader the same way when left abstract.
+- **Anchor every abstraction in a concrete instance.** The moment you define an abstract role, layer, or protocol concept — client/server, producer/consumer, "a transport" — give one named, concrete example in the same breath. Worked walkthroughs cover things with a lifecycle; this covers static definitions, which strand the reader the same way left abstract.
 
-- **Present a taxonomy by purpose and selection, not just definition.** When you enumerate a set — the modes of X, the strategies for Y — each item must answer *what it means in this lesson* and *when you would reach for it*, not a dictionary gloss the reader can't connect to anything. Then add explicit **selection guidance**: which to choose for a given need, and why. A list of bare definitions with no "when/which" tells the reader the options exist but not how to act on them. (Complements *Disambiguate confusable terms*, which handles same-vs-different; this adds purpose and choice.)
+- **Present a taxonomy by purpose and selection, not just definition.** When you enumerate a set — the modes of X, the strategies for Y — each item must answer *what it means in this lesson* and *when you would reach for it*, not a dictionary gloss the reader can't connect to anything. Then add explicit **selection guidance**: which to choose for a given need, and why. A list of bare definitions with no "when/which" tells the reader the options exist but not how to act on them.
 
 ### 3.3 Structural cohesion
 
 The rules above keep a *passage* coherent; these keep the *whole document* coherent. A lesson can be locally flawless and still fail because the reader can't see how the major sections fit together.
 
-- **Map every section to the lesson's spine — in one sentence.** When a lesson states a framework, taxonomy, or thesis, open each later `## N.` major section (not every `### N.M` subsection) with **one sentence** naming where it sits in that frame, then move straight into new content. A reader should never reach a section and wonder "how does this connect to what came before?" — a silent topic-switch is the macro version of the missing-link problem. But the valve runs both ways: a subsection that spends half a paragraph recapping "as section 1 showed…" before it says anything new is placement *over*-applied — it forces the reader to hold the whole document in their head just to reach the next fact, which is the same missing-link problem from the other direction.
-  - Bad (no placement): a section that opens straight into its mechanics.
-  - Bad (over-placement): a section whose first paragraph re-explains, re-summarizes, or quotes back a prior section's content before introducing its own.
-  - Good: one sentence of placement — "So far there have been two levers: *what* goes in and *how* it is shaped. This is a third, distinct one — it constrains *what comes back*." — immediately followed by the section's own material.
+- **Map every section to the lesson's spine — in one sentence.** When a lesson states a framework, taxonomy, or thesis, open each later `## N.` major section (not every `### N.M` subsection) with **one sentence** naming where it sits in that frame, then move straight into new content — a reader should never reach a section and wonder "how does this connect?" But the valve runs both ways: a subsection that spends half a paragraph recapping "as section 1 showed…" before saying anything new is placement *over*-applied, forcing the reader to hold the whole document in their head for the next fact. Good: "So far there have been two levers: *what* goes in and *how* it is shaped. This is a third, distinct one — it constrains *what comes back*." — then straight into the section's own material. Bad either way it fails: opening straight into mechanics with no placement, or a paragraph that re-explains a prior section before introducing its own.
 
 - **Headings are signposts — make them accurate and directional.** A heading must name its content correctly and, where it expresses a relationship or transformation, point the right way. Re-read each heading against its section: does it mislabel the scope or state a relationship backwards?
 
@@ -240,8 +240,8 @@ When a concept is commonly misunderstood or oversimplified, surface it with a Ma
 
 Every significant design choice has a cost. Always name both sides: what is gained and what is given up. Calling out trade-offs is what separates an engineering note from a vendor pitch. (The track's `GUIDELINES.md` lists the common trade-off pairs for its domain.)
 
-- **Placement:** weave each trade-off into the prose where the mechanism is introduced — *"The gain is X; the cost is Y."* Then consolidate the most important ones in the lesson's final limits/trade-offs section — named and shaped per the active format mode (see "Format modes") — so a skimming reader gets the full picture.
-- **Pre-empt the obvious objection.** When you introduce a fix, name the *first* objection a sharp reader raises the instant they read it — and answer it on the spot. This is the trade-off the reader immediately *feels*. If you present a cache as "just keep recent results", the reader instantly thinks "but stale entries return wrong answers" — so address invalidation there, not pages later.
+- **Placement:** weave each trade-off into the prose where the mechanism is introduced — *"The gain is X; the cost is Y."* Then consolidate the most important ones in the final limits/trade-offs section (named and shaped per the active format mode) so a skimming reader gets the full picture.
+- **Pre-empt the obvious objection.** When you introduce a fix, name the *first* objection a sharp reader feels the instant they read it, and answer it on the spot — not pages later. Present a cache as "just keep recent results" and the reader instantly thinks "but stale entries return wrong answers"; address invalidation right there.
 
 ### 3.7 Worked walkthroughs
 
@@ -257,12 +257,10 @@ Make trade-offs tangible with concrete numbers and show the arithmetic. Abstract
 
 ### 3.9 Technical currency and deprecation
 
-Many topics cover fast-moving surfaces — protocol versions, API shapes, names, command flags. Verify volatile facts against a current source rather than from memory. When a mechanism has been superseded, present the **current** one as the default and **label the legacy one as deprecated** — don't silently omit it (readers still meet it in the wild) and don't teach it as current.
+Many topics cover fast-moving surfaces — protocol versions, API shapes, command flags. Verify volatile facts against a current source, not memory. When a mechanism has been superseded, present the **current** one as default and **label the legacy one deprecated** — don't silently omit it (readers still meet it in the wild) and don't teach it as current.
 
 Bad: list three options as co-equal when one is deprecated.
 Good: "A and B are current; C was the original and is now deprecated, folded into B — recognise it when you meet it, but build new work on B."
-
-(Distinct from *Be honest about coverage*, which discloses a curated *subset*; this is about correctness *over time*.)
 
 ### 3.10 Tone
 
@@ -270,7 +268,7 @@ Educational and precise. Avoid over-brevity — a reader should fully understand
 
 **No framing narration.** State facts and mechanics, not commentary about why the lesson is telling the reader something — never "this is exam-relevant" or "this is exam bait." If a fact matters for a stated purpose (e.g. certification study), let the track's declared framing (`GUIDELINES.md`) shape *what* gets covered; don't narrate that framing back to the reader inside the prose.
 
-Aim for **5–8 major sections** under `deep-prose` mode. Fewer than five usually means a concept was not fully unpacked; more than eight usually means the lesson covers two topics and should be split. Under `scannable-reference` mode this range runs higher — commonly 8–10 — since each section is shorter and cheaper to add; the same underlying principle still applies: too few means the topic was summarised, too many means it should split into two lessons.
+Aim for **5–8 major sections** under `deep-prose` (fewer = under-unpacked, more = likely two topics that should split); **8–10** under `scannable-reference`, since each section is shorter and cheaper to add — same principle, higher ceiling.
 
 ### 3.11 Terminology
 
@@ -281,17 +279,15 @@ Aim for **5–8 major sections** under `deep-prose` mode. Fewer than five usuall
 
 Density that reads fine sentence-by-sentence in your head can still land as a wall of text on the page. Three rules keep prose scannable:
 
-- **One idea per sentence.** If a sentence stacks three or more clauses joined by commas or em-dashes, split it. The reader should never have to re-parse a sentence to find its spine.
-- **Paragraphs of 2–4 sentences.** Break a block at every topic seam — a shift from *what* to *why*, or from mechanism to consequence. A paragraph longer than ~4 sentences, or one that renders as a single unbroken line filling the screen, is a wall — split it into two.
-- **Lead with the takeaway.** Open each subsection — and most paragraphs — with a short, plain sentence stating the load-bearing point, *before* the qualifications, nuance, or supporting detail. A reader who only reads first sentences should still walk away with the lesson's spine; a reader who continues gets the depth. Bury the point inside a paragraph of equally-weighted detail and the reader can no longer tell which sentence was the one to remember.
+- **One idea per sentence.** A sentence stacking three or more clauses gets split — the reader should never have to re-parse it to find its spine.
+- **Paragraphs of 2–4 sentences.** Break at every topic seam (*what* → *why*, mechanism → consequence). Longer than ~4 sentences, or one unbroken screen-filling line, is a wall — split it.
+- **Lead with the takeaway.** Open each subsection — and most paragraphs — with a short, plain sentence stating the load-bearing point before the qualifications or supporting detail. A reader who only reads first sentences should still walk away with the spine; bury the point and no sentence reads as the one to remember.
 
 This applies everywhere, but density creeps in unnoticed in two spots most: the **Summary** (§1) and `> Nuance:`/`> Note:` callouts (§3.5) — both tend to compress a whole section's worth of ideas into one paragraph. Check those first.
 
-Bad (one 90-word sentence chaining five clauses):
-"An LLM is a next-token predictor: text is split into sub-word tokens, each token ID is looked up as an embedding that encodes meaning as position in space, attention weighs which tokens matter for each other, and inference loops — scoring logits, softmaxing to probabilities, and sampling one token at a time — to produce output."
+Bad: "An LLM is a next-token predictor: text is split into sub-word tokens, each token ID is looked up as an embedding that encodes meaning as position in space, attention weighs which tokens matter for each other, and inference loops — scoring logits, softmaxing to probabilities, and sampling one token at a time — to produce output." *(one 90-word sentence, five clauses)*
 
-Good (same content, one idea per sentence, grouped by theme):
-"An LLM predicts one token at a time. Text is split into sub-word tokens, and each token ID is looked up as an embedding — a point in space that encodes meaning. Attention then weighs which tokens matter to each other, and inference loops through scoring logits, softmaxing to probabilities, and sampling a token to produce output."
+Good: "An LLM predicts one token at a time. Text is split into sub-word tokens, and each token ID is looked up as an embedding — a point in space that encodes meaning. Attention then weighs which tokens matter to each other, and inference loops through scoring logits, softmaxing to probabilities, and sampling a token to produce output." *(same content, one idea per sentence)*
 
 ---
 
@@ -342,7 +338,7 @@ The `:---` row is required (marks the header and left-aligns). Use left-alignmen
 
 ## 6. Code snippets
 
-Whenever a mechanism has a concrete form — an API call, a config, a data format, a payload, an algorithm — *show it* rather than describing it in prose. A snippet of the real thing teaches more than a paragraph about it, and writing the real form surfaces detail prose lets you gloss over. (The track's `GUIDELINES.md` specifies which **languages** to use.) If a specific concept isn't covered by the track's named languages, pick whatever a practitioner would actually reach for to do that task — never fall back to unformatted prose or an unfenced block. This is not a preference for one language family over another: a track's own deliberate choice of pseudocode (e.g. `02-redis-internal`'s C-style pseudocode for low-level internals) is a real answer here, not a fallback to avoid.
+Whenever a mechanism has a concrete form — an API call, a config, a data format, an algorithm — *show it* rather than describing it in prose; the real form surfaces detail prose lets you gloss over. (The track's `GUIDELINES.md` specifies which **languages** to use.) If a concept isn't covered by the track's named languages, use whatever a practitioner would actually reach for — never fall back to unformatted or unfenced prose. A track's own deliberate pseudocode choice (e.g. `02-redis-internal`'s C-style pseudocode for low-level internals) is a real answer here, not a fallback to avoid.
 
 **Style rules:**
 - Introduce every snippet with exactly one sentence explaining what it demonstrates.
@@ -354,11 +350,13 @@ Whenever a mechanism has a concrete form — an API call, a config, a data forma
 
 ## 7. Cross-references
 
-- **Backward references** (to a previous lesson): use in the intro or at the start of a section that zooms into something a prior lesson introduced at a higher level. Do not re-explain a concept a prior lesson already covered at the same depth — one sentence pointing back is enough.
+- **Backward references** (to a previous lesson): use in the intro or at the start of a section that zooms into something a prior lesson introduced at a higher level. One sentence pointing back is enough — don't re-explain at the same depth.
 - **Forward references** (to a future lesson): use at the end of a section or a diagram caption when the current lesson deliberately leaves something at a high level.
-- **Intra-document references** (to another part of the *same* file): a bare section number like "§3.2" goes stale the instant a section is inserted or reordered. **Default to a name-based reference in prose** — "see the *Transports* section" — which never goes stale on renumber; this covers the large majority of cases. Two narrower alternatives if you need an actual clickable link: a named anchor (`<a id="transports"></a>` beside the section, linked as `[Transports](#transports)` — stable even when the heading number changes; a plain `#34-transports` link is *not* safe, since GitHub's auto-slug embeds the heading number) or, only while actively drafting, a deferred placeholder (`§<!--ref:transports-->`) resolved to a real number in the final Self-Review sweep (§8). **Never emit a hard `§N.M` mid-draft.** The sweep greps for `Section [0-9]` / `§[0-9]` and any leftover `ref:` placeholder, catching both stale numbers and unresolved refs.
-
-- **The `## Contents` TOC is the one sanctioned use of a plain `#N-heading-slug` link.** It is exempt from the moving-target bug above only because it is regenerated from the final headings in the same Self-Review sweep that resolves everything else — it is never written mid-draft and left stale. Build each slug from GitHub's auto-slug rule: lowercase the heading (number included), drop every character that is not a letter, digit, space, or hyphen, then turn spaces into hyphens (e.g. `## 2. The KV-Cache: The Memory That Governs Capacity` → `#2-the-kv-cache-the-memory-that-governs-capacity`). The link *text*, though, drops the leading number — the ordered-list marker supplies it (see §1) — so the entry reads `2. [The KV-Cache: The Memory That Governs Capacity](#2-the-kv-cache-the-memory-that-governs-capacity)`. Regenerating the TOC — not just resolving `§` refs — is part of the sweep.
+- **Intra-document references** (to another part of the *same* file): **never emit a hard `§N.M` mid-draft** — it goes stale the instant a section is reordered.
+  - Default to a name-based prose reference — "see the *Transports* section" — never stale on renumber; covers the large majority of cases.
+  - For an actual clickable link: a named anchor (`<a id="transports"></a>`, linked as `[Transports](#transports)`, stable across renumber), or — only while actively drafting — a deferred placeholder `§<!--ref:transports-->` resolved to a real number in the final sweep (§8). A bare `#34-transports` link is *not* safe — GitHub's auto-slug embeds the heading number.
+  - The sweep greps for `Section [0-9]` / `§[0-9]` and any leftover `ref:` placeholder, catching both.
+- **The `## Contents` TOC** is the one sanctioned plain `#N-heading-slug` link — exempt because it's regenerated from the final headings in the same sweep, never written mid-draft and left stale. Build each slug from GitHub's auto-slug rule: lowercase the heading (number included), drop every character that isn't a letter/digit/space/hyphen, spaces → hyphens (e.g. `## 2. The KV-Cache: The Memory That Governs Capacity` → `#2-the-kv-cache-the-memory-that-governs-capacity`). The link text drops the leading number — the ordered-list marker supplies it (§1) — so the entry reads `2. [The KV-Cache: The Memory That Governs Capacity](#2-the-kv-cache-the-memory-that-governs-capacity)`.
 
 ---
 
@@ -366,25 +364,25 @@ Whenever a mechanism has a concrete form — an API call, a config, a data forma
 
 Before a lesson is done, read it once *as someone seeing the topic for the first time* and confirm each item. A "no" marks a spot where the reader will stop and ask a question. Fix every "no".
 
-- [ ] **Connecting artifacts shown.** Every "X produces Y" / "Y becomes Z" transition shows the concrete structure or shared key linking the two stages.
-- [ ] **Counts fully shown.** Every stated count (N steps/modes/phases) enumerates and labels all N; any step that emits no artifact is flagged as such.
-- [ ] **Abstractions anchored.** Every abstract role (e.g. 'client', 'transport', 'producer/consumer') is anchored in a named, concrete instance the moment it is defined.
-- [ ] **Taxonomies offer selection guidance.** Every enumerated set/taxonomy says *when* to choose which option, not just what each one is.
-- [ ] **Origins explained.** Every artifact the system uses (table, index, cache, generated config) is explained by *how it comes to be*, not only what it is once built.
-- [ ] **Wrong models refuted.** Every concept a reader is likely to misread names the plausible-but-wrong intuition and says why it's wrong.
-- [ ] **Confusable terms contrasted.** Every new term that resembles a prior one is explicitly contrasted with it (same vs. different).
-- [ ] **Follow-ups answered.** Every mechanism answers the obvious "but then what about…?".
-- [ ] **A non-trivial example exists.** At least one worked example is realistic, not only the minimal toy case.
-- [ ] **Objections pre-empted.** Every fix names the first objection a reader feels and answers it in place.
-- [ ] **Sections mapped to the spine, in one sentence.** Every major section's opening places it within the frame in a single sentence — not a recap paragraph — before moving to new content.
-- [ ] **No prose echoes a table or diagram.** Where a table or diagram already shows a fact, adjacent prose adds a *why* or mechanic rather than restating the rows.
-- [ ] **Takeaway-first.** Each subsection opens with a short, plain sentence stating its load-bearing point before the qualifications and nuance.
-- [ ] **No framing narration.** The lesson states facts and mechanics, not commentary about why it's telling the reader something ("exam bait," "this is exam-relevant").
-- [ ] **Headings accurate and directional.** Every heading names its content correctly and points the right way.
-- [ ] **Readable rhythm.** No monolithic paragraph or 3+-clause run-on sentence anywhere; the Summary is 2–3 short paragraphs, not one block.
-- [ ] **Currency & deprecation.** Volatile facts verified against a current source; legacy/superseded mechanisms are explicitly preserved but clearly marked deprecated — not omitted, not taught as current.
-- [ ] **Internal references resolve.** Every same-file reference resolves against the final headings; all drafting placeholders (`§<!--ref:...-->`) are replaced with real numbers or stable anchors, and no bare section number was emitted before the final sweep.
-- [ ] **TOC present and resolves.** The lesson opens with a `## Contents` block as a Markdown ordered list (not dash bullets) of every top-level `## N.` section, the number appears once (as the list marker, not repeated in the link text), and each link's slug matches its heading exactly (regenerated after any renumber).
-- [ ] **Depth bar met.** Sub-sections throughout, 6+ snippets, 2–3 diagrams, an end-to-end walkthrough, concrete numbers, both internals and operational depth (§2).
+- [ ] **Connecting artifacts shown** (§3.2) — every "X produces Y" shows the concrete structure/key linking the two stages.
+- [ ] **Counts fully shown** (§3.2) — a stated N enumerates and labels all N; an artifact-less step says so.
+- [ ] **Abstractions anchored** (§3.2) — every abstract role has a named, concrete instance at the moment it's defined.
+- [ ] **Taxonomies offer selection guidance** (§3.2) — each enumerated option says *when* to choose it, not just what it is.
+- [ ] **Origins explained** (§3.2) — every relied-upon artifact shows how it comes to be, not only what it is.
+- [ ] **Wrong models refuted** (§3.2) — likely misreadings are named and refuted, not just silently corrected.
+- [ ] **Confusable terms contrasted** (§3.2) — same-vs-different stated explicitly for any lookalike term.
+- [ ] **Follow-ups answered** (§3.2) — the obvious "but then what about…?" is answered at each mechanism.
+- [ ] **Non-trivial example exists** (§3.7) — at least one walkthrough goes beyond the minimal toy case.
+- [ ] **Objections pre-empted** (§3.6) — every fix names and answers the first objection, in place.
+- [ ] **Sections mapped to the spine** (§3.3) — each major section opens with one placement sentence, not a recap paragraph.
+- [ ] **No prose echoes a table/diagram** (§3.3) — adjacent prose adds a why or mechanic, not a restatement of the rows.
+- [ ] **Takeaway-first** (§3.12) — each subsection opens with its load-bearing point before the qualifications.
+- [ ] **No framing narration** (§3.10) — no "exam bait"-style commentary about why something is being said.
+- [ ] **Headings accurate and directional** (§3.3) — every heading names its content correctly and points the right way.
+- [ ] **Readable rhythm** (§3.12) — no run-on sentences or monolithic paragraphs; Summary is 2–3 short paragraphs.
+- [ ] **Currency & deprecation** (§3.9) — volatile facts verified; superseded mechanisms marked deprecated, not omitted or taught as current.
+- [ ] **Internal references resolve** (§7) — every same-file reference resolves; no leftover placeholders or bare `§N.M`.
+- [ ] **TOC present and resolves** (§1) — ordered list of top-level sections, number not repeated in link text, slugs match headings.
+- [ ] **Depth bar met** (§2) — sub-sections throughout, 6+ snippets, 2–3 diagrams, a walkthrough, concrete numbers, both internal and operational depth.
 
 If a reader still has to re-read a passage to follow it, the passage — not the reader — is the problem.

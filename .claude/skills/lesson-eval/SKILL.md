@@ -33,10 +33,8 @@ procedure, the severity rubric, the report templates, and the approval gate.
 The two angles are complementary. **Quiz** asks *"is the right content here at all?"* —
 generated outside-in from the topic, so the lesson cannot teach to its own test. **Review** asks
 *"is what's here written well?"*. Content gaps are invisible to a review; prose flaws are
-invisible to a quiz. Both angles grade the *lesson*. A third, separate skill, **`lesson-drill`**,
-grades the *reader* — an interactive, one-question-at-a-time recall session against a finished
-lesson, distinct from this skill's written audit reports; route there instead when the request is
-to be quizzed or drilled live.
+invisible to a quiz. Both grade the *lesson*. A third, separate skill, **`lesson-drill`**, grades
+the *reader* instead — route there when the request is to be quizzed or drilled live.
 
 ---
 
@@ -111,9 +109,8 @@ Each run is saved as a **new** file in the lesson's quiz bank — never overwrit
 lives in an `assessments/` folder sibling to the lesson file, at
 `<lesson-dir>/assessments/<lesson-slug>/` (create it if absent); name each quiz with a
 zero-padded sequence number, `quiz-01.md`, `quiz-02.md`, … (scan the folder and use the next index).
-So `03-ai-platform-engineering/04-mcp-and-tool-use.md` accumulates
-`03-ai-platform-engineering/assessments/04-mcp-and-tool-use/quiz-01.md`, `quiz-02.md`, …, and
-`misc/security/passkey-login.md` would use `misc/security/assessments/passkey-login/quiz-01.md`.
+E.g. `03-ai-platform-engineering/04-mcp-and-tool-use.md` accumulates
+`03-ai-platform-engineering/assessments/04-mcp-and-tool-use/quiz-01.md`, `quiz-02.md`, ….
 Structure (`<seq>` is this quiz's own sequence number, matching its `quiz-NN.md` filename — not the
 lesson number, which appears in the source-spec line below):
 
@@ -147,13 +144,12 @@ Then offer to run Mode B on the changed passages.
 
 ## Mode B — Review (One-Pass Test audit)
 
-Load `lesson-craft` and audit the lesson against it — **cite its items, don't copy its
-rules**. Before citing any structure, analogy, or bullet-vs-prose finding — the items
-`lesson-craft`'s "Format modes" section names as mode-dependent — look up the track's declared mode
-(from Step 0) and audit that point against *that mode's* rules instead: under `scannable-reference`
-mode, bullets-over-prose or a dated Limits table are compliant, not findings. Every other item in
-`lesson-craft`, including the full One-Pass Test checklist, is audited unconditionally, regardless
-of mode. Collect findings into one table, most-severe first:
+Load `lesson-craft` and audit the lesson against it — **cite its items, don't copy its rules**.
+For the items `lesson-craft`'s "Format modes" section names as mode-dependent (structure, analogy,
+bullet-vs-prose), look up the track's declared mode first and audit against *that mode's* rules —
+under `scannable-reference`, bullets-over-prose or a dated Limits table are compliant, not findings.
+Every other item, including the full One-Pass Test, is audited unconditionally regardless of mode.
+Collect findings into one table, most-severe first:
 
 | Location | Severity | Rule | Finding | Proposed fix |
 | :--- | :--- | :--- | :--- | :--- |
@@ -176,14 +172,12 @@ then re-run the affected §8 items on each changed passage.
 
 ## Currency verification (both modes)
 
-Fast-moving domains go stale. Extract the volatile claims for the lesson's domain — for AI:
-model names/IDs, pricing, context windows, vLLM/KServe/MIG versions, MCP/API/protocol shapes; in
-other domains: library and protocol versions, CLI flags, spec/standard status, CVEs and security
-advisories — and verify each against a current source via `WebSearch`/`WebFetch`; use the
-`claude-api` skill for Anthropic-specific facts rather than the open web. Mark each **confirmed / stale / unverifiable**. A stale fact is a **Blocker** in
-review mode and a **Covered (stale)** verdict in quiz mode. Leave `unverifiable` claims in the
-closeout for the user to confirm. (The web tools are deferred — fetch their schemas with ToolSearch
-at run time.)
+Fast-moving domains go stale. Extract the volatile claims for the lesson's domain (model IDs,
+pricing, versions, CLI flags, spec status, CVEs — whatever applies) and verify each against a
+current source via `WebSearch`/`WebFetch` (`claude-api` skill for Anthropic-specific facts).
+Mark each **confirmed / stale / unverifiable**. Stale is a **Blocker** in review mode and a
+**Covered (stale)** verdict in quiz mode; leave `unverifiable` claims in the closeout for the user
+to confirm. (Web tools are deferred — fetch their schemas with ToolSearch at run time.)
 
 ---
 
