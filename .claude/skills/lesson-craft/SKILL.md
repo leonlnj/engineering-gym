@@ -175,7 +175,7 @@ These notes are for *learning a topic deeply*, not skimming it. The bar below is
 
 ### 3.1 Explain the why
 
-For every mechanism or design decision, answer: *why is it built this way, and what problem does it solve?* Describing how something works without why leaves the reader unable to reason about it in a new context.
+For every mechanism or design decision, answer: *why is it built this way, and what problem does it solve?* Describing how something works without why leaves the reader unable to reason about it in a new context. And for anything the system relies on that isn't a bare fact — a table, an index, a cache — explain how it came to be (built, derived, learned), not only what it is once finished; a reader who knows only the end state can't reason about why it has the properties it does.
 
 Bad: "The store uses a write-ahead log."
 Good: "The store uses a **write-ahead log** because applying a change straight to the main data file means a crash mid-write can leave it corrupt; recording the change in an append-only log *first* lets the store replay or roll back after a crash, so a partial write never leaves the data inconsistent."
@@ -191,8 +191,6 @@ The rules below close the gaps that force re-reads. The One-Pass Test (§8) enfo
   - Good: show the identifier the request carries, then show that the *same* identifier is the primary key of the row — so the reader sees the ID is a shared key across both stages, not magic.
 
 - **Match the claim to what you show.** If a heading or sentence names a count — "four-step exchange", "three modes" — enumerate and label *all* of them; a block labelled "Step 2 … Step 4" with steps 1 and 3 missing reads as broken. When a step legitimately produces **no artifact**, say so explicitly (*"step 3 happens inside the worker; there is no message for it"*) rather than leave the reader hunting for one. (Inverse of *Show the connecting artifact*: there the bug hides an artifact that exists; here it leaves the reader hunting for one that doesn't.)
-
-- **Explain origin, not just definition.** For any artifact the system relies on — a table, an index, a cache, a generated config — show *how it comes to be* (built, derived, learned), not only what it is once finished. A reader who knows only the end state cannot reason about why it has the properties it does.
 
 - **Name and refute the wrong mental model.** For any concept a reader is likely to misread, state the plausible-but-wrong intuition out loud and say why it is wrong — don't just assert the right one. Deliver it with a `> Nuance:` callout (see *Nuances and caveats*).
   - Example: "An index is *not* a second copy of the data sorted differently. It stores only the keys plus pointers back to the rows — which is why it speeds lookups without doubling storage."
@@ -247,9 +245,7 @@ Every significant design choice has a cost. Always name both sides: what is gain
 
 For any topic with a request or data lifecycle — a query flowing through a system, a pipeline transforming data, a step producing output — include a **numbered, end-to-end walkthrough** that traces one concrete instance start to finish. This is the single technique that most separates a deep lesson from a shallow one: it forces every intermediate state into the open.
 
-A good walkthrough picks one concrete example (a real input string, a specific config, an actual incident), numbers each step, shows the data changing shape at each stage (often a small snippet per step), and is paired with a `sequenceDiagram`. State real values, not placeholders.
-
-Include at least one **non-trivial** case. A minimal example proves the mechanism exists; it does not prove the reader can apply it to anything real, and it hides the intermediate states that only appear under load. Work a realistic example far enough to expose how the mechanism scales.
+A good walkthrough picks one concrete, **non-trivial** example (a real input string, a specific config, an actual incident — not the minimal toy case, which hides the intermediate states that only appear under load), numbers each step, shows the data changing shape at each stage (often a small snippet per step), and is paired with a `sequenceDiagram`. State real values, not placeholders, and work the example far enough to expose how the mechanism scales.
 
 ### 3.8 Quantify
 
@@ -293,7 +289,7 @@ Good: "An LLM predicts one token at a time. Text is split into sub-word tokens, 
 
 ## 4. Diagrams
 
-Include **2–3 diagrams per file**: at least one architecture/concept diagram of how the parts fit, plus a `sequenceDiagram` or `stateDiagram-v2` for any lifecycle or loop, plus an optional comparison diagram where it earns its place. Diagrams are written in **Mermaid** inside a fenced block labelled `mermaid`.
+Include **2–3 diagrams per file**. Diagrams are written in **Mermaid** inside a fenced block labelled `mermaid`.
 
 ````
 ```mermaid
@@ -305,12 +301,10 @@ graph TD
 
 | Situation | Diagram type | What it looks like |
 | :--- | :--- | :--- |
-| Multi-layer or component architecture | `graph TD` | Boxes connected by arrows, top-down |
+| Multi-layer or component architecture | `graph TD` (or `graph LR` for left-to-right) | Boxes connected by arrows |
 | Request lifecycle or events over time | `sequenceDiagram` | Vertical swimlanes per participant |
 | Object states and transitions | `stateDiagram-v2` | Bubbles connected by labelled arrows |
 | Simple short pipeline (3–4 steps) | ASCII `text` block | Plain characters, no tooling |
-
-`graph TD` is top-down; use `graph LR` for left-to-right when it suits the layout.
 
 **Rules:**
 - Every diagram has a one-line italic caption immediately below it (`*caption*`) describing what it shows.
@@ -368,11 +362,10 @@ Before a lesson is done, read it once *as someone seeing the topic for the first
 - [ ] **Counts fully shown** (§3.2) — a stated N enumerates and labels all N; an artifact-less step says so.
 - [ ] **Abstractions anchored** (§3.2) — every abstract role has a named, concrete instance at the moment it's defined.
 - [ ] **Taxonomies offer selection guidance** (§3.2) — each enumerated option says *when* to choose it, not just what it is.
-- [ ] **Origins explained** (§3.2) — every relied-upon artifact shows how it comes to be, not only what it is.
+- [ ] **Origins explained** (§3.1) — every relied-upon artifact shows how it comes to be, not only what it is.
 - [ ] **Wrong models refuted** (§3.2) — likely misreadings are named and refuted, not just silently corrected.
 - [ ] **Confusable terms contrasted** (§3.2) — same-vs-different stated explicitly for any lookalike term.
 - [ ] **Follow-ups answered** (§3.2) — the obvious "but then what about…?" is answered at each mechanism.
-- [ ] **Non-trivial example exists** (§3.7) — at least one walkthrough goes beyond the minimal toy case.
 - [ ] **Objections pre-empted** (§3.6) — every fix names and answers the first objection, in place.
 - [ ] **Sections mapped to the spine** (§3.3) — each major section opens with one placement sentence, not a recap paragraph.
 - [ ] **No prose echoes a table/diagram** (§3.3) — adjacent prose adds a why or mechanic, not a restatement of the rows.
@@ -383,6 +376,6 @@ Before a lesson is done, read it once *as someone seeing the topic for the first
 - [ ] **Currency & deprecation** (§3.9) — volatile facts verified; superseded mechanisms marked deprecated, not omitted or taught as current.
 - [ ] **Internal references resolve** (§7) — every same-file reference resolves; no leftover placeholders or bare `§N.M`.
 - [ ] **TOC present and resolves** (§1) — ordered list of top-level sections, number not repeated in link text, slugs match headings.
-- [ ] **Depth bar met** (§2) — sub-sections throughout, 6+ snippets, 2–3 diagrams, a walkthrough, concrete numbers, both internal and operational depth.
+- [ ] **Depth bar met** (§2) — sub-sections throughout, 6+ snippets, 2–3 diagrams, a walkthrough that goes beyond the minimal toy case, concrete numbers, both internal and operational depth.
 
 If a reader still has to re-read a passage to follow it, the passage — not the reader — is the problem.
