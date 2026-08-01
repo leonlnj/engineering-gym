@@ -1,13 +1,17 @@
 ---
 name: lesson-eval
 description: >-
-  Validate and improve an existing technical lesson (the NN-topic.md notes in this repo). Use
-  when asked to validate, audit, check, quiz, grade, or improve a finished lesson — as opposed to
-  lesson-craft, which is for *writing* one. Two modes: QUIZ generates a fresh mock assessment
-  blind from the topic spec and grades whether the lesson answers it (missing content); REVIEW
-  audits the prose against the lesson-craft rubric (weak writing). Loads the track's
-  GUIDELINES.md (plus STUDY-PLAN.md when the track has one) as the content spec, and the
-  lesson-craft skill as the craft rubric.
+  Audit and improve an existing technical lesson (the NN-topic.md notes in this repo) — grades
+  the LESSON, not the reader. Use when asked to validate, audit, check, grade, find gaps in, or
+  improve a finished lesson: "does this cover the spec," "what's missing," "is this written
+  well" — as opposed to lesson-craft, which is for *writing* one, and lesson-drill, which quizzes
+  *you* live and grades your typed answers (use that instead when asked to drill, quiz me, or
+  test my recall). Two modes: REVIEW ("is this written well," the default when no mode is
+  named) audits the prose against the lesson-craft rubric (weak writing); QUIZ ("does this cover
+  the spec" / "what's missing") generates a fresh mock assessment blind from the topic spec and
+  grades whether the lesson answers it (missing content). Loads the track's GUIDELINES.md (plus
+  STUDY-PLAN.md when the track has one) as the content spec, and the lesson-craft skill as the
+  craft rubric.
 ---
 
 # Lesson Eval
@@ -29,7 +33,10 @@ procedure, the severity rubric, the report templates, and the approval gate.
 The two angles are complementary. **Quiz** asks *"is the right content here at all?"* —
 generated outside-in from the topic, so the lesson cannot teach to its own test. **Review** asks
 *"is what's here written well?"*. Content gaps are invisible to a review; prose flaws are
-invisible to a quiz.
+invisible to a quiz. Both angles grade the *lesson*. A third, separate skill, **`lesson-drill`**,
+grades the *reader* — an interactive, one-question-at-a-time recall session against a finished
+lesson, distinct from this skill's written audit reports; route there instead when the request is
+to be quizzed or drilled live.
 
 ---
 
@@ -41,9 +48,11 @@ Take from the user's request:
 - **Target lesson** — a path to any lesson file, or a lesson number within a track (e.g. `04`,
   `03-ai-platform-engineering/04-mcp-and-tool-use.md`, or `misc/security/passkey-login.md`). If
   missing or ambiguous, ask which file.
-- **Mode** — `quiz` (default) · `review` · `both`. `both` runs quiz first (find content gaps),
-  then review (quality of what's there, and of anything just added). `coverage` and `craft` are
-  accepted as aliases for `quiz` and `review`, for anyone used to the old names.
+- **Mode** — `review` (default) · `quiz` · `both`. `both` deliberately still runs quiz first (find
+  content gaps), then review (quality of what's there, and of anything just added) — that order is
+  load-bearing for the handoff (see A6), independent of which mode a bare invocation defaults to.
+  `coverage` and `craft` are accepted as aliases for `quiz` and `review`, for anyone used to the
+  old names.
 
 Locate and load the track's parameter file exactly as `lesson-craft`'s Execution Workflow step 1
 does — same search, same halt-and-ask rule; not restated here. While loading it, also check for a

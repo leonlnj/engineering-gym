@@ -10,6 +10,8 @@ duplicated here, so they can't drift out of sync:
 - **`.claude/skills/lesson-craft` and `.claude/skills/lesson-eval`** — the shared writing craft
   (document structure, depth bar, the One-Pass Test) and the audit/grade/improve loop for a
   finished lesson.
+- **`.claude/skills/lesson-drill`** — an interactive, one-question-at-a-time active-recall session
+  for studying a finished lesson; grades the reader's answers, not the lesson itself.
 
 Read `CLAUDE.md` first; it also explains how track-local files are found.
 

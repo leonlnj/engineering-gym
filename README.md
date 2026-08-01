@@ -6,8 +6,9 @@ This repo is setup to experiment/practice random exercises that I stumbled upon
 
 This repository is set up for AI-assisted work. `CLAUDE.md` holds repo-wide conventions, each track's
 `GUIDELINES.md` holds that track's domain parameters, and `.claude/skills/` (`lesson-craft`,
-`lesson-eval`) holds the shared authoring and review craft for the `NN-*.md` learning notes. GitHub
-Copilot users get the same pointers via `.github/copilot-instructions.md`.
+`lesson-eval`, `lesson-drill`) holds the shared authoring, review, and active-recall craft for the
+`NN-*.md` learning notes. GitHub Copilot users get the same pointers via
+`.github/copilot-instructions.md`.
 
 ## Setup
 

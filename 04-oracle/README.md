@@ -14,7 +14,7 @@ The repo's two skills form a write/grade pair, and the order below is what makes
 1. **Fill in `GUIDELINES.md` first.** Both skills read it before doing anything; the TODOs mark the parameters only you can supply.
 2. **Write the lesson's `STUDY-PLAN.md` paragraph before writing the lesson** — taken from Oracle's official exam blueprint, not from what you already know. That paragraph is the spec `lesson-eval` grades against.
 3. **Draft the lesson with `/lesson-craft`.** It enforces the depth bar (walkthroughs, snippets, diagrams, the why behind each mechanism) so notes come out as reference material, not paraphrased slides.
-4. **Run `/lesson-eval` (quiz mode) when the lesson feels done.** It generates a quiz *blind* — from the study-plan spec, before reading your lesson — then grades the lesson against it. Gaps it finds are things the exam could ask that your notes can't answer.
+4. **Run `/lesson-eval quiz` when the lesson feels done.** It generates a quiz *blind* — from the study-plan spec, before reading your lesson — then grades the lesson against it. Gaps it finds are things the exam could ask that your notes can't answer.
 5. **Close the gaps, then run review mode** to audit the prose itself.
 
 ## Why blueprint-first matters
@@ -26,8 +26,19 @@ If you write the lesson first and the spec second, the spec describes what you w
 Every coverage run adds a **new, deliberately different** quiz to `<sub-track>/assessments/<lesson-slug>/` — the bank is designed to probe the topic from rotating angles. That makes it a ready-made spaced-repetition deck:
 
 - A few days after finishing a lesson, answer its oldest quiz **cold** — write answers before re-opening the lesson, then check against the answer key.
-- A week or two out, run `/lesson-eval` again for a fresh quiz. Repeated retrieval with feedback is what moves material into long-term memory; rereading alone does not.
+- A week or two out, run `/lesson-eval quiz` again for a fresh quiz. Repeated retrieval with feedback is what moves material into long-term memory; rereading alone does not.
 - Anything you miss twice is a candidate for its own `> Nuance:` callout back in the lesson.
+
+## Drill for active recall
+
+The quiz bank above audits whether a lesson's *content* is complete — its answer key sits next to
+the questions, so reading it is recognition, not recall. The `lesson-drill` skill is the
+study-facing counterpart: `/lesson-drill NN` asks one question at a time, waits for a typed answer,
+grades it against the lesson, and logs what you missed so the next run starts there instead of
+re-asking everything. `/lesson-drill cross` drills service-choice discrimination (Queue vs. Stream,
+Functions vs. OKE, …) across the whole track, sourced from each module's named trade-off. Drill a
+lesson a few days after finishing it, again a week out, and lean on `/lesson-drill cross` in the
+final stretch before the exam.
 
 ## Anchor every lesson in a real tenancy
 
