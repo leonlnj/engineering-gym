@@ -45,7 +45,7 @@ Everything from here on depends on one resource: the encryption keys a **Vault**
 
 ### 2.1 Vault types: Default vs. Virtual Private
 
-**A Default vault shares Hardware Security Module (HSM) partitions with other tenants' vaults; a Virtual Private vault gets an isolated partition of its own** — with a 1,000-key-version starting allowance, backup support, and automatic key rotation that a Default vault doesn't offer (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/KeyManagement/Concepts/keyoverview.htm)).
+**A Default vault shares Hardware Security Module (HSM) partitions with other tenants' vaults; a Virtual Private vault gets an isolated partition of its own** — with a 1,000-key-version starting allowance, backup support, and automatic key rotation that a Default vault doesn't offer (see Limits and Sources).
 
 | | Default vault | Virtual Private vault |
 | :--- | :--- | :--- |
@@ -96,7 +96,7 @@ The vault model above governs keys; a **secret** is a different resource built o
 
 ### 3.1 A secret version carries a rotation state, not just a number
 
-**Every secret version has a rotation state, and the state — not the version number — is what determines which value callers actually receive.** `CURRENT` is what's in active use; `PENDING` is staged and uploaded but not yet promoted, letting you get a new value into the vault ahead of switching to it; `PREVIOUS` marks whatever was `CURRENT` before the last promotion, for rollback; `DEPRECATED` is the only state a version can be deleted from (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/KeyManagement/Concepts/secretversionsrotationstates.htm)).
+**Every secret version has a rotation state, and the state — not the version number — is what determines which value callers actually receive.** `CURRENT` is what's in active use; `PENDING` is staged and uploaded but not yet promoted, letting you get a new value into the vault ahead of switching to it; `PREVIOUS` marks whatever was `CURRENT` before the last promotion, for rollback; `DEPRECATED` is the only state a version can be deleted from (see Limits and Sources).
 
 > Nuance: **`LATEST`** and **`CURRENT`** are easy to conflate but answer different questions. `LATEST` is purely chronological — whichever version was uploaded most recently. `CURRENT` is behavioral — whichever version callers actually get by default. A version can be `LATEST` while still sitting at `PENDING`, uploaded but not yet promoted to `CURRENT` — the two labels genuinely diverge during a staged rotation.
 
@@ -135,13 +135,13 @@ Sections 2–3 covered protecting values; this section is the first of two image
 
 ### 4.1 Attaching a scanner: what gets scanned, and when
 
-**Adding an image scanner to a repository scans every image pushed to it against the public Common Vulnerabilities and Exposures (CVE) database** — and, distinct from a one-time check, the registry automatically **re-scans** every already-scanned image whenever the CVE database itself gains new entries (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Registry/Tasks/registryscanningimagesforvulnerabilities.htm)). Enabling scanning on a repository that already has images immediately scans the four most recently pushed ones.
+**Adding an image scanner to a repository scans every image pushed to it against the public Common Vulnerabilities and Exposures (CVE) database** — and, distinct from a one-time check, the registry automatically **re-scans** every already-scanned image whenever the CVE database itself gains new entries (see Limits and Sources). Enabling scanning on a repository that already has images immediately scans the four most recently pushed ones.
 
 > Nuance: a previously clean scan result can go stale with **zero new pushes to the image**. Because rescans run against a database that changes independently of your repository, an image that scanned clean last month can show a new finding today — the image never changed; the CVE database did.
 
 ### 4.2 Risk levels and result retention
 
-**Each scan produces a single overall risk level — Critical, High, Medium, Low, or Minor, in that priority order** — plus the individual vulnerabilities behind it, and results are retained for 13 months so a repository's trend is comparable over time, not just its latest snapshot (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Registry/Tasks/registryscanningimagesforvulnerabilities.htm)).
+**Each scan produces a single overall risk level — Critical, High, Medium, Low, or Minor, in that priority order** — plus the individual vulnerabilities behind it, and results are retained for 13 months so a repository's trend is comparable over time, not just its latest snapshot (see Limits and Sources).
 
 ```json
 {
@@ -185,7 +185,7 @@ graph TD
 
 ### 5.2 OKE: cluster-level enforcement via `ImagePolicyWebhook`
 
-**An OKE image verification policy names up to five Vault master encryption keys** — RSA asymmetric, the only supported type — that must have signed an image before any pod in the cluster is allowed to pull it (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengenforcingsignedimagesfromocir.htm)). Enforcement happens at admission, through the same `ImagePolicyWebhook` path Module `03`'s admission-controllers section already introduced — this is that mechanism's specific, image-signing use. A disallowed pull is rejected and the attempt is recorded in application logs, not silently allowed through.
+**An OKE image verification policy names up to five Vault master encryption keys** — RSA asymmetric, the only supported type — that must have signed an image before any pod in the cluster is allowed to pull it (see Limits and Sources). Enforcement happens at admission, through the same `ImagePolicyWebhook` path Module `03`'s admission-controllers section already introduced — this is that mechanism's specific, image-signing use. A disallowed pull is rejected and the attempt is recorded in application logs, not silently allowed through.
 
 ### 5.3 Functions: application-level enforcement across three operations
 
@@ -216,7 +216,7 @@ Sections 2–5 secured keys, secrets, and images; this section moves to the last
 
 ### 6.1 Certificate authorities: root, subordinate, and the chain of trust
 
-**A Certificate Authority (CA) issues certificates and, optionally, subordinate CAs beneath it** — a root CA is self-signed and sits at the top of a trust chain; a subordinate CA is signed by its parent, extending that chain downward. A CA can be created inside OCI or imported from an existing third-party CA (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/certificates/overview.htm)).
+**A Certificate Authority (CA) issues certificates and, optionally, subordinate CAs beneath it** — a root CA is self-signed and sits at the top of a trust chain; a subordinate CA is signed by its parent, extending that chain downward. A CA can be created inside OCI or imported from an existing third-party CA.
 
 ### 6.2 Certificates: what a CA actually issues
 
@@ -290,6 +290,7 @@ sequenceDiagram
 | Image scan risk levels: Critical > High > Medium > Low > Minor; results retained 13 months | Trend comparison across a repository's scan history is possible for just over a year, not indefinitely | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Registry/Tasks/registryscanningimagesforvulnerabilities.htm) |
 | OKE image verification policy: up to 5 Vault master keys, RSA asymmetric only | A cluster can accept images signed by any of several keys, but only RSA-signed images are ever eligible | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengenforcingsignedimagesfromocir.htm) |
 | Functions signature-verification policy: up to 5 functions per application, RSA or ECDSA only (no AES) | Symmetric keys can never satisfy Functions' signature check — the key must be asymmetric | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionsenforcingsignedimagesfromocir.htm) |
+| OCIR automatically re-scans every already-scanned image whenever the CVE database gains new entries | A clean scan can go stale with zero new pushes to the image — check re-scan history, not just the last scan date | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Registry/Tasks/registryscanningimagesforvulnerabilities.htm) |
 
 > Note: injected-at-deploy vs. fetched-at-runtime is a trade-off, not a limit — covered inline at *Trade-off: injected at deploy time vs. fetched at runtime*: rotation latency and blast radius vs. a live startup dependency on Vault. `LATEST` vs. `CURRENT` is the confusable-state pair worth remembering — covered inline at *Secrets: Versions, Rotation States*.
 
@@ -297,8 +298,8 @@ sequenceDiagram
 
 ## 10. Summary
 
-Cloud-native testing in this track means two strategies beyond the unit- and integration-testing baseline: contract testing, which catches an interface break in CI without a live dependency, and resilience testing, which proves a system recovers from a real, injected failure rather than just claiming to on paper. Neither replaces the other, and neither replaces the security layers that follow.
+Cloud-native testing in this track means two strategies beyond the unit- and integration-testing baseline. Contract testing catches an interface break in CI without a live dependency; resilience testing proves a system recovers from a real, injected failure rather than just claiming to on paper. Neither replaces the other, and neither replaces the security layers that follow.
 
-Those layers stack rather than overlap. Vault protects keys and secrets through envelope encryption — a master key that never touches bulk data directly — and versioned secrets that can be injected once at deploy or fetched fresh on every call, trading rotation latency against a runtime dependency. Image security then splits into two orthogonal checks: scanning catches known vulnerabilities in an image's *content*, while OKE's cluster-wide policy and Functions' application-scoped policy each verify an image's *identity* independently, neither aware the other exists — and even a signed, clean image still runs under the same unprivileged container permissions Module `04` established.
+Those layers stack rather than overlap. Vault protects keys and secrets through envelope encryption, a master key that never touches bulk data directly. Secrets can be injected once at deploy or fetched fresh on every call, trading rotation latency against a runtime dependency. Image security then splits into two orthogonal checks: scanning catches known vulnerabilities in an image's *content*, while signing verifies its *identity* — OKE's cluster-wide policy and Functions' application-scoped policy each enforce that independently, neither aware the other exists. Even a signed, clean image still runs under the same unprivileged container permissions Module `04` established.
 
-The Certificates service closes the loop Module `05` left open: the custom trust store a gateway consumes for backend verification, and the stricter, explicitly-provisioned trust an mTLS deployment requires, are both just CA bundles this service issues or imports. Module `10` is where every control built here — and everything reported by Modules `03` through `08` before it — finally gets observed rather than just enforced.
+The Certificates service closes the loop Module `05` left open. The custom trust store a gateway consumes for backend verification, and the stricter, explicitly-provisioned trust an mTLS deployment requires, are both just CA bundles this service issues or imports. Module `10` is where every control built here — and everything reported by Modules `03` through `08` before it — finally gets observed rather than just enforced.

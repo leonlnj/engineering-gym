@@ -223,7 +223,7 @@ if tracing_context.is_sampled():
 
 ### 6.1 Sources, an optional task, and a target
 
-**A connector reads from one source, optionally runs a task, and writes to one target** — Logging, Monitoring, Queue, or Streaming as a source; Functions, Streaming, Notifications, Object Storage, Monitoring, or Log Analytics as a target; an optional Functions task for custom processing, or a Logging task to filter before delivery (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/connector-hub/overview.htm)).
+**A connector reads from one source, optionally runs a task, and writes to one target** — Logging, Monitoring, Queue, or Streaming as a source; Functions, Streaming, Notifications, Object Storage, Monitoring, or Log Analytics as a target; an optional Functions task for custom processing, or a Logging task to filter before delivery.
 
 ```mermaid
 graph TD
@@ -325,8 +325,8 @@ sequenceDiagram
 
 ## 10. Summary
 
-Metrics answer "is something wrong" in aggregate, through namespaces, dimensions, and the Monitoring Query Language — the same query shape whether the metric is `oci_apigateway`'s built-in `5xxErrors` or a custom one an application publishes itself. An alarm wraps that query in a trigger rule requiring sustained, not momentary, breach, and delivers one of four distinct message types to Notifications or Streaming depending on expected volume — suppression silences those messages without ever pausing the evaluation underneath them.
+Metrics answer "is something wrong" in aggregate, through namespaces, dimensions, and the Monitoring Query Language — the same query shape whether the metric is `oci_apigateway`'s built-in `5xxErrors` or a custom one an application publishes itself. An alarm wraps that query in a trigger rule requiring sustained, not momentary, breach. It delivers one of four distinct message types to Notifications or Streaming, depending on expected volume. Suppression silences those messages without ever pausing the evaluation underneath them.
 
-Logs answer "what exactly happened" on one resource — audit, service, or custom — organized under log groups and searchable by a shared field like a request ID, the same correlating mechanic that makes cross-service troubleshooting possible at all. Traces answer the third question, "where in a chain of services," built from spans that only form one coherent tree because every hop propagates the same trace ID forward — automatically for a bare Functions invocation, manually wherever deeper visibility is worth the instrumentation.
+Logs answer "what exactly happened" on one resource — audit, service, or custom. They're organized under log groups and searchable by a shared field like a request ID, the same correlating mechanic that makes cross-service troubleshooting possible at all. Traces answer the third question, "where in a chain of services," built from spans that only form one coherent tree because every hop propagates the same trace ID forward. That propagation is automatic for a bare Functions invocation, manual wherever deeper visibility is worth the instrumentation.
 
-None of the three substitutes for another, and the worked walkthrough traced the order that actually works: an alarm names that something's wrong, a log names what the resource did, and a trace names where the time or failure actually originated. Connector Hub is the piece that lets this lesson's own Logging and Monitoring output feed forward into Streaming or Events rather than dead-ending in a dashboard — closing, with this module, every signal Modules `03` through `05` deferred and every service Modules `06` through `09` built.
+None of the three substitutes for another, and the worked walkthrough traced the order that actually works: an alarm names that something's wrong, a log names what the resource did, and a trace names where the time or failure actually originated. Connector Hub is the piece that lets this lesson's own Logging and Monitoring output feed forward into Streaming or Events rather than dead-ending in a dashboard. With this module, it closes every signal Modules `03` through `05` deferred, and every service Modules `06` through `09` built.

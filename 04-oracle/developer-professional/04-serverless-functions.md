@@ -75,7 +75,7 @@ graph TD
 
 *The application supplies what a node used to: a network placement and a config surface shared by everything inside it. The function underneath is where memory, timeout, and the image itself live.*
 
-- **Isolation guarantee**: when functions belonging to *different* applications are invoked at the same time, OCI Functions keeps those executions isolated from each other — a busy function in one application cannot starve or interfere with a function in another, the same isolation boundary a Kubernetes namespace gives you, expressed as an OCI resource instead (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Concepts/functionsavailability.htm)).
+- **Isolation guarantee**: when functions belonging to *different* applications are invoked at the same time, OCI Functions keeps those executions isolated from each other — a busy function in one application cannot starve or interfere with a function in another, the same isolation boundary a Kubernetes namespace gives you, expressed as an OCI resource instead (see Limits and Sources).
 
 ### 2.2 Config resolution: application-level vs. function-level
 
@@ -193,8 +193,6 @@ A function's image is a repository image like any other, so Module `02`'s digest
 - **Database Secret Rotation** — rotates a database credential on a schedule.
 - **Object Storage** — zips or unzips objects in a bucket.
 
-(As of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functions_pbf_catalog.htm).)
-
 The trade is the same managed-vs-control pattern this track keeps naming: a pre-built function costs nothing to write, build, or maintain, but it only ever does exactly what Oracle built it to do — configuration parameters (a bucket name, a target APM domain) are yours to set, the handler logic isn't. Reach for the catalog when the task matches an entry exactly; reach back to *Three ways to get an image* the moment the logic needs to differ even slightly.
 
 ---
@@ -213,7 +211,7 @@ oci fn function invoke \
   --body '{"id": "ord-1042", "total": 58.20}'
 ```
 
-> ⚠️ The Fn Project CLI's `fn invoke` works identically for local development, but Oracle explicitly does not recommend it for production invocation — reach for the OCI CLI, an SDK, or a signed request once the caller is anything other than a developer's own terminal (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionsinvokingfunctions.htm)).
+> ⚠️ The Fn Project CLI's `fn invoke` works identically for local development, but Oracle explicitly does not recommend it for production invocation — reach for the OCI CLI, an SDK, or a signed request once the caller is anything other than a developer's own terminal (see Limits and Sources).
 
 > Nuance: it's easy to conflate "who is allowed to invoke this function" with "what this function can do once it's running." They're separate IAM questions. Invoking requires the *caller* to hold `use`/`manage` permission on the `functions-family` resource; what the function itself can subsequently reach — a bucket, a queue, another function — is governed by the function's own resource principal (*Identity and Reach*, below). A caller with invoke rights but no other grants can still trigger a function whose own permissions are much broader than the caller's.
 
@@ -262,7 +260,7 @@ oci fn function invoke \
   --fn-invoke-type "detached"
 ```
 
-> ⚠️ "Function timeout" sounds like one number, but OCI Functions tracks two distinct ones that only coincide under Sync. **Invocation timeout** is how long the *caller* waits before giving up — for the OCI CLI, the `--read-timeout` global parameter (default 60 seconds), a client-side setting unrelated to the function definition. **Execution timeout** is how long OCI Functions itself allows the function to keep running. Under Sync that's `timeoutInSeconds` from `func.yaml` (default 30s, capped at 300s). Under Detached it's the separate `detachedModeTimeoutInSeconds` field (5–3600 seconds), falling back to `timeoutInSeconds` if unset. A function can legitimately still be executing after its *caller* has already given up — that's what makes Detached the right choice for anything genuinely long-running (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionsinvokingfunctions.htm)).
+> ⚠️ "Function timeout" sounds like one number, but OCI Functions tracks two distinct ones that only coincide under Sync. **Invocation timeout** is how long the *caller* waits before giving up — for the OCI CLI, the `--read-timeout` global parameter (default 60 seconds), a client-side setting unrelated to the function definition. **Execution timeout** is how long OCI Functions itself allows the function to keep running. Under Sync that's `timeoutInSeconds` from `func.yaml` (default 30s, capped at 300s). Under Detached it's the separate `detachedModeTimeoutInSeconds` field (5–3600 seconds), falling back to `timeoutInSeconds` if unset. A function can legitimately still be executing after its *caller* has already given up — that's what makes Detached the right choice for anything genuinely long-running (see Limits and Sources).
 
 Because Detached hands result-handling to the function, it also supports **success and failure destinations** — delivering an invocation record to **Notifications**, **Queue**, or **Streaming** (Modules `06`–`08`) once the run finishes, something Sync has no use for.
 
@@ -273,7 +271,7 @@ Because Detached hands result-handling to the function, it also supports **succe
 - At the 128 MB default, 60 GB ≈ 61,440 MB supports roughly 61,440 ÷ 128 ≈ **480 concurrent containers**.
 - Configure that same function at 1024 MB instead, and the same ceiling supports only 61,440 ÷ 1024 ≈ **60 concurrent containers** — an 8× drop from one memory setting, RAM budget unchanged.
 
-A memory value chosen only for "will my handler fit" quietly sets a concurrency ceiling too (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Concepts/functionsavailability.htm)).
+A memory value chosen only for "will my handler fit" quietly sets a concurrency ceiling too (see Limits and Sources).
 
 ### 4.6 Memory and timeout: the two `func.yaml` dials, with real numbers
 
@@ -281,8 +279,6 @@ Both dials take a fixed set of values, not an arbitrary number:
 
 - **Memory** — one of `128` (default), `256`, `512`, `1024`, `2048`, or `3072` MB. Exceeding it at runtime stops the function and logs an error; it does not throttle or degrade gracefully.
 - **Timeout** — splits by invocation type: Sync defaults to 30 seconds and caps at 300; Detached ranges 5 to 3600 seconds.
-
-(As of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionscustomizing.htm).)
 
 **Selection** is a straight trade against *Concurrency*'s arithmetic: pick the smallest memory value the handler actually needs — both because you're billed for what you reserve, and because a smaller reservation buys more concurrent headroom out of the same RAM ceiling. Pick Sync when a caller needs the result in the same call; pick Detached the moment the work might outlast a reasonable client wait, or needs a success/failure record delivered somewhere.
 
@@ -298,8 +294,6 @@ Both dials take a fixed set of values, not an arbitrary number:
 | 1024 MB | 10 |
 | 2048 MB | 10 |
 | 3072 MB | 10 |
-
-(As of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionsusingprovisionedconcurrency.htm).)
 
 ```bash
 # Reserves 20 always-warm containers at this function's configured memory —
@@ -330,7 +324,7 @@ oci resource-scheduler schedule create \
 - The cron expression is standard five-field syntax (`0 */2 15 * *` fires every two hours on the 15th of each month, for instance).
 - **Every schedule-triggered invocation runs Detached, not a configurable choice** — there's no caller present to receive a `200` synchronously, so the function's own success/failure destination is how a scheduled run's result reaches anywhere at all.
 
-> ⚠️ **Resource Scheduler runs entirely in UTC** and does not shift for daylight saving time — a schedule written against "9am local" silently drifts by an hour twice a year unless the cron expression itself is written in UTC from the start (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/resource-scheduler/tasks/create-manage.htm)).
+> ⚠️ **Resource Scheduler runs entirely in UTC** and does not shift for daylight saving time — a schedule written against "9am local" silently drifts by an hour twice a year unless the cron expression itself is written in UTC from the start (see Limits and Sources).
 
 ---
 
@@ -363,7 +357,7 @@ namespace = object_storage.get_namespace().data
 object_storage.put_object(namespace, "orders-receipts", "ord-1042.json", receipt_bytes)
 ```
 
-Underneath that call sits a **Resource Principal Session Token (RPST)** — a signed token the runtime hands the SDK, cached for roughly 15 minutes. A policy change granting or revoking access does not take effect on a running function until that cache turns over, so a permission fix can appear to "not be working" for up to 15 minutes after it was applied (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionsaccessingociresources.htm)).
+Underneath that call sits a **Resource Principal Session Token (RPST)** — a signed token the runtime hands the SDK, cached for roughly 15 minutes. A policy change granting or revoking access does not take effect on a running function until that cache turns over, so a permission fix can appear to "not be working" for up to 15 minutes after it was applied (see Limits and Sources).
 
 ### 5.2 Networking: the subnet decides what a function can reach
 
@@ -372,11 +366,11 @@ Underneath that call sits a **Resource Principal Session Token (RPST)** — a si
 - A function in a subnet with a path to a **Database as a Service** instance can reach it directly.
 - Reaching Object Storage or another OCI service needs the subnet to route through a **service gateway** rather than the public internet — the standard OCI pattern for private access to Oracle-managed services from inside a VCN.
 
-> Note: Best practice is a **regional subnet** rather than one tied to a single availability domain. OCI Functions' own control and data planes are spread across availability and fault domains for resiliency, and a regional subnet lets a function keep running in another domain if one becomes unavailable — a subnet pinned to a single domain goes down with it instead (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Concepts/functionsavailability.htm)).
+> Note: Best practice is a **regional subnet** rather than one tied to a single availability domain. OCI Functions' own control and data planes are spread across availability and fault domains for resiliency, and a regional subnet lets a function keep running in another domain if one becomes unavailable — a subnet pinned to a single domain goes down with it instead (see Limits and Sources).
 
 ### 5.3 Container permissions: what the process itself can do
 
-**The resource principal governs what a function can reach *in OCI*; container permissions govern what the process can do *on its own host* — an orthogonal control.** Every function container starts as a fixed unprivileged user — `fn`, UID and GID 1000 — with none of Docker's default Linux capabilities granted, so the container cannot escalate privileges even if the image itself tries to run as root (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionsrunningasunprivileged.htm)).
+**The resource principal governs what a function can reach *in OCI*; container permissions govern what the process can do *on its own host* — an orthogonal control.** Every function container starts as a fixed unprivileged user — `fn`, UID and GID 1000 — with none of Docker's default Linux capabilities granted, so the container cannot escalate privileges even if the image itself tries to run as root (see Limits and Sources).
 
 > Nuance: an unprivileged, capability-stripped container still needs *somewhere* to write scratch files — a handler that shells out to a tool expecting a writable working directory would otherwise fail outright. `/tmp` is that one exception: always writable, sized against the function's own configured memory (*Memory and timeout*, above), so a function given more memory also gets more `/tmp` scratch space as a side effect of that same dial.
 
@@ -436,6 +430,9 @@ Had `order-receipt-fn` been invoked with `--fn-invoke-type detached` instead, st
 | The RPST caches for roughly 15 minutes | A policy fix can appear to fail for up to that long after being applied | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionsaccessingociresources.htm) |
 | Resource Scheduler runs in UTC only, no daylight-saving adjustment | A schedule meant for local wall-clock time must be written in UTC from the start | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/resource-scheduler/tasks/create-manage.htm) |
 | Pre-Built Functions: configuration is yours, handler logic is fixed | The moment the task needs to differ from a catalog entry, it's back to a build path | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functions_pbf_catalog.htm) |
+| OCI Functions isolates execution across different applications | A busy function in one application cannot starve or interfere with one in another | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Concepts/functionsavailability.htm) |
+| A regional subnet, not an AD-specific one, is best practice for a Functions application | Lets a function keep running in another domain if one becomes unavailable | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Concepts/functionsavailability.htm) |
+| Every function container runs as a fixed unprivileged user (`fn`, UID/GID 1000) with no Docker Linux capabilities granted | The container can't escalate privileges even if the image tries to run as root | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionsrunningasunprivileged.htm) |
 
 > Note: A resource principal grant is inert until your own code assumes it (covered inline at *The third replacement: identity*), idle-container teardown has no fixed published duration (don't design around a specific "warm for N minutes" number), and a Functions deployment-pipeline environment always releases rolling-style — the same instance-group constraint Module `01` named, since there's no standby half to switch to. **Container Instances** is a fourth point on this spectrum, not covered here: a single always-on container with no cluster and no Functions-style scale-to-zero — worth knowing it exists as the middle ground between a virtual node and a function.
 
@@ -445,6 +442,6 @@ Had `order-receipt-fn` been invoked with `--fn-invoke-type detached` instead, st
 
 OCI Functions removes the node entirely, and every distinctive behavior in this lesson traces back to that one fact. The **application** takes over the node's placement job — subnet, shared config, an isolation boundary between applications — while the individual function carries its own image, memory, and timeout. Where a node used to provide an always-on host, a function's container is ephemeral by design: a cold start on first demand, warm reuse while traffic keeps arriving, and removal after it stops.
 
-Invocation splits along two axes worth keeping straight: *how* a call arrives (direct CLI/SDK/HTTP, or invoked by another service like an Events rule or an API Gateway route) and *which type* it specifies (Sync, waiting for a same-call result, or Detached, returning control immediately and routing its result elsewhere). Concurrency and memory are coupled through one shared ceiling — a per-availability-domain RAM reservation that a function's own memory setting divides into — and provisioned concurrency is the deliberate, continuously-billed trade against ever paying that cold start.
+Invocation splits along two axes: *how* a call arrives — directly via CLI/SDK/HTTP, or triggered by another service — and *which type* it specifies, Sync or Detached. Concurrency and memory share one ceiling, a per-availability-domain RAM reservation that a function's own memory setting divides into. Provisioned concurrency is the deliberate, continuously-billed trade against ever paying that cold start.
 
-The identity story is the sharpest contrast with everything Module `03` covered: no Kubernetes-style secret, no node-level credential — a function assumes a **resource principal** in its own code, authorized through the same dynamic-group-and-policy pattern Module `01` used for build pipelines and Module `02` used for OCIR pushes. Module `05`'s API Gateway is the next place this exact function gets invoked from, this time fronted by a gateway route rather than a bare CLI call; Module `09` returns to the image this lesson built for the scanning and signing depth deferred earlier.
+The identity story is the sharpest contrast with everything Module `03` covered: no Kubernetes-style secret, no node-level credential. A function assumes a **resource principal** in its own code instead, authorized through the same dynamic-group-and-policy pattern Module `01` used for build pipelines and Module `02` used for OCIR pushes. Module `05`'s API Gateway is the next place this exact function gets invoked from, this time fronted by a gateway route rather than a bare CLI call; Module `09` returns to the image this lesson built for the scanning and signing depth deferred earlier.

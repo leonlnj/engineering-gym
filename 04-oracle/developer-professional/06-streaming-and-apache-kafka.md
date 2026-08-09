@@ -29,7 +29,7 @@ OCI ships two distinct products under the streaming umbrella, and the natural as
 
 **A partition is where ordering is actually guaranteed** — strictly within one partition, never across a whole stream. Splitting a stream into more partitions is also the *only* way to add write throughput and parallel consumers, because each partition is an independent append log with its own throughput ceiling (*Producing*, below, quantifies it).
 
-> ⚠️ **Partition count and retention are fixed at stream creation and cannot be changed afterward** (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Streaming/Concepts/streamingoverview_topic-Limits_on_Streaming_Resources.htm)). Under-provisioning partitions isn't a config tweak to fix later — it's a new stream and a producer/consumer migration. Size for peak throughput, not today's volume.
+> ⚠️ **Partition count and retention are fixed at stream creation and cannot be changed afterward** (see Limits and Sources). Under-provisioning partitions isn't a config tweak to fix later — it's a new stream and a producer/consumer migration. Size for peak throughput, not today's volume.
 
 ### 1.3 Stream pool: the shared settings and endpoint boundary
 
@@ -105,7 +105,7 @@ stream_client.put_messages(
 
 ### 2.3 The throughput ceiling, and what it forces
 
-**Each partition caps writes at 1 MB/second** (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Streaming/Concepts/streamingoverview_topic-Limits_on_Streaming_Resources.htm)) — a 4-partition stream like `order-events` has an aggregate write ceiling of ~4 MB/s, or roughly 345 GB/day if every partition ran flat-out. There's no per-request rate limit on top of that; any number of `PutMessages` calls is fine as long as the 1 MB/s-per-partition sum isn't exceeded.
+**Each partition caps writes at 1 MB/second** (see Limits and Sources) — a 4-partition stream like `order-events` has an aggregate write ceiling of ~4 MB/s, or roughly 345 GB/day if every partition ran flat-out. There's no per-request rate limit on top of that; any number of `PutMessages` calls is fine as long as the 1 MB/s-per-partition sum isn't exceeded.
 
 Because partition count is fixed at creation (*Stream: an append-only, partitioned log*, above), the only way to raise that ceiling is to create a new stream with more partitions and repoint every producer at it — there's no live "add a partition" operation to reach for instead.
 
@@ -155,7 +155,7 @@ oci streaming stream message get-messages \
 
 ### 3.4 The read ceiling, and what it forces
 
-**Each consumer group is capped at 5 `GetMessages` calls/second per partition** (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Streaming/Concepts/streamingoverview_topic-Limits_on_Streaming_Resources.htm)) — with up to 50 consumer groups allowed on one stream, a single busy partition could in principle field 250 GET calls/second total, but any one group is still bound by its own 5/s. The ceiling forces batching: pulling up to 100 messages per call (as shown above) rather than polling in a tight per-message loop is what keeps a consumer under its own rate limit while still keeping up with a busy partition.
+**Each consumer group is capped at 5 `GetMessages` calls/second per partition** (see Limits and Sources) — with up to 50 consumer groups allowed on one stream, a single busy partition could in principle field 250 GET calls/second total, but any one group is still bound by its own 5/s. The ceiling forces batching: pulling up to 100 messages per call (as shown above) rather than polling in a tight per-message loop is what keeps a consumer under its own rate limit while still keeping up with a busy partition.
 
 ---
 
@@ -165,7 +165,7 @@ Sections 2 and 3 covered writing and reading a message once; this section covers
 
 ### 4.1 Retention: a fixed window, not a growing archive
 
-**Every stream retains messages for a configured window between 24 and 168 hours** (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Streaming/Concepts/streamingoverview_topic-Limits_on_Streaming_Resources.htm)), set once at creation alongside partition count and equally immutable afterward. A stream is not a permanent event store — anything not read (or replayed) before the window closes is gone for good.
+**Every stream retains messages for a configured window between 24 and 168 hours** (see Limits and Sources), set once at creation alongside partition count and equally immutable afterward. A stream is not a permanent event store — anything not read (or replayed) before the window closes is gone for good.
 
 ### 4.2 Replay is a cursor, not a re-publish
 
@@ -237,7 +237,7 @@ A starter cluster's single-replica defaults mean a broker failure can lose unflu
 
 ### 6.2 Broker sizing and per-tenancy ceilings
 
-**A tenancy is capped at 5 clusters and 150 brokers total** (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/kafka/concepts.htm)), with each broker holding up to 16 TB of storage and each cluster capped at 30 brokers. An internal **coordinator cluster** — one node for two or fewer brokers, three nodes otherwise — tracks cluster-wide activity and isn't counted against the broker limit; it's infrastructure Oracle runs, not a resource you provision.
+**A tenancy is capped at 5 clusters and 150 brokers total** (see Limits and Sources), with each broker holding up to 16 TB of storage and each cluster capped at 30 brokers. An internal **coordinator cluster** — one node for two or fewer brokers, three nodes otherwise — tracks cluster-wide activity and isn't counted against the broker limit; it's infrastructure Oracle runs, not a resource you provision.
 
 ### 6.3 Supported versions and the KRaft cutover
 
@@ -250,7 +250,7 @@ A starter cluster's single-replica defaults mean a broker failure can lose unflu
 | 3.7.0 | Aug 2025 | May 2026 — **deprecated** |
 | 3.6.1 / 3.6.0 | Aug 2025 | Apr 2026 — **deprecated** |
 
-(As of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/kafka/versions.htm).) **3.7.0 and both 3.6.x builds have already passed end of life** — a cluster still running one of them is unsupported, not merely outdated, and should be upgraded rather than left in place. From 4.0.0 onward, **KRaft is the only coordination mode**; earlier supported versions still coordinate through ZooKeeper, which Oracle operates as part of the managed cluster rather than exposing as something you configure.
+**3.7.0 and both 3.6.x builds have already passed end of life** — a cluster still running one of them is unsupported, not merely outdated, and should be upgraded rather than left in place. From 4.0.0 onward, **KRaft is the only coordination mode**; earlier supported versions still coordinate through ZooKeeper, which Oracle operates as part of the managed cluster rather than exposing as something you configure.
 
 ### 6.4 Security: SASL/SCRAM, mTLS, and ACLs
 
@@ -266,7 +266,7 @@ sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule require
   username="<username>" password="<password>";
 ```
 
-Mutual TLS (mTLS) and Kafka access-control lists (ACLs) are both supported on top of that, giving this service Kafka-native authorization that serverless Streaming's IAM-only model doesn't offer. Customer-managed encryption keys and OAuth are **not** supported (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/kafka/concepts.htm)) — encryption at rest uses an Oracle-managed key regardless of what the rest of the tenancy uses elsewhere.
+Mutual TLS (mTLS) and Kafka access-control lists (ACLs) are both supported on top of that, giving this service Kafka-native authorization that serverless Streaming's IAM-only model doesn't offer. Customer-managed encryption keys and OAuth are **not** supported (see Limits and Sources) — encryption at rest uses an Oracle-managed key regardless of what the rest of the tenancy uses elsewhere.
 
 ### 6.5 Networking: private by default, public through an add-on
 
@@ -274,7 +274,7 @@ Mutual TLS (mTLS) and Kafka access-control lists (ACLs) are both supported on to
 
 ### 6.6 The broker disk-quota behavior
 
-> ⚠️ **A broker throttles producers at 97% disk capacity and blocks them outright at 98%** (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/kafka/concepts.htm)) — but consumers keep reading at either threshold. The asymmetry is deliberate: a full disk crashing the broker would also stop consumers from draining the backlog that caused the problem, so writes are cut off first specifically to let reads keep working.
+> ⚠️ **A broker throttles producers at 97% disk capacity and blocks them outright at 98%** (see Limits and Sources) — but consumers keep reading at either threshold. The asymmetry is deliberate: a full disk crashing the broker would also stop consumers from draining the backlog that caused the problem, so writes are cut off first specifically to let reads keep working.
 
 ---
 
@@ -289,7 +289,7 @@ Sections 1–4 and 6 each described a working system on its own; this section is
 | Backend | Operational burden | Ecosystem/API completeness | Choose it when |
 | :--- | :--- | :--- | :--- |
 | Serverless Streaming | None — no brokers to size or patch | Kafka-*compatible* API only; no custom connectors, no native ksqlDB | Throughput fits partition math and you don't need Kafka-native tooling |
-| Streaming with Apache Kafka | Oracle patches, scales, and replicates; you size the cluster | Real Kafka brokers, but still **no custom connectors, no native ksqlDB support** (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/kafka/concepts.htm)) | You need genuine Kafka semantics (ACLs, transactions, broker-level tuning) without running brokers yourself |
+| Streaming with Apache Kafka | Oracle patches, scales, and replicates; you size the cluster | Real Kafka brokers, but still **no custom connectors, no native ksqlDB support** (see Limits and Sources) | You need genuine Kafka semantics (ACLs, transactions, broker-level tuning) without running brokers yourself |
 | Self-managed Kafka | You patch, scale, and replicate everything | Full open-source ecosystem — any connector, ksqlDB, any Kafka version | The pipeline depends on a specific connector or ecosystem tool neither OCI service supports |
 
 > Nuance: "managed" on Streaming with Apache Kafka does not mean "full Kafka feature set." Custom connectors and native ksqlDB are unsupported on *both* OCI services — reaching for the clustered product over serverless Streaming buys real broker semantics, not those two capabilities specifically.
@@ -360,6 +360,8 @@ sequenceDiagram
 | Streaming with Apache Kafka: 5 clusters, 150 brokers/tenancy; 30 brokers/cluster max | Bounds how many independent Kafka clusters and how large any one can grow before a limit increase request | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/kafka/concepts.htm) |
 | Broker producer throttling at 97% disk, blocked at 98% | Writes are cut off before reads are, so consumers can keep draining the backlog that caused the pressure | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/kafka/concepts.htm) |
 | Kafka 3.7.0 and 3.6.x are past end of life; 4.0.0 and 3.9.1 are current | A cluster on an EOL version is unsupported and should be upgraded, not left running | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/kafka/versions.htm) |
+| Streaming with Apache Kafka doesn't support customer-managed encryption keys or OAuth | Encryption at rest always uses an Oracle-managed key regardless of tenancy-wide key policy | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/kafka/concepts.htm) |
+| Neither serverless Streaming nor Streaming with Apache Kafka supports custom Kafka Connect connectors or native ksqlDB | A pipeline needing either goes to self-managed Kafka, regardless of which OCI option it started on | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/kafka/concepts.htm) |
 
 > Note: Serverless Streaming vs. managed Kafka clusters vs. self-managed Kafka is a trade-off, not a limit — covered inline at *Choosing a Streaming Backend*: operational burden falls as ecosystem completeness (custom connectors, ksqlDB, ACL-based authorization) rises. SASL/PLAIN-with-auth-token (serverless Streaming) vs. SASL/SCRAM (Streaming with Apache Kafka) is the authentication contrast worth remembering — covered inline at *Security: SASL/SCRAM, mTLS, and ACLs*.
 
@@ -367,8 +369,8 @@ sequenceDiagram
 
 ## 10. Summary
 
-OCI Streaming is a serverless, partitioned append-only log: partitions carry both the ordering guarantee and the throughput ceiling, a stream pool groups streams under shared settings, and every message stays readable by any number of independent consumer groups until retention closes. Producing is keyed by an identity like `orderId` so related events land in order on one partition; consuming tracks progress through a group cursor the service manages, and replay is nothing more than a new cursor pointed at an old position — the log itself never moves.
+OCI Streaming is a serverless, partitioned append-only log. A stream pool groups streams under shared settings, and every message stays readable by any number of independent consumer groups until retention closes. Producing is keyed by an identity like `orderId`, so related events land in order on one partition. Consuming tracks progress through a group cursor the service manages, and replay is nothing more than a new cursor pointed at an old position — the log itself never moves.
 
-Streaming with Apache Kafka is a different product entirely: real, managed Kafka brokers, chosen as starter or HA at creation, authenticated with SASL/SCRAM instead of an auth token, and capable of ACLs and mTLS that serverless Streaming's IAM-only model doesn't offer. Neither OCI service supports custom connectors or native ksqlDB, which is what ultimately pushes a pipeline past both toward self-managed Kafka.
+Streaming with Apache Kafka is a different product entirely: real, managed Kafka brokers, chosen as starter or HA at creation. It authenticates with SASL/SCRAM instead of an auth token, and it supports ACLs and mTLS that serverless Streaming's IAM-only model doesn't offer. Neither OCI service supports custom connectors or native ksqlDB, though, which is what ultimately pushes a pipeline past both toward self-managed Kafka.
 
 Choosing between the three is an operational-burden-versus-ecosystem-completeness trade-off, not a "which is bigger" question — most workloads never need to leave serverless Streaming at all. Module `08` returns to Streaming as one of several targets a rule can route an event to; Module `10` is where a stream's own metrics and logs finally get analysed rather than just produced.

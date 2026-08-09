@@ -23,7 +23,7 @@ The natural assumption, coming from Streaming and Queue, is that Events works th
 
 ### 1.1 Sources: every producing service, not something you provision
 
-**A source is any OCI service that emits state-change events, and sources aren't a resource you create.** Object Storage, Compute, database services, and dozens of others already emit events the moment something changes on them — a bucket is created, an instance stops, a backup completes — whether or not any rule is listening (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Concepts/eventsoverview.htm)).
+**A source is any OCI service that emits state-change events, and sources aren't a resource you create.** Object Storage, Compute, database services, and dozens of others already emit events the moment something changes on them — a bucket is created, an instance stops, a backup completes — whether or not any rule is listening.
 
 ### 1.2 Rule: filter plus action, the one resource you actually build
 
@@ -85,8 +85,6 @@ The resource model above named the pieces; this section is the concrete artifact
   }
 }
 ```
-
-(As of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Reference/eventenvelopereference.htm).)
 
 ### 2.2 `extensions.compartmentId` vs. `data.compartmentId`
 
@@ -198,7 +196,7 @@ The resource model above named a rule as compartment-scoped; this section is wha
 
 ### 5.4 Metrics and troubleshooting: finding *where* a rule stopped working
 
-**Four metrics in the `oci_cloudevents` namespace form a funnel, and comparing adjacent stages is how you localize a failure without guessing** — `PublishedEvents`, `MatchedEvents`, `DeliverySucceedEvents`, and `DeliveryFailedEvents` (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Reference/eventsmetrics.htm)). Each metric answers a narrower question than the one before it, so where the count drops off names the failure.
+**Four metrics in the `oci_cloudevents` namespace form a funnel, and comparing adjacent stages is how you localize a failure without guessing** — `PublishedEvents`, `MatchedEvents`, `DeliverySucceedEvents`, and `DeliveryFailedEvents` (see Limits and Sources). Each metric answers a narrower question than the one before it, so where the count drops off names the failure.
 
 | Compare | If it drops here | Likely cause |
 | :--- | :--- | :--- |
@@ -302,8 +300,8 @@ sequenceDiagram
 
 ## 10. Summary
 
-An Events rule is push-only: it matches a CloudEvents-shaped envelope the instant a service emits it and routes a match to exactly one of three actions — Functions, Streaming, or Notifications — with no cursor, no backlog, and no way to catch an event that fired before the rule existed. Filtering narrows what a rule reacts to through `eventType`, attribute matching inside `data`, or tag matching across resource types, and IAM here grants the Events service itself as the caller, not a dynamic group of your own resources the way every other service in this track has.
+An Events rule is push-only: it matches a CloudEvents-shaped envelope the instant a service emits it and routes a match to exactly one of three actions — Functions, Streaming, or Notifications. There's no cursor, no backlog, and no way to catch an event that fired before the rule existed. Filtering narrows what a rule reacts to through `eventType`, attribute matching inside `data`, or tag matching across resource types. IAM here grants the Events service itself as the caller, not a dynamic group of your own resources the way every other service in this track has.
 
-More than one rule can match the same event, each firing independently with no coordination or shared ordering between them — fan-out is the default, not an edge case. Routing an event into a Streaming action is the common way to gain durability and replay that Events itself deliberately doesn't provide, which is exactly what the worked walkthrough traced: a receipt upload event feeding both a stream and a human notification, from one Object Storage write `order-receipt-fn` never had to know about.
+More than one rule can match the same event, each firing independently with no coordination or shared ordering between them — fan-out is the default, not an edge case. Routing an event into a Streaming action is the common way to gain durability and replay that Events itself deliberately doesn't provide. The worked walkthrough traced exactly that: a receipt upload event feeding both a stream and a human notification, from one Object Storage write `order-receipt-fn` never had to know about.
 
-Choosing between Events, Queue, and Streaming comes down to what triggers the reaction and what happens when nothing is listening yet: a state change an OCI service already produced (Events), a discrete work item one worker should own (Queue), or a history multiple independent readers need their own replayable view of (Streaming). A rule that stops working localizes to one of three funnel stages — matching, delivery, or the action's own health — through the `PublishedEvents`, `MatchedEvents`, and delivery metrics this lesson already covers; Module `09` turns to securing everything this track has built so far, and Module `10` is where the rest of the system's metrics and logs join those in one troubleshooting picture.
+Choosing between Events, Queue, and Streaming comes down to what triggers the reaction and what happens when nothing is listening yet: a state change an OCI service already produced (Events), a discrete work item one worker should own (Queue), or a history multiple independent readers need their own replayable view of (Streaming). A rule that stops working localizes to one of three funnel stages — matching, delivery, or the action's own health — through the metrics this lesson already covers. Module `09` turns to securing everything this track has built so far; Module `10` is where the rest of the system's metrics and logs join those in one troubleshooting picture.

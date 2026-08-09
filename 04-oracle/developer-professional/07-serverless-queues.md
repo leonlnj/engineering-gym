@@ -62,7 +62,7 @@ The resource model above is static; this section is what actually happens to a m
 
 ### 2.1 Put: publishing a message
 
-**A `PutMessages` call accepts up to 20 messages and 512 KB per request** (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm)) — batching several small messages into one call is the normal path, not an edge case.
+**A `PutMessages` call accepts up to 20 messages and 512 KB per request** (see Limits and Sources) — batching several small messages into one call is the normal path, not an edge case.
 
 ```bash
 oci queue-messages message put-messages \
@@ -128,9 +128,9 @@ The message lifecycle above operates on one anonymous queue; channels are how on
 
 ### 3.4 Channel capacity and the 256-per-queue ceiling
 
-**Up to 256 channels can exist on one queue** (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm)), and a queue-level *channel capacity* setting caps how much of the queue's overall throughput any single channel can consume — so one noisy channel can't starve the other 255.
+**Up to 256 channels can exist on one queue** (see Limits and Sources), and a queue-level *channel capacity* setting caps how much of the queue's overall throughput any single channel can consume — so one noisy channel can't starve the other 255.
 
-> Nuance: **channels** and **consumer groups** are two different, separately-capped concepts that sound alike. A channel is a message-routing destination — how a publisher addresses a subset of the queue. A **consumer group** is a distinct resource governed separately by **Identity and Access Management (IAM)** policy (its own `QUEUE_CONSUMER_GROUP_*` permissions — *IAM and Access Control*, below), capped at 10 per queue (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm)) — don't conflate the 256-channel ceiling with the 10-consumer-group one; they bound different things.
+> Nuance: **channels** and **consumer groups** are two different, separately-capped concepts that sound alike. A channel is a message-routing destination — how a publisher addresses a subset of the queue. A **consumer group** is a distinct resource governed separately by **Identity and Access Management (IAM)** policy (its own `QUEUE_CONSUMER_GROUP_*` permissions — *IAM and Access Control*, below), capped at 10 per queue (see Limits and Sources) — don't conflate the 256-channel ceiling with the 10-consumer-group one; they bound different things.
 
 ---
 
@@ -181,7 +181,7 @@ Sections 2–4 covered one message's mechanics; this section is what those mecha
 
 ### 5.3 The in-flight ceiling as backpressure
 
-**A queue caps in-flight (leased but undeleted) messages at 100,000** (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm)). Once that ceiling is hit, further `Get` calls simply return nothing new until existing leases are deleted or expire — a slow consumer pool throttles new deliveries automatically, rather than the queue growing an unbounded backlog of outstanding leases.
+**A queue caps in-flight (leased but undeleted) messages at 100,000** (see Limits and Sources). Once that ceiling is hit, further `Get` calls simply return nothing new until existing leases are deleted or expire — a slow consumer pool throttles new deliveries automatically, rather than the queue growing an unbounded backlog of outstanding leases.
 
 ### 5.4 Crash mid-processing: the timeout *is* the recovery mechanism
 
