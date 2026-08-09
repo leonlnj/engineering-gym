@@ -149,7 +149,7 @@ rhythm*).>
 - Separate every major section (`## N.`) with a `---` horizontal rule.
 - Top-level sections use `## N.` (e.g. `## 1.`, `## 2.`).
 - Sub-sections use `### N.M` (e.g. `### 1.1`, `### 2.3`). Never use `##` for a sub-section — it renders as a top-level section.
-- **Decompose each major section into `### N.M` sub-sections.** A `## N.` section that is one undivided block of prose is almost always under-developed — break it into the two-to-four mechanical parts it is really made of, each with its own sub-heading, explanation, and (where it helps) snippet or diagram.
+- **Decompose each major section into `### N.M` sub-sections.** A `## N.` section that is one undivided block of prose is under-developed only when the *subject* genuinely has more than one mechanical part to it — break it into the two-to-four parts it is really made of, each with its own sub-heading, explanation, and (where it helps) snippet or diagram. A short, genuinely single-mechanism topic stays undivided; don't invent sub-parts just to satisfy this rule (see §2's proportional depth bar).
 - **Open with a `## Contents` list of the top-level `## N.` sections** (not `### N.M` sub-sections), placed right after the intro's `---` and before `## 1.`. A real Markdown ordered list, number as the list marker only — don't also repeat it in the link text (e.g. `1. [Tokens: The Unit the Model Sees](#1-tokens-the-unit-the-model-sees)`, not `- [1. Tokens...]`). Generate it in the final Self-Review sweep (§8), not while drafting — see §7 for the anchor-slug rule.
 - **Never add a standalone "why this matters" section.** The why belongs inside the section where the mechanism is introduced (§3.1); the Summary is the only place for restatement.
 
@@ -168,6 +168,10 @@ These notes are for *learning a topic deeply*, not skimming it. The bar below is
 - **Depth proportional to prominence.** The concept the lesson headlines must be the *most* thoroughly developed. If a secondary topic carries concrete techniques while the headline gets only a definition and a diagram, the lesson is inverted — deepen the headline.
 
 > Note: Depth is not length for its own sake. Every sub-section, snippet, diagram, and number must teach a distinct mechanic the reader did not already have. If a paragraph only restates something or pads the count, cut it. A tight lesson that teaches ten real mechanics beats a longer one that teaches six and repeats them.
+
+**The bar is proportional, not a quota.** "6+ snippets, 2–3 diagrams" describes a subject with real surface area to cover — it is not a floor every topic must be padded up to reach. A service with a small, genuinely simple surface earns a short lesson; that is the bar correctly met, not under-development. Padding a thin OCI topic out to a fixed count is itself a depth-bar failure, and it has a specific failure mode worth naming: the only material available to fill a thin topic out is usually generic, vendor-neutral background — re-explaining Docker, REST, or pub/sub instead of the OCI service at hand. Reaching for that material to hit a count is exactly the kind of padding the note above already forbids; don't let a `## N.` section expand just because it is short. It expands only when the *subject itself* has more real surface than the current draft shows — never merely to satisfy a number.
+
+There is deliberately no maximum word count either. Length is a **diagnostic trigger, not a limit**: a long lesson or section should prompt the question *"is this length carrying distinct OCI mechanics, or generic background and clause-chained prose?"* — only the second answer calls for a cut (see §3.13's Cut pass).
 
 ---
 
@@ -285,6 +289,40 @@ Bad: "An LLM is a next-token predictor: text is split into sub-word tokens, each
 
 Good: "An LLM predicts one token at a time. Text is split into sub-word tokens, and each token ID is looked up as an embedding — a point in space that encodes meaning. Attention then weighs which tokens matter to each other, and inference loops through scoring logits, softmaxing to probabilities, and sampling a token to produce output." *(same content, one idea per sentence)*
 
+### 3.13 One layer per sentence; shape picks the container
+
+§3.12 splits sentences that stack clauses. This section is about *why* they stack in the first place: a sentence carrying two or more distinct **layers** — a resource and its IAM policy, a limit and the strategy it forces, an API and the retry semantics behind it, three parallel options and their trade-offs — is not one idea wearing extra clauses. It is several ideas that were never given their own container. Cutting words from a sentence like that doesn't fix it; the fix is recognizing what *kind* of content it is and routing it to the container built for that kind.
+
+- **One layer per sentence.** A sentence may name things from one layer only. The moment it reaches for a second layer, it becomes a new sentence, a new bullet, or a new row — never an appended clause.
+- **Classify before you write.** Before drafting a passage, ask what kind of content it is. Prose earns its place only for *causal* explanation — why something is built this way, what it costs, how one thing leads to another. Anything that is fundamentally a **set** — of items, steps, states, or comparisons — belongs in a container built for sets, not narrated in a sentence.
+
+| What you're about to write | Container | Never |
+| :--- | :--- | :--- |
+| 3+ parallel items | Bulleted list | A semicolon chain |
+| Items compared on 2+ dimensions | Table | Prose enumeration |
+| An ordered sequence of operations | Numbered steps, or a snippet | A comma-joined verb list |
+| States and transitions | Table or `stateDiagram-v2` | A run-on definition chain |
+| A constraint, trap, or failure mode | `> ⚠️` / `> Note:` callout | An em-dash aside |
+| A concrete form (API call, config, payload) | Fenced snippet | A description of it |
+| *Why* it works this way; a trade-off | Prose, 1–3 sentences | — |
+
+Two mechanical habits reliably signal a sentence carrying more than it should:
+
+- **At most one aside per sentence.** A single paired em-dash — like this one — marking one interruption is standard punctuation, not a violation; the failure mode is a *second*, independent em-dash (paired or trailing) tacking on another mechanism after the first aside closes, or after "and". A sentence with two unrelated dash-marked ideas is very often two sentences that should be split apart, or content that belongs in the table above.
+- **Keep citations out of prose sentences.** A `(as of <date>, [docs](…))` tag belongs in the Limits and Sources table (or, under `deep-prose` mode, the Practical Limits and Trade-offs section) — not inlined into an explanatory sentence, where it adds a clause the reader has to parse past to reach the point.
+
+Bad: "A connector reads from one source, optionally runs a task, and writes to one target — Logging, Monitoring, Queue, or Streaming as a source; Functions, Streaming, Notifications, Object Storage, Monitoring, or Log Analytics as a target; an optional Functions task for custom processing, or a Logging task to filter before delivery (as of Jul 2026, [docs](…))." *(a three-column table — source options, target options, task options — written as one 60-word sentence)*
+
+Good: "A connector reads from one source, optionally runs a task, and writes to one target." Then a table:
+
+| Role | Options |
+| :--- | :--- |
+| Source | Logging, Monitoring, Queue, Streaming |
+| Task (optional) | Functions (custom processing), Logging (filter before delivery) |
+| Target | Functions, Streaming, Notifications, Object Storage, Monitoring, Log Analytics |
+
+*(the figure's as-of date and doc link move to the Limits and Sources table)*
+
 ---
 
 ## 4. Diagrams
@@ -376,6 +414,16 @@ Before a lesson is done, read it once *as someone seeing the topic for the first
 - [ ] **Currency & deprecation** (§3.9) — volatile facts verified; superseded mechanisms marked deprecated, not omitted or taught as current.
 - [ ] **Internal references resolve** (§7) — every same-file reference resolves; no leftover placeholders or bare `§N.M`.
 - [ ] **TOC present and resolves** (§1) — ordered list of top-level sections, number not repeated in link text, slugs match headings.
-- [ ] **Depth bar met** (§2) — sub-sections throughout, 6+ snippets, 2–3 diagrams, a walkthrough that goes beyond the minimal toy case, concrete numbers, both internal and operational depth.
+- [ ] **Depth bar met** (§2) — sub-sections throughout (proportional to the subject, not padded), 6+ snippets, 2–3 diagrams, a walkthrough that goes beyond the minimal toy case, concrete numbers, both internal and operational depth.
+
+**Shape** (§3.13 — the items above catch missing content; these catch content in the wrong container):
+
+- [ ] **One layer per sentence** — no sentence names things from two distinct layers (a resource and its policy, a limit and the strategy it forces, a step and its trade-off).
+- [ ] **Sets are in containers** — every enumeration of 3+ parallel items, every ordered sequence, every state/transition set is a list, table, numbered walkthrough, or diagram — never a sentence.
+- [ ] **Every subsection is scannable** (mode) — each `### N.M` carries a table, snippet, diagram, callout, or short bullet list, or is short enough to scan in one glance.
+- [ ] **Paragraphs are short** (§3.12 / mode) — check the Summary and `> Nuance:`/`> Note:` callouts first; that's where density hides.
+- [ ] **Citation hygiene** (§3.13) — no inline as-of/doc citation sits inside a prose sentence; it's in the Limits table or the Practical Limits section instead.
+
+**Cut pass** (the counterweight to the rest of this checklist, which is otherwise entirely additive): name the **three lowest-value passages** in the lesson and delete or compress each. A passage qualifies if it restates a table or diagram already on the page, re-teaches something the stated audience already knows, or narrates a transferable pattern without adding a mechanic specific to this lesson's subject. A lesson that passes every item above but skips this one is very likely padded.
 
 If a reader still has to re-read a passage to follow it, the passage — not the reader — is the problem.

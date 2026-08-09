@@ -8,12 +8,11 @@
 
 1. [The Five Pillars, and Where They Live on OCI](#1-the-five-pillars-and-where-they-live-on-oci)
 2. [Microservice Architecture](#2-microservice-architecture)
-3. [The Twelve-Factor Methodology](#3-the-twelve-factor-methodology)
-4. [The OCI DevOps Service](#4-the-oci-devops-service)
-5. [Worked Walkthrough: One Commit to OKE](#5-worked-walkthrough-one-commit-to-oke)
-6. [OCI Code Editor](#6-oci-code-editor)
-7. [Limits and Sources](#7-limits-and-sources)
-8. [Summary](#8-summary)
+3. [The OCI DevOps Service](#3-the-oci-devops-service)
+4. [Worked Walkthrough: One Commit to OKE](#4-worked-walkthrough-one-commit-to-oke)
+5. [OCI Code Editor](#5-oci-code-editor)
+6. [Limits and Sources](#6-limits-and-sources)
+7. [Summary](#7-summary)
 
 ---
 
@@ -55,16 +54,12 @@ graph TD
 
 ### 1.3 Cloud-native, cloud-enabled, and cloud-based: three points on one spectrum
 
-**Three tiers, one spectrum** — the middle one is easy to miss:
-
-- **Cloud-based**: unchanged monolith, just lifted onto cloud infrastructure (e.g. an OCI Compute instance).
-- **Cloud-enabled**: same monolith, one or two dependencies swapped for a managed service — OCI Vault for secrets, Object Storage for uploads — architecture unchanged.
-- **Cloud-native**: built as independently deployable, containerized services from the start — this lesson's actual subject.
+**Three tiers on one spectrum, and the middle one is easy to miss** — cloud-based, cloud-enabled, and cloud-native describe how far an application has actually moved, not where it runs:
 
 | Tier | Architecture | Concrete OCI move | What it buys you |
 | :--- | :--- | :--- | :--- |
 | Cloud-based | Unchanged monolith | Lift-and-shift onto an OCI Compute instance | Off your own hardware; nothing else changes |
-| Cloud-enabled | Unchanged monolith, cloud dependency swapped in | Config moves to OCI Vault; file storage moves to Object Storage | A managed dependency or two; still one release train |
+| Cloud-enabled | Unchanged monolith, one or two dependencies swapped for a managed service | Config moves to OCI Vault; file storage moves to Object Storage | A managed dependency or two; still one release train |
 | Cloud-native | Independently deployable services | Containers on OCIR/OKE/Functions, delivered by OCI DevOps | Independent deployability and scaling — this lesson's actual subject |
 
 > Note: "We moved it to OCI" alone answers nothing — the same VM lift-and-shift is cloud-based whether it sits on OCI, another cloud, or on-prem virtualization. A description mentioning no containers, independent services, or automated pipelines names the cloud-based tier, not cloud-native.
@@ -89,7 +84,9 @@ graph TD
 
 ### 2.1 The monolith contrast — and when microservices lose
 
-**Microservices trade code complexity for operational complexity.** A monolith deploys as one unit — one codebase, one release, one database — so its failure mode is coupling: every team queues behind one release train, and scaling means cloning the whole application even if only one hot path needs it. A microservice architecture splits the application into services that each own a single business capability, deploy independently, and communicate only over network contracts (HTTP APIs or messages).
+**Microservices trade code complexity for operational complexity.** A monolith deploys as one codebase, one release, and one database — a single unit with a single failure mode: coupling. Every team queues behind one release train, and scaling means cloning the whole application even when only one hot path needs the capacity.
+
+A microservice architecture splits the application into services that each own a single business capability, deploy independently, and communicate only over network contracts — HTTP APIs or messages.
 
 - **Gain**: independent deployability and independent scaling.
 - **Cost**: every function call you used to make in-process becomes a network call that can fail, be slow, or arrive twice.
@@ -99,56 +96,64 @@ graph TD
 
 **Decomposition rule: one business capability (bounded context) per service** — orders, payments, inventory, not technical layers. Two rules follow:
 
-- **Database per service.** Each service owns its data store; other services get to that data only through the owning service's API. A shared database silently re-couples services — two services joined at a table must now upgrade schemas together, which re-creates the monolith's release train.
-- **Contract-first communication.** Synchronous REST/gRPC when the caller needs an answer now; asynchronous messages (via Streaming or Queue, modules `06`–`07`) when it doesn't. Asynchronous decoupling is what lets one service be down without cascading failure.
+- **Database per service.** Each service owns its data store. Other services reach that data only through the owning service's API, never a direct query against its tables. A shared database silently re-couples two services: they must now upgrade schemas together, recreating the monolith's release train.
+- **Contract-first communication.** Use synchronous REST or gRPC when the caller needs an answer immediately. Use asynchronous messages — OCI Streaming or Queue, modules `06`–`07` — when it doesn't; that asynchronous decoupling is what lets one service go down without cascading failure.
 
-**Migration path: the strangler pattern.** Carve out one low-risk, well-bounded capability with clean seams (few callers, its own data), stand it up as a service with its own store, and route the monolith's callers through the new API. The monolith shrinks one capability at a time while both run side by side — proving the delivery pipeline and operational muscle before anything critical depends on it.
+### 2.3 Migration path: the strangler pattern
 
----
+**The strangler pattern replaces a monolith one capability at a time, with both systems serving live traffic throughout.** The name describes the mechanic: new services grow around the monolith the way a strangler fig grows around a host tree, until the monolith has nothing left to serve.
 
-## 3. The Twelve-Factor Methodology
+Pick the first capability to extract against four tests — if it fails one, pick a different capability instead:
 
-### 3.1 All twelve factors
+| Test | Why it matters |
+| :--- | :--- |
+| Few inbound callers | Fewer call sites to re-point when the cutover happens |
+| Owns its own tables | No shared schema to untangle first |
+| Low blast radius | A failed cutover doesn't stop revenue |
+| Already has a clear API boundary | You are extracting an existing seam, not designing a new one |
 
-**A checklist for behaving well on a cloud platform** — from 12factor.net, born at Heroku. All twelve, with the OCI-flavoured reading of each:
+Then three steps carry out the extraction:
 
-| # | Factor | Rule | On OCI / cloud-native terms |
-| :--- | :--- | :--- | :--- |
-| I | Codebase | One codebase in version control, many deploys | One OCI DevOps code repository per service |
-| II | Dependencies | Explicitly declare and isolate them | The container image carries everything; nothing assumed on the host |
-| III | Config | Config lives in the environment, not the code | Env vars injected at deploy; secrets from OCI Vault (module `09`) |
-| IV | Backing services | Treat them as attached resources, swappable via config | A database or queue is just a URL + credential in config |
-| V | Build, release, run | Strictly separate the three stages | Build pipeline produces the image; deployment pipeline releases it |
-| VI | Processes | Stateless processes; persist state in backing services | Any pod replica can serve any request; session state goes to a store |
-| VII | Port binding | The app exports its service by binding a port | The container exposes a port; OKE Services route to it |
-| VIII | Concurrency | Scale out via more processes, not a bigger one | More pod replicas, not a bigger VM |
-| IX | Disposability | Fast startup, graceful shutdown | Pods are killed and rescheduled routinely; the app must not care |
-| X | Dev/prod parity | Keep environments as similar as possible | The *same image* is deployed to every environment |
-| XI | Logs | Treat logs as an event stream to stdout | Stdout scraped into OCI Logging (module `10`), never files the app manages |
-| XII | Admin processes | Run one-off admin tasks in the same environment/image | A migration runs as a job from the same image, not from a laptop |
+1. Stand the capability up as its own service, with its own data store.
+2. Put a **façade** in front of both systems — old and new callers alike now reach the capability through one address instead of the monolith directly.
+3. Re-point the façade's route for that one capability from the monolith to the new service. Every other route keeps going to the monolith, unchanged.
 
-An app that follows all twelve can be scheduled, restarted, scaled, and debugged by any platform crew, human or Kubernetes — because it behaves the standard way.
+**Step 2 is the load-bearing one.** Without a façade, there is no single place to switch traffic — rolling back means redeploying every caller instead of reverting one route. On OCI, a façade is typically an API Gateway deployment (module `05`) with one route per capability, sitting in front of both the monolith and the extracted services.
 
-### 3.2 The load-bearing factors
-
-**Four factors do the heavy lifting** for everything later in this track:
-
-- **Config (III) + Backing services (IV)** let one image move through environments unchanged — this is factor **X** (dev/prod parity) in action.
-- **Processes (VI)**, statelessness, is the precondition for horizontal scaling (VIII) and disposability (IX): a pod can only be freely killed or duplicated if no request depends on *that* pod's memory.
-
-> ⚠️ If an app breaks when OKE reschedules its pod, the cause is almost always a violated factor VI or IX.
-
-> Note: "Config in the environment" does not mean *secrets* in plain environment variables are fine. The point is separation — config out of the codebase. On OCI the secret half belongs in **OCI Vault**; the DevOps build spec's `vaultVariables` mechanism (next section) is built for exactly this.
+> ⚠️ If any caller still holds the monolith's own address instead of the façade's, the migration has two live entry points and no clean cutover — the façade only works as the *sole* entry point.
 
 ---
 
-## 4. The OCI DevOps Service
+## 3. The OCI DevOps Service
 
-**Oracle's managed CI/CD product** — source repositories, build pipelines, artifact handling, and deployment pipelines as native OCI resources. Because they are OCI resources, they inherit OCI's operational model for free: Identity and Access Management (IAM) policies control them, and a pipeline authenticates to other services as a *resource*, not a human with stored passwords.
+**Oracle's managed CI/CD product** — source repositories, build pipelines, artifact handling, and deployment pipelines, all as native OCI resources. Being OCI resources, they inherit OCI's operational model for free: **Identity and Access Management (IAM)** policies control them. A pipeline authenticates to other services as a *resource*, not a human with stored passwords.
 
 > Note: OCI DevOps removes runner patching, scaling, and credential storage — resource principals replace stored secrets. Its plugin ecosystem is smaller than Jenkins or GitHub Actions, though: the trade is a customisation ceiling for near-zero pipeline infrastructure to operate.
 
-### 4.1 The resource model: a project as the umbrella
+### 3.1 The twelve-factor checklist this service enforces
+
+The **twelve-factor methodology** (from [12factor.net](https://12factor.net), born at Heroku) is a generic checklist for behaving well on any cloud platform — not an OCI concept on its own. It matters here because OCI DevOps's pipeline model assumes it: a service that violates statelessness or config-in-environment breaks in ways that look like OCI DevOps problems but are really the app's problem.
+
+| # | Factor | Rule | What OCI DevOps does about it |
+| :--- | :--- | :--- | :--- |
+| I | Codebase | One codebase, many deploys | One OCI DevOps code repository per service |
+| II | Dependencies | Declare and isolate them | The container image carries everything; nothing assumed on the host |
+| III | Config | Config in the environment, not the code | Env vars injected at deploy; secrets from **OCI Vault** (module `09`) via `vaultVariables` |
+| IV | Backing services | Swappable via config | A database or queue is a URL plus a credential in config |
+| V | Build, release, run | Strictly separate the three | Build pipeline produces the image; deployment pipeline releases it |
+| VI | Processes | Stateless; state goes to a backing service | Any pod replica can serve any request |
+| VII | Port binding | Export the service via a bound port | OKE Services route to the container's port |
+| VIII | Concurrency | Scale via more processes | More pod replicas, not a bigger VM |
+| IX | Disposability | Fast startup, graceful shutdown | Pods are killed and rescheduled routinely |
+| X | Dev/prod parity | Same artifact everywhere | The *same image* is deployed to every environment |
+| XI | Logs | Event stream to stdout | Stdout scraped into **OCI Logging** (module `10`) |
+| XII | Admin processes | Run in the same image | A migration runs as a pipeline stage (*Control stages*, below), not from a laptop |
+
+> ⚠️ If a pod breaks every time OKE reschedules it, the cause is almost always a violated factor VI (statelessness) or IX (disposability) — check those two first.
+
+> Note: "Config in the environment" does not mean secrets belong in plain environment variables. The separation is config *out of the codebase*; the secret half of that belongs in OCI Vault, and the `vaultVariables` mechanism (*Build pipelines*, below) is built for exactly this handoff.
+
+### 3.2 The resource model: a project as the umbrella
 
 **Everything hangs off a project** — the umbrella resource grouping one application's repositories, pipelines, artifact references, environments, and triggers, scoped under one IAM boundary.
 
@@ -169,7 +174,7 @@ graph TD
 
 **Two prerequisites** trip people up in practice, because neither exists in Jenkins-style tools:
 
-- **A Notifications topic is required at project creation** — the console won't create a project without one. The project publishes pipeline events (build succeeded, deployment failed, approval waiting) to an Oracle Notifications Service (ONS) topic; the topic alone delivers nothing, so add a **subscription** (email, Slack, webhook) to route events to a human.
+- **A Notifications topic is required at project creation** — the console won't create a project without one. The project publishes pipeline events (build succeeded, deployment failed, approval waiting) to an **Oracle Notifications Service (ONS)** topic. The topic alone delivers nothing, so add a **subscription** (email, Slack, or a webhook) to route events to a human.
 - **Pipelines need a dynamic group and policies before they can do anything.** A build run authenticates as a *resource principal* — the pipeline itself is the identity. Put DevOps resources into a **dynamic group**, then write policies granting that group access to what the pipeline touches.
 
 This snippet creates the project with the OCI Command Line Interface (CLI); the topic is a creation-time argument, not an afterthought:
@@ -196,15 +201,15 @@ Allow dynamic-group devops-dg to manage cluster-family in compartment orders # d
 
 > ⚠️ A missing dynamic-group policy often surfaces as a **404 "not found"**, not a 403 — OCI hides resources the caller cannot see. A build that "can't find" OCIR or Vault is usually an IAM problem, not a wrong OCID. This IAM-first debugging instinct is worth internalising for every OCI service in this track.
 
-- **Regional resource.** A project and everything under it lives in one region. A second-region delivery path is a design decision, not a default — per-region pipelines plus images replicated there (registry replication is module `02` territory) — so a home-region outage takes your delivery system with it unless you designed otherwise.
+- **Regional resource.** A project and everything under it lives in one region, so a second-region delivery path is a deliberate design decision, not a default. That means per-region pipelines plus replicated images (module `02` covers registry replication) — skip the design and a home-region outage takes your delivery system down with it.
 
-### 4.2 Code repositories and external connections
+### 3.3 Code repositories and external connections
 
 - **Code repository (native)**: a private Git repo native to OCI, cloned over HTTPS or SSH like any Git remote.
-- **External connection**: attaches an existing GitHub or GitLab repository. A personal access token is stored as a secret in **OCI Vault**; the connection references it, so rotating the token in Vault updates the connection automatically — the connection itself never changes.
+- **External connection**: attaches an existing GitHub or GitLab repository. A personal access token is stored as a secret in **OCI Vault**, and the connection only references it. Rotating the token in Vault updates the connection automatically — the connection itself never changes.
 - **Trigger difference** (see Triggers, below): native repos emit push events inside OCI directly; external repos deliver them through the connection.
 
-### 4.3 Pull requests on native code repositories
+### 3.4 Pull requests on native code repositories
 
 **PRs exist only on native code repositories** — an external GitHub or GitLab connection keeps its own review flow on GitHub or GitLab itself, since OCI never owns that repository's data.
 
@@ -216,7 +221,7 @@ Allow dynamic-group devops-dg to manage cluster-family in compartment orders # d
 - **Protected branch** rule — controls *how* changes may arrive. "Pull request merge only" rejects any direct push, forcing every change through review.
 - **Merge check** — controls *what must be true* before a compliant PR can merge: a minimum reviewer-approval count, and optionally a **build status check**.
 
-> Note: The build status check has nothing to validate unless a trigger (see Triggers, below) is already wired to run a build pipeline on commits to the source branch. The PR feature reuses that ordinary push-triggered build rather than defining a separate PR-triggered one — which is also why native repos still trigger on push only, even though PRs are a native-repo-only feature.
+> Note: The build status check has nothing to validate unless a trigger (see Triggers, below) is already wired to run a build pipeline on commits to the source branch. The PR feature reuses that ordinary push-triggered build rather than defining a separate PR-triggered one. That is also why native repos still trigger on push only, even though PRs are a native-repo-only feature.
 
 ```bash
 # Reject direct pushes to main — every change must arrive through a reviewed, approved PR
@@ -228,7 +233,7 @@ oci devops protected-branch create-or-update \
 
 - **Merging is just a push, from the trigger's point of view** — indistinguishable from any other commit landing on the target branch. That is what starts the deployment-bound build in the worked walkthrough below.
 
-### 4.4 Build pipelines and the `build_spec.yaml` contract
+### 3.5 Build pipelines and the `build_spec.yaml` contract
 
 **A build pipeline is an ordered set of stages.** The central stage type, *managed build*, runs your commands on a fresh Oracle-managed build runner per run — no runner fleet for you to patch or scale.
 
@@ -267,7 +272,7 @@ outputArtifacts:
 - **`exportedVariables`** — the baton passed forward: a value computed in the build (here, the image tag) that later stages, and even the deployment pipeline, can reference.
 - **`outputArtifacts`** — names what the build produced, so a subsequent *deliver artifacts* stage can push it to a registry.
 
-### 4.5 Artifacts: the bridge from build to deploy
+### 3.6 Artifacts: the bridge from build to deploy
 
 **The bridge from build to deploy is an explicit artifact resource** in the project — a *pointer with placeholders*. For a container image that pointer is the OCIR path; for a Kubernetes manifest, it's an Object Storage location or an inline manifest. The path may contain `${...}` placeholders, substituted from pipeline variables at run time:
 
@@ -288,11 +293,12 @@ oci devops deploy-artifact create \
 - **Common failure**: a delivery stage mapped to a fixed tag instead of a substituted one deploys the same old image forever.
 - (Registry path anatomy — region key, tenancy namespace, repository — is unpacked in module `02`.)
 
-### 4.6 Deployment pipelines: environments, targets, strategies
+### 3.7 Deployment pipelines: environments, targets, strategies
 
 **A deployment pipeline releases delivered artifacts into an environment** — a project resource pointing at a real target: an OKE cluster, a Functions application, or a compute **instance group**.
 
-- **Instance group** (the non-container target): a set of plain compute VMs the pipeline deploys onto directly, running a deployment-configuration script on each host (download the package, install, restart), rollout paced by percentage or count of instances.
+**Instance group** (the non-container target) is a set of plain compute VMs the pipeline deploys onto directly. Each host runs a deployment-configuration script — download the package, install it, restart the service. Rollout is paced by a percentage or count of instances at a time.
+
 - **Choose OKE** when the workload is containerized; **choose an instance group** for a legacy or not-yet-containerized app you still want inside the same automated delivery flow.
 
 **Strategy taxonomy** — and when to choose which:
@@ -303,7 +309,7 @@ oci devops deploy-artifact create \
 | **Blue-green** | Deploy the new version to an idle *standby* environment, validate, then switch all traffic at once | Releases needing instant, total rollback (switch traffic back) | Double capacity while both environments run |
 | **Canary** | Deploy to a *canary* environment with no traffic, validate, then shift a subset of user traffic before full promotion | Risky changes you want real-traffic evidence on before full exposure | Slower rollout; two live versions serving users simultaneously |
 
-As of July 2026, blue-green and canary are supported for **OKE and instance-group** targets only; other targets use rolling (see Limits and Sources).
+Blue-green and canary are not available on every target — see the Limits and Sources table for exactly which ones.
 
 > Note: Blue-green's standby environment is full production capacity — budget 2× infrastructure while both environments exist. That is the price of instant rollback.
 
@@ -320,13 +326,13 @@ As of July 2026, blue-green and canary are supported for **OKE and instance-grou
 
 - **Approval** — a human gate; use it where a release crosses a compliance or business boundary. Can require multiple approvals; a single rejection fails the stage and stops the run.
 - **Wait** — a fixed bake period; use it after a canary traffic shift to let metrics accumulate before promotion.
-- **Admin task** (factor XII, e.g. a schema migration) — runs as a pipeline stage using the same built image, ordered before the rollout stage — never as a hand-run script outside the pipeline.
+- **Admin task** (factor XII, e.g. a schema migration) runs as a pipeline stage using the same built image, ordered before the rollout stage — never as a hand-run script outside the pipeline.
 
 > ⚠️ An unanswered approval request eventually times out and fails the deployment (see Limits and Sources for the default window).
 
-> Note: Blue-green's rollback promise is a *traffic* promise, not a *data* promise — the database cannot un-migrate. Rollback stays real only while both versions tolerate the current schema: the **expand/contract** discipline (add columns and write both in one release; remove the old shape only releases later) is what keeps it true.
+> Note: Blue-green's rollback promise is a *traffic* promise, not a *data* promise — the database cannot un-migrate. Rollback stays real only while both versions can tolerate the current schema. That's the **expand/contract** discipline: add new columns and write to both shapes in one release, then remove the old shape only in a later release once nothing depends on it.
 
-### 4.7 Triggers: closing the loop
+### 3.8 Triggers: closing the loop
 
 **A trigger starts a build pipeline on a source event** — and which events it can react to is source-gated:
 
@@ -362,9 +368,9 @@ resource "oci_devops_trigger" "on_push" {
 
 ---
 
-## 5. Worked Walkthrough: One Commit to OKE
+## 4. Worked Walkthrough: One Commit to OKE
 
-### 5.1 The trace
+### 4.1 The trace
 
 One concrete release, end to end. The service is `orders-service`; a developer merges commit `9f3c2ab` to `main`. Follow the identifier: the *commit hash becomes the image tag becomes the manifest's image reference* — one value threading every stage.
 
@@ -405,16 +411,16 @@ sequenceDiagram
 
 *One commit threading the whole system: the commit hash is the image tag is the deployed version.*
 
-### 5.2 Why the hash threading matters
+### 4.2 Why the hash threading matters
 
-- Tagging images with the commit hash, not `latest`, is what makes step 6 trustworthy — running pods advertise exactly which source they were built from, and factor X (dev/prod parity) holds because *that same image* can be promoted to any environment.
+- Tagging images with the commit hash, not `latest`, is what makes step 6 trustworthy: running pods advertise exactly which source built them. Factor X (dev/prod parity) holds for the same reason — *that same image* can be promoted to any environment unchanged.
 - **Debugging in reverse**: a pod's image tag names the commit, the commit names the build run, and the build run names the pipeline events on the ONS topic — one identifier connects an incident back to the change.
 
 ---
 
-## 6. OCI Code Editor
+## 5. OCI Code Editor
 
-### 6.1 What it is
+### 5.1 What it is
 
 **Browser-based editor built into the OCI Console**, riding on **Cloud Shell**: it edits files in your Cloud Shell home directory and shares Cloud Shell's 30-plus pre-installed tools (the OCI CLI, Git, kubectl, language runtimes, the Fn CLI). Because it lives inside the Console session, it needs no local install, no API-key setup, and no network path to your tenancy — the session *is* in the tenancy.
 
@@ -424,15 +430,15 @@ sequenceDiagram
 - Developing and deploying OCI Functions in-console (the Fn tooling is pre-installed).
 - Running guided workshops where installing nothing is the point.
 
-### 6.2 What it is not
+### 5.2 What it is not
 
-**Not a hosted replacement for your local IDE.** It inherits Cloud Shell's constraints — a small fixed home directory, session inactivity timeouts, and a maximum session length (see Limits and Sources) — fine for editing a build spec, wrong for an all-day development environment or long-running builds.
+**Not a hosted replacement for your local IDE.** It inherits Cloud Shell's constraints: a small fixed home directory, session inactivity timeouts, and a maximum session length (see Limits and Sources). That's fine for editing a build spec, wrong for an all-day development environment or long-running builds.
 
 > Note: The wrong mental model is "VS Code in the cloud with my tenancy attached." The right one is "a scratch editor attached to my Cloud Shell home directory."
 
 ---
 
-## 7. Limits and Sources
+## 6. Limits and Sources
 
 Every volatile fact below is a **shape that survives the number changing** — what the limit forces you to do matters more than its exact figure. Re-verify by following the doc link when the as-of date is old.
 
@@ -452,10 +458,10 @@ Every volatile fact below is a **shape that survives the number changing** — w
 
 ---
 
-## 8. Summary
+## 7. Summary
 
-Cloud-native is an operating model, not a hosting location: microservices create many small deployable units, containers make them portable, CI/CD delivers them continuously, DevOps culture makes one team own each unit end to end, and a mesh manages the traffic between them. The twelve-factor methodology is the per-application checklist that makes a service behave well under that model — stateless processes, config in the environment, logs to stdout.
+Cloud-native is an operating model, not a hosting location: microservices, containers, CI/CD, DevOps culture, and a service mesh each solve the problem the previous one created. The twelve-factor methodology is the per-service discipline that makes this model work. OCI DevOps assumes a service already follows it.
 
-On OCI, the DevOps service is this lesson's central subject. A project umbrellas repositories, build pipelines, artifacts, environments, deployment pipelines, and triggers; it requires a Notifications topic at birth and a dynamic group with policies before its pipelines can act. The build side is governed by the `build_spec.yaml` contract — vault variables for secrets, exported variables to hand values forward, output artifacts mapped to registry pushes. The deploy side releases those artifacts into OKE, Functions, or instance-group environments, with rolling as the default and blue-green or canary where instant rollback or real-traffic validation justifies their cost.
+OCI DevOps is this lesson's central subject: a **project** umbrellas repositories, build pipelines, artifacts, environments, and triggers, gated by a Notifications topic and a dynamic group with policies before anything can run. `build_spec.yaml` governs the build side; rolling, blue-green, and canary deployment strategies govern the release side, chosen by how much a release needs instant rollback or real-traffic validation.
 
-Code Editor rounds out the toolchain as the in-console scratch editor on top of Cloud Shell — right for build-spec edits and Functions workflows, wrong as a primary IDE. Keep the limits in mind rather than memorising them blindly: most of them exist to push real workloads onto real infrastructure, and understanding *why* a limit shapes a design matters more than memorising its number.
+**Code Editor** rounds out the toolchain as a Cloud Shell-based scratch editor — right for a quick edit, wrong as a primary IDE. The Limits table's *shapes*, not its numbers, are what's worth remembering.

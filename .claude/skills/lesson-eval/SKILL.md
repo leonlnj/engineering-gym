@@ -165,6 +165,18 @@ item (e.g. *"§2 depth bar — <6 snippets"*, *"§8 wrong-models-refuted"*). Sev
   not a style nit.
 - **Minor** — terminology nits, an analogy that is present but weak or imprecise, or formatting.
 
+**Shape & Balance pass** (part of the same audit, same table — not a separate report): alongside
+the standard One-Pass Test items, check `lesson-craft` §3.13 (one layer per sentence; sets belong
+in a list/table/callout, not a clause chain; at most one em-dash per sentence; no inline citation
+in prose) and, for tracks whose `GUIDELINES.md` states an Oracle-over-generic (or equivalent
+vendor-over-generic) rule, its checkable tests — no generic concept holds its own `## N.` section,
+every `## N.` heading names a vendor-specific resource/API/behavior, every `### N.M` carries a
+vendor anchor, generic TOC-mandated topics sit at reference density. State the lesson's per-section
+result plainly (e.g. *"§3 Twelve-Factor Methodology: 0 OCI anchors across 2 sub-sections — generic,
+demote"*) rather than folding it into prose. A §3.13 violation or an ungated generic section is a
+**Major** finding; a lesson that is technically compliant everywhere but was clearly padded to hit
+the depth-bar count (see §2's proportional-depth note) is also Major, not Minor.
+
 Present the table and **stop**. After approval, apply fixes (voice and snippet languages preserved),
 then re-run the affected §8 items on each changed passage.
 

@@ -21,6 +21,24 @@ the service's distinctive behaviors, its informative caveats, its quotas and lim
 exam actually asks. The limitations of a VCN in OCI matter more than another explanation of how
 virtual networks work.
 
+That rule is checkable, not just a vibe — apply these four tests while drafting or reviewing:
+
+- **A generic concept never gets its own `## N.` section.** It appears only as one anchoring
+  paragraph, a compact reference table, or a `> Note:` — living inside the OCI section it exists to
+  set up, never standing alone as a numbered topic in the Contents list.
+- **Every `## N.` heading names an OCI resource, API, limit, or behavior.** If a heading could be
+  the title of a vendor-neutral engineering post with no edits (e.g. "Microservice Architecture",
+  "The Twelve-Factor Methodology" as standalone sections), that is the signal to fold it into an
+  OCI-named section rather than let it stand as one.
+- **Every `### N.M` sub-section carries at least one OCI anchor**: an `oci`/YAML/Terraform snippet,
+  an OCI-specific limit or quota, a named OCI resource or IAM permission, or a documented
+  console/API behavior. A sub-section with none of these is background, not depth — demote it per
+  the rule above.
+- **Where the course TOC mandates a generic topic** (the twelve-factor methodology, Docker
+  fundamentals, generic messaging patterns), cover it at **reference density** — a table the reader
+  can check an answer against — never at lesson depth. It earns space proportional to the weight
+  the `STUDY-PLAN.md` entry actually gives it, not to how easy it is to write.
+
 ## Audience
 
 An experienced engineer who knows containers, Kubernetes, CI/CD, and general cloud concepts

@@ -104,7 +104,7 @@ This is exactly what feeds the flags this lesson's own snippets use without dwel
 
 (As of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengworkingwithenhancedclusters.htm).)
 
-- **Granular add-on management is concrete, not vague**: on Enhanced, essential add-ons like CoreDNS and kube-proxy can be individually enabled, disabled, pinned to a version, or configured with custom arguments. Basic clusters run the same add-ons with sane defaults, but a hand-edited customization isn't guaranteed to survive — if it conflicts with Oracle's own reconciliation, Basic silently reverts it back to default (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengintroducingclusteraddons.htm)).
+- **Granular add-on management is concrete, not vague**: on Enhanced, essential add-ons like CoreDNS and kube-proxy can be individually enabled, disabled, pinned to a version, or configured with custom arguments. Basic clusters run the same add-ons with sane defaults, but a hand-edited customization isn't guaranteed to survive — if it conflicts with Oracle's own reconciliation, Basic silently reverts it back to default (see Limits and Sources).
 
 > Nuance: it's easy to read "Enhanced" as simply "the more expensive tier" and stop there. The real distinction is a **feature gate**, not just a price tag — virtual nodes, workload identity, and add-on management are entirely unavailable on Basic, not merely metered differently. A team that needs serverless node pools has no Basic-tier path to them at all.
 
@@ -199,7 +199,7 @@ volumes:
 
 - `kubectl logs` (without `-f`) still works pod-by-pod — it reads from the container runtime, not the node.
 - A node-level logging **DaemonSet** doesn't work, since there's no node to run one on; centralized log collection instead runs as a **sidecar** container inside each pod, using an agent like Fluent Bit to ship that pod's own stdout/stderr onward.
-- This is exactly what the single allowed `emptyDir` is for: the app container writes logs to that shared volume, and the sidecar reads from the same mount to ship them — one `emptyDir`, shared between the two containers, not a second one the pod would be denied (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengviewingapplicationlogs-virtualnodes.htm)).
+- This is exactly what the single allowed `emptyDir` is for: the app container writes logs to that shared volume, and the sidecar reads from the same mount to ship them — one `emptyDir`, shared between the two containers, not a second one the pod would be denied (see Limits and Sources).
 
 ### 3.4 Self-managed nodes: the third dial position
 
@@ -536,7 +536,7 @@ Cluster **audit logs** — who called the API server, and when — along with ap
 
 **OSOK extends the managed-vs-own-it choice to OCI resources outside the cluster.** The **OCI Service Operator for Kubernetes (OSOK)** is a cluster **add-on**, built on the open-source Kubernetes **Operator Framework**, that lets you create and manage OCI resources as Kubernetes **Custom Resources** — applied with `kubectl` the same way you'd apply a `Deployment`.
 
-- Supported resource types include a **MySQL DB System**, an **Autonomous Database**, **OCI Streaming**, and **OCI Queue**, among others (as of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengaddingosok.htm)).
+- Supported resource types include a **MySQL DB System**, an **Autonomous Database**, **OCI Streaming**, and **OCI Queue**, among others — not arbitrary OCI resources (see Limits and Sources).
 - Without OSOK, provisioning a database for `orders-service` means a separate `oci` CLI call or Terraform run, outside the cluster's own deployment flow entirely. OSOK folds that provisioning step into the same manifests and the same `kubectl apply` your application already uses.
 
 ### 8.2 The reconciliation loop
@@ -593,6 +593,9 @@ Whichever option is chosen, the principle Module `02` named for the `ocirsecret`
 | Load Balancer vs. Network Load Balancer are different products (proxy vs. pass-through) | Choose NLB only when real client IP or lowest latency is required | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengcreatingnetworkloadbalancers.htm) |
 | A gateway/cluster needs at least two regional subnets; `/16` VCN CIDR is the practical floor | Undersizing the VCN up front means recreating it, not resizing it | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Concepts/contengnetworkconfig.htm) |
 | A missing `use vnics` grant (on the group or the OKE service) is a common silent creation failure | Blocks cluster creation or leaves pods without network addresses | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Concepts/contengpolicyconfig.htm) |
+| Basic clusters silently revert a hand-edited add-on customization that conflicts with Oracle's reconciliation | Don't rely on manual add-on edits surviving on Basic — only Enhanced's granular add-on management persists them | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengintroducingclusteraddons.htm) |
+| A virtual node allows exactly one `emptyDir` volume per pod | A logging sidecar and the app container must share that single `emptyDir`, not use separate ones | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengviewingapplicationlogs-virtualnodes.htm) |
+| OSOK supports a defined resource-type list (MySQL DB System, Autonomous Database, Streaming, Queue, others) — not arbitrary OCI resources | Verify a resource type is OSOK-supported before assuming any OCI resource can become a Custom Resource | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengaddingosok.htm) |
 
 > Note: A block volume PVC pins a pod to one Availability Domain, and `ReadWriteMany` requires File Storage (FSS), not Block Volume — both covered inline above, at *Persistent storage*. The Cluster Autoscaler doesn't apply to virtual nodes (no fixed-size node to scale), Cloud Shell removes the authentication step but not the networking one for a private cluster, and OSOK needs its own scoped credential, not the cluster's — all covered inline where each applies; none is a dated fact requiring its own table row.
 
@@ -600,8 +603,10 @@ Whichever option is chosen, the principle Module `02` named for the `ocirsecret`
 
 ## 10. Summary
 
-OKE's core idea is a managed split, not full management. Oracle always operates the control plane — highly available, IAM-governed, patched without your involvement — but several further choices remain entirely yours: the cluster tier (Basic's no-charge simplicity versus Enhanced's SLA and feature set), the node type (a managed node you patch and size, a virtual node Oracle operates per pod, or a self-managed node you provision and lifecycle end to end), and how upgrades and scaling happen underneath a running workload.
+OKE's core idea is a managed split, not full management. Oracle always operates the control plane — highly available, IAM-governed, patched without your involvement. Everything below that is a choice: the cluster tier, the node type, and how upgrades and scaling happen underneath a running workload.
 
-Those choices compound. Enhanced unlocks virtual nodes, self-managed nodes, workload identity, and node cycling that Basic simply cannot offer at any price, and the tier decision is effectively one-way once a cluster exists. Virtual nodes remove node management entirely but only for workloads that fit a real feature ceiling, while managed nodes keep full Kubernetes flexibility at the cost of patching and capacity planning you own yourself, and self-managed nodes push that ownership further still. Getting traffic and data to a workload once it's scheduled is its own layer above node choice — a `LoadBalancer` Service and a `PersistentVolumeClaim` each provision a real OCI resource by default — and protecting the cluster itself rests on two further, mostly one-time decisions: customer-managed Secrets encryption, chosen at creation, and the PodSecurity admission controller, which replaced the now-removed PodSecurityPolicy.
+Those choices compound. Enhanced unlocks virtual nodes, self-managed nodes, workload identity, and node cycling that Basic cannot offer at any price, and the tier decision is effectively one-way once a cluster exists. Virtual nodes remove node management entirely, but only for workloads that fit a real feature ceiling; managed nodes keep full Kubernetes flexibility at the cost of patching and capacity planning you own yourself, and self-managed nodes push that ownership further still.
 
-Everything from here builds on a cluster that is already running. Module `04`'s **OCI Functions** contrasts its own scale-to-zero, no-node-at-all execution model directly against the managed-, virtual-, and self-managed-node spectrum this lesson just covered, and Module `05`'s API Gateway will route traffic into the exact `orders-service` deployment this lesson's walkthrough scaled up.
+Traffic and data reach a workload through their own layer above node choice: a `LoadBalancer` Service and a `PersistentVolumeClaim` each provision a real OCI resource by default. Protecting the cluster itself rests on two further, mostly one-time decisions — customer-managed Secrets encryption, chosen at creation, and the PodSecurity admission controller.
+
+Everything from here builds on a cluster that is already running. Module `04`'s **OCI Functions** contrasts its own scale-to-zero, no-node-at-all execution model against the node spectrum this lesson covered, and Module `05`'s API Gateway will route traffic into the exact `orders-service` deployment this lesson's walkthrough scaled up.

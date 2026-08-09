@@ -196,7 +196,7 @@ Tags and digests (above) fixed *which* content a tag points to; this section cov
 
 > ⚠️ A team that gives every repository owner "manage repos" access and expects them to also tune retention rules will find that grant doesn't reach far enough — editing criteria needs tenancy-level `manage`.
 
-This is the same **managed-default-vs-fine-grained-control** trade-off that shows up across OCI: the safe, do-nothing default (retain everything) costs nothing to set up but silently accrues storage against the 500 GB/region quota (see *The repository as a managed resource*, above) — a team that never configures retention eventually hits that ceiling, and *pushes*, not just deletions, start failing.
+This is the same **managed-default-vs-fine-grained-control** trade-off that shows up across OCI: the safe, do-nothing default (retain everything) costs nothing to set up, but it silently accrues storage against the 500 GB/region quota (see *The repository as a managed resource*, above). A team that never configures retention eventually hits that ceiling — and at that point, *pushes*, not just deletions, start failing.
 
 ### 4.2 Selection criteria: two independent clocks
 
@@ -236,7 +236,7 @@ stateDiagram-v2
 
 *An image's life under a custom retention policy: the sweep re-evaluates every image every hour, and only a non-exempt image past its age threshold is ever marked for deletion.*
 
-Concretely: a repository accumulating one feature-branch image per day at roughly 180 MB each adds about 5.4 GB per month if nothing is ever pruned; a 30-day "not pulled" retention rule with `v*,stable-prod` exempted reclaims the disposable builds automatically while release tags stay untouched indefinitely.
+Concretely: a repository accumulating one feature-branch image per day at roughly 180 MB each adds about 5.4 GB per month if nothing is ever pruned. A 30-day "not pulled" retention rule with `v*,stable-prod` exempted reclaims those disposable builds automatically, while release tags stay untouched indefinitely.
 
 ---
 
@@ -387,6 +387,6 @@ Deploying by digest rather than by `stable-prod` means the deployment can never 
 
 OCIR behaves the way it does because it is an IAM-native OCI resource first and a container registry second. Every push and pull is authorized by ordinary compartment-scoped policy, not a separate registry account system. A repository's full path — region key, tenancy namespace, repository name, tag — is a chain of ordinary OCI identifiers wearing a familiar-looking Docker mask.
 
-Authentication branches by caller: Auth Tokens for humans, Bearer Tokens for API-key-authenticated scripts and — after a Workload Identity Federation exchange — federated callers, and no separate credential at all for a resource principal, which policy authorizes directly. Tags and digests are not synonyms: a tag is a reassignable pointer, a digest is the content's permanent identity — which is why `:latest` is dangerous, and why an immutable repository closes that gap mechanically rather than relying on discipline alone.
+Authentication branches by caller — a human, an API-key-authenticated script, a federated identity, or a resource principal — each landing on a different credential path (see *Authenticating to OCIR*). Tags and digests are not synonyms: a tag is a reassignable pointer, a digest is the content's permanent identity — which is why `:latest` is dangerous, and why an immutable repository closes that gap mechanically rather than relying on discipline alone.
 
-Retention policies default to keeping everything forever, and left that way they cost real storage quota; changing that default takes tenancy-level permission, and enforcement runs on a deliberately delayed hourly sweep so a bad edit can be caught before it deletes anything. Everything here becomes the foundation the next modules build on: Module `03` assumes the `imagePullSecret` requirement when it covers OKE workload deployment, and Module `04` contrasts its own Functions-native pull path against the resource-principal model introduced here.
+Retention policies default to keeping everything forever, which costs real storage quota if left unconfigured. Changing that default takes tenancy-level permission, and enforcement runs on a deliberately delayed hourly sweep, so a bad edit can be caught before it deletes anything. Everything here becomes the foundation the next modules build on: Module `03` assumes the `imagePullSecret` requirement when it covers OKE workload deployment, and Module `04` contrasts its own Functions-native pull path against the resource-principal model introduced here.
