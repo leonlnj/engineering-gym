@@ -323,7 +323,7 @@ Everything so far governs *who can push and pull*; scanning and signing govern *
     --signing-algorithm SHA_256_RSA_PKCS_PSS
   ```
 
-  - Verifying a signature checks back against Vault, confirming the key existed and the signer could use it at signing time — trust in the image is only as good as trust in who could reach that Vault key.
+  - Verifying a signature checks back against Vault, confirming the key existed and the signer could use it at signing time. Trust in the image is only as good as trust in who could reach that Vault key.
   - OKE and OCI Functions can each be configured to refuse an image without a valid signature at deploy time; that enforcement policy is Module `09` territory.
 
 ---

@@ -262,7 +262,7 @@ oci fn function invoke \
 
 > ⚠️ "Function timeout" sounds like one number, but OCI Functions tracks two distinct ones that only coincide under Sync. **Invocation timeout** is how long the *caller* waits before giving up — for the OCI CLI, the `--read-timeout` global parameter (default 60 seconds), a client-side setting unrelated to the function definition. **Execution timeout** is how long OCI Functions itself allows the function to keep running. Under Sync that's `timeoutInSeconds` from `func.yaml` (default 30s, capped at 300s). Under Detached it's the separate `detachedModeTimeoutInSeconds` field (5–3600 seconds), falling back to `timeoutInSeconds` if unset. A function can legitimately still be executing after its *caller* has already given up — that's what makes Detached the right choice for anything genuinely long-running (see Limits and Sources).
 
-Because Detached hands result-handling to the function, it also supports **success and failure destinations** — delivering an invocation record to **Notifications**, **Queue**, or **Streaming** (Modules `06`–`08`) once the run finishes, something Sync has no use for.
+Because Detached hands result-handling to the function, it also supports **success and failure destinations**: delivering an invocation record to **Notifications**, **Queue**, or **Streaming** (Modules `06`–`08`) once the run finishes. Sync has no use for this.
 
 ### 4.5 Concurrency: the RAM-reservation ceiling
 
@@ -378,7 +378,7 @@ Underneath that call sits a **Resource Principal Session Token (RPST)** — a si
 
 ## 6. Worked Walkthrough: One Invocation, Cold to Warm
 
-This traces `order-receipt-fn` end to end, picking up right where *The third replacement: identity* left the resource principal and the bucket grant in place, and showing what changes on a *second* call that arrives while the first container is still warm.
+This traces `order-receipt-fn` end to end, picking up right where *The third replacement: identity* left the resource principal and the bucket grant in place. It also shows what changes on a *second* call that arrives while the first container is still warm.
 
 1. **The call arrives.** `oci fn function invoke` (*Direct invoke*) sends a signed Sync request to `order-receipt-fn`'s invoke endpoint with `{"id": "ord-1042", "total": 58.20}`.
 2. **No warm container exists.** OCI Functions pulls `order-receipt-fn`'s image by digest from OCIR — the same registry and digest-pinning discipline Module `02` built — and creates a container: the cold start from *The container lifecycle*.

@@ -447,7 +447,7 @@ The **Cluster Autoscaler**, installed as a cluster **add-on**, watches for unsch
 
 ### 6.4 Worked walkthrough: a scale-up from HPA to a running pod
 
-This traces one concrete event — traffic to `orders-service` rising — through both the pod-level and node-level scaling machinery, picking up the image and pull secret Module `02`'s walkthrough left in place.
+This traces one concrete event — traffic to `orders-service` rising — through both the pod-level and node-level scaling machinery. It picks up the image and pull secret Module `02`'s walkthrough left in place.
 
 1. **Load rises.** A Horizontal Pod Autoscaler (HPA) watching `orders-service` raises the target replica count from 3 to 6 pods.
 2. **Scheduling fails.** The Kubernetes scheduler tries to place the three new pods on the existing managed node pool and finds no node with enough free CPU/memory — they sit `Pending`.

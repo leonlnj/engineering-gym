@@ -6,12 +6,21 @@ Two tiers:
   HARD checks (exit 1 if any hit): citation-in-prose, bare section refs, broken TOC links.
     These are unambiguous rule violations per lesson-craft SKILL.md §3.13 and §7 — fix all of them.
   ADVISORY findings (exit 0, printed only): sentence-chain candidates. This is a generous
-    heuristic, not a rule checker — cross-session data on this repo put its false-positive rate
-    at ~68% (78 flagged, 25 genuine, one full-track sweep). Read every hit; most are fine.
-    A sentence is flagged if it carries 2+ "second-layer" signals: an em-dash aside, or a
-    clause-introducing connective (rather than / which / so / because / since / while / though /
-    unless / and / but joining independent clauses). One signal is normal prose. Two is a
-    candidate for splitting per §3.13 — not an automatic verdict.
+    heuristic, not a rule checker. A sentence is flagged if it carries 2+ "second-layer" signals:
+    an em-dash aside, a clause-introducing connective (rather than / which / so / because / since /
+    while / though / unless / and / but joining independent clauses), or a participial clause
+    (", V-ing"). One signal is normal prose. Two is a candidate for splitting per §3.13 — not an
+    automatic verdict.
+
+    Two false-positive rates are on record, both from full-track sweeps on this repo:
+    connective-only signals ran ~68% false-positive (78 flagged, 25 genuine); the participial
+    signal added later ran ~33% (6 new candidates, 4 genuine). The participial signal exists
+    because the connective-only version was tested against the actual passage that motivated this
+    script — a block-volume/Availability-Domain callout in 03-managed-kubernetes.md — and missed
+    it: that sentence's density came from a participial clause ("...delaying volume creation until
+    the scheduler has already picked a node, rather than..."), not a second connective or em-dash.
+    Read every hit; most are fine, but don't skip reading them — this tool has a demonstrated
+    history of under-catching, not just over-catching.
 
 Usage: python3 lint_lesson.py <file.md> [<file2.md> ...]
 """
@@ -30,6 +39,12 @@ CONNECTIVES = [
     r',\s*so\b', r',\s*and\b', r',\s*but\b',
 ]
 
+# Lowercase-guarded: a bare `,\s+\w+ing\b` also matches capitalized proper nouns that happen to
+# end in "-ing" (e.g. ", Streaming" as in "Functions, Streaming, or Notifications") and misreads
+# a service name as a participial verb. Requiring a lowercase start excludes those while still
+# catching real mid-sentence participles (delaying, confirming, picking, showing, delivering).
+PARTICIPIAL_RE = re.compile(r',\s+[a-z]\w*ing\b')
+
 def slugify(heading_text):
     s = heading_text.lower()
     s = re.sub(r'[^a-z0-9\s-]', '', s)
@@ -39,7 +54,8 @@ def slugify(heading_text):
 def chain_signals(sentence):
     asides = sentence.count('—') // 2 if sentence.count('—') % 2 == 0 else sentence.count('—')
     conn = sum(len(re.findall(p, sentence, flags=re.IGNORECASE)) for p in CONNECTIVES)
-    return asides, conn
+    participial = len(PARTICIPIAL_RE.findall(sentence))
+    return asides, conn, participial
 
 def lint(path):
     text = open(path, encoding='utf-8').read()
@@ -83,9 +99,10 @@ def lint(path):
         for s in re.split(r'(?<=[.!?])\s+(?=[A-Z*`("])', line):
             if len(s) < 40:
                 continue
-            asides, conn = chain_signals(s)
-            if asides + conn >= 2:
-                advisory.append((asides + conn, i, s.strip()[:180]))
+            asides, conn, participial = chain_signals(s)
+            total = asides + conn + participial
+            if total >= 2:
+                advisory.append((total, i, s.strip()[:180]))
 
     print(f"\n=== {path} ===")
     if hard_failures:
