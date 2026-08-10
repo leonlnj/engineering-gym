@@ -45,7 +45,7 @@ Everything from here on depends on one resource: the encryption keys a **Vault**
 
 ### 2.1 Vault types: Default vs. Virtual Private
 
-**A Default vault shares Hardware Security Module (HSM) partitions with other tenants' vaults; a Virtual Private vault gets an isolated partition of its own** — with a 1,000-key-version starting allowance, backup support, and automatic key rotation that a Default vault doesn't offer (see Limits and Sources).
+**A Default vault shares Hardware Security Module (HSM) partitions with other tenants' vaults; a Virtual Private vault gets an isolated partition of its own** (see Limits and Sources).
 
 | | Default vault | Virtual Private vault |
 | :--- | :--- | :--- |
@@ -137,7 +137,7 @@ Sections 2–3 covered protecting values; this section is the first of two image
 
 **Adding an image scanner to a repository scans every image pushed to it against the public Common Vulnerabilities and Exposures (CVE) database** — and, distinct from a one-time check, the registry automatically **re-scans** every already-scanned image whenever the CVE database itself gains new entries (see Limits and Sources). Enabling scanning on a repository that already has images immediately scans the four most recently pushed ones.
 
-> Nuance: a previously clean scan result can go stale with **zero new pushes to the image**. Because rescans run against a database that changes independently of your repository, an image that scanned clean last month can show a new finding today — the image never changed; the CVE database did.
+> Nuance: rescans run against a database that changes independently of your repository, so a previously clean result can go stale with zero new pushes — the image never changed, the CVE database did.
 
 ### 4.2 Risk levels and result retention
 
@@ -154,14 +154,12 @@ Sections 2–3 covered protecting values; this section is the first of two image
 
 ### 4.3 Function image scanning is the same mechanism, not a separate feature
 
-**Function image scanning is Oracle Cloud Infrastructure Registry (OCIR) scanning applied to a function's own backing repository — not a distinct security capability of OCI Functions.** Enabling it requires only granting the Vulnerability Scanning service itself permission to pull from that repository:
+**Function image scanning is Oracle Cloud Infrastructure Registry (OCIR) scanning applied to a function's own backing repository, not a distinct security capability of OCI Functions — the scanner has no awareness it's fronting a function rather than an OKE workload.** `order-receipt-fn`'s image lives in an OCIR repository the same as any container image (Module `02`). Enabling it requires only granting the Vulnerability Scanning service itself permission to pull from that repository:
 
 ```text
 Allow service vulnerability-scanning-service to read repos in tenancy
 Allow service vulnerability-scanning-service to read compartments in tenancy
 ```
-
-> Nuance: don't read "function image scanning" as something OCI Functions itself does. `order-receipt-fn`'s image lives in an OCIR repository the same as any container image (Module `02`); the scanner has no awareness it's fronting a function rather than an OKE workload.
 
 ---
 
@@ -224,7 +222,7 @@ Sections 2–5 secured keys, secrets, and images; this section moves to the last
 
 ### 6.3 CA bundles: the resource Module `05`'s gateway actually consumed
 
-**A CA bundle is a Privacy-Enhanced Mail (PEM)-formatted collection of root and intermediate certificates, packaged as one resource** — this is precisely the *custom trust store* Module `05`'s mTLS section named without saying where it came from (*Custom Trust Store and Mutual TLS*, below, closes that loop). A bundle can hold a single CA or several, and carries its own metadata independent of any one certificate inside it.
+**A CA bundle is a Privacy-Enhanced Mail (PEM)-formatted collection of root and intermediate certificates, packaged as one resource.** A bundle can hold a single CA or several, and carries its own metadata independent of any one certificate inside it — *Custom Trust Store and Mutual TLS*, below, is where this resource meets the gateway that actually consumes it.
 
 ### 6.4 Automatic renewal and revocation
 
@@ -285,14 +283,14 @@ sequenceDiagram
 | Limit | What it forces | As-of + docs |
 | :--- | :--- | :--- |
 | Virtual Private vault: 1,000 key versions included by default; asymmetric keys count as 2, symmetric as 1 | Sizing a vault for many asymmetric keys reaches the included allowance roughly twice as fast as symmetric ones | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/KeyManagement/Concepts/keyoverview.htm) |
-| Automatic key rotation: 60–365 day frequency, Virtual Private vaults only | A Default vault's keys must be rotated manually; automatic rotation is a reason to choose Virtual Private | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/KeyManagement/Concepts/keyoverview.htm) |
-| Secret rotation states: `CURRENT`, `PENDING`, `PREVIOUS`, `DEPRECATED`; only `DEPRECATED` versions can be deleted | A version must be explicitly deprecated before cleanup — you can't delete a `CURRENT` or `PREVIOUS` version directly | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/KeyManagement/Concepts/secretversionsrotationstates.htm) |
-| Image scan risk levels: Critical > High > Medium > Low > Minor; results retained 13 months | Trend comparison across a repository's scan history is possible for just over a year, not indefinitely | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Registry/Tasks/registryscanningimagesforvulnerabilities.htm) |
-| OKE image verification policy: up to 5 Vault master keys, RSA asymmetric only | A cluster can accept images signed by any of several keys, but only RSA-signed images are ever eligible | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengenforcingsignedimagesfromocir.htm) |
-| Functions signature-verification policy: up to 5 functions per application, RSA or ECDSA only (no AES) | Symmetric keys can never satisfy Functions' signature check — the key must be asymmetric | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionsenforcingsignedimagesfromocir.htm) |
-| OCIR automatically re-scans every already-scanned image whenever the CVE database gains new entries | A clean scan can go stale with zero new pushes to the image — check re-scan history, not just the last scan date | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Registry/Tasks/registryscanningimagesforvulnerabilities.htm) |
+| Automatic key rotation: 60–365 day frequency, Virtual Private vaults only | Rotation frequency is set per key, so a compliance mandate expressed in days (90, 180) maps directly onto the 60–365 range rather than needing external tooling | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/KeyManagement/Concepts/keyoverview.htm) |
+| Secret rotation states: `CURRENT`, `PENDING`, `PREVIOUS`, `DEPRECATED`; only `DEPRECATED` versions can be deleted | Cleanup is a two-step operation, so a script that deletes old versions must deprecate first or it fails silently on every `CURRENT` and `PREVIOUS` version it hits | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/KeyManagement/Concepts/secretversionsrotationstates.htm) |
+| Image scan risk levels: Critical > High > Medium > Low > Minor; results retained 13 months | Anything needing a multi-year vulnerability record has to be exported before the 13-month mark — the registry won't hold it | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Registry/Tasks/registryscanningimagesforvulnerabilities.htm) |
+| OKE image verification policy: up to 5 Vault master keys, RSA asymmetric only | Five key slots is enough to rotate signing keys without a flag day — sign with the new key, add it to the policy, retire the old one once nothing carries it | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengenforcingsignedimagesfromocir.htm) |
+| Functions signature-verification policy: up to 5 functions per application, RSA or ECDSA only (no AES) | A team standardized on AES keys for encryption needs a second, asymmetric key created specifically for signing — the two purposes can't share one key | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionsenforcingsignedimagesfromocir.htm) |
+| OCIR automatically re-scans every already-scanned image whenever the CVE database gains new entries | Check re-scan history, not just the last scan date, when confirming an image is still clean | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Registry/Tasks/registryscanningimagesforvulnerabilities.htm) |
 
-> Note: injected-at-deploy vs. fetched-at-runtime is a trade-off, not a limit — covered inline at *Trade-off: injected at deploy time vs. fetched at runtime*: rotation latency and blast radius vs. a live startup dependency on Vault. `LATEST` vs. `CURRENT` is the confusable-state pair worth remembering — covered inline at *Secrets: Versions, Rotation States*.
+> Note: injected-at-deploy vs. fetched-at-runtime is a trade-off, not a limit — covered inline at *Trade-off: injected at deploy time vs. fetched at runtime*. `LATEST` vs. `CURRENT` is the confusable-state pair worth remembering — covered inline at *Secrets: Versions, Rotation States*.
 
 ---
 

@@ -96,7 +96,7 @@ stateDiagram-v2
     OK --> OK: metric stream absent, extended period (RESET)
 ```
 
-*Four distinct message types map to four distinct transitions — `REPEAT` and `RESET` are easy to conflate but trigger on opposite conditions: still-true vs. gone-entirely.*
+*`REPEAT` and `RESET` are easy to conflate but trigger on opposite conditions: still-true vs. gone-entirely.*
 
 ### 2.3 Delivery: Notifications for people, Streaming for volume
 
@@ -161,7 +161,7 @@ Logs answer what happened on one resource; **Application Performance Monitoring 
 
 ### 4.3 Trace Explorer and service topology
 
-**Trace Explorer visualizes a trace's full span tree, letting you drill into the slowest or errored span directly**, rather than reconstructing timing by hand from separate logs. The topology view colors each participating service in the trace — the direct payoff of *Instrumenting Traces*' cross-service propagation, below: topology isn't inferred, it's built from IDs every span in the chain actually shares.
+**Trace Explorer visualizes a trace's full span tree, letting you drill into the slowest or errored span directly**, rather than reconstructing timing by hand from separate logs. The topology view colors each participating service in the trace — the payoff of *Instrumenting Traces*' cross-service propagation, below.
 
 ### 4.4 Attributes: what a trace query can filter on
 
@@ -270,7 +270,7 @@ oci sch service-connector create \
 
 ### 7.2 They compose in a fixed order, not an arbitrary pick
 
-**A metric-driven alarm tells you *that* something's wrong; a log tells you *what* the named resource actually did; a trace tells you *where in the causal chain* it went wrong** — exactly the order the worked walkthrough below follows, because that's the order that actually narrows a problem down instead of guessing which tool to open first.
+**The three compose in a fixed order rather than an arbitrary pick** — that's the order the worked walkthrough below follows, because moving alarm → log → trace narrows a problem down instead of guessing which tool to open first.
 
 ---
 
@@ -313,13 +313,13 @@ sequenceDiagram
 
 | Limit | What it forces | As-of + docs |
 | :--- | :--- | :--- |
-| Alarms evaluate once per minute; `pendingDuration` requires consecutive true evaluations | A brief, single-minute spike never fires an alarm on its own — only a sustained condition does | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Monitoring/Concepts/monitoringoverview.htm) |
-| Notifications: 60 messages/evaluation; Streaming: 100,000 messages/evaluation | A high-fan-out alarm needs Streaming as its destination, not Notifications, past that ceiling | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Monitoring/Concepts/monitoringoverview.htm) |
+| Alarms evaluate once per minute; `pendingDuration` requires consecutive true evaluations | Set `pendingDuration` from how long a real incident takes to become visible; too long and the alarm reports an outage that already resolved itself | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Monitoring/Concepts/monitoringoverview.htm) |
+| Notifications: 60 messages/evaluation; Streaming: 100,000 messages/evaluation | Count distinct alarming resources, not alarm count — one condition across 80 instances is 80 messages and silently truncates on Notifications | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Monitoring/Concepts/monitoringoverview.htm) |
 | Metric definitions and alarm history retained 90 days; up to 100,000 data points returned per query | Long-range trend analysis past 90 days needs the data exported elsewhere first (Connector Hub, above) | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Monitoring/Concepts/monitoringoverview.htm) |
-| Connector Hub retention: Logging and Monitoring sources 24 hours; Streaming customer-defined | A connector's automatic retry window is bounded by its source's own retention — a Logging-sourced connector down for more than 24 hours loses unretried data | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/connector-hub/overview.htm) |
-| APM data keys: public (browser/RUM agent) vs. private (server-side collectors, OpenTelemetry, Functions tracing) | The public key is the only one safe to embed in client-side code; the private key must never ship there | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/application-performance-monitoring/doc/application-performance-monitoring.html) |
+| Connector Hub retention: Logging and Monitoring sources 24 hours; Streaming customer-defined | A Logging-sourced connector down for more than 24 hours loses unretried data — Streaming's customer-defined window is the way to buy more slack | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/connector-hub/overview.htm) |
+| APM data keys: public (browser/RUM agent) vs. private (server-side collectors, OpenTelemetry, Functions tracing) | A leaked private data key lets anyone write arbitrary spans into your domain, so treat it as a credential to rotate, not just a config value | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/application-performance-monitoring/doc/application-performance-monitoring.html) |
 
-> Note: Metrics vs. logs vs. traces is a trade-off, not a limit — covered inline at *Choosing Between Metrics, Logs, and Traces*: aggregate trend vs. discrete event vs. causal cross-service path. This lesson stops at building and reading these signals within one tenancy; deeper Logging Analytics workflows, wider multi-tenancy observability patterns, and further APM configuration depth belong to the `observability-professional` sub-track.
+> Note: Metrics vs. logs vs. traces is a trade-off, not a limit — covered inline at *Choosing Between Metrics, Logs, and Traces*. This lesson stops at building and reading these signals within one tenancy; deeper Logging Analytics workflows, wider multi-tenancy observability patterns, and further APM configuration depth belong to the `observability-professional` sub-track.
 
 ---
 
