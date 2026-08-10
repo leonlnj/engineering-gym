@@ -66,7 +66,9 @@ uninvited.**
 
 **Define what "done" means in this repo's own terms. Verify before declaring it.**
 
-- "Write/revise a lesson" → it passes the One-Pass Test (lesson-craft §8) before you call it done.
+- "Write/revise a lesson" → it passes the linter script's hard checks, the One-Pass Test
+  (lesson-craft §8), **and an independent `lesson-eval` review pass** before you call it done — the
+  self-review alone is a demonstrated blind spot, not a formality to skip.
 - "Improve a lesson" → run `lesson-eval`, present the report, and **stop for approval** before
   editing — the skills' report-then-approve gate is the contract, not a formality.
 - Volatile facts (versions, prices, model names, exam topics) are verified against a current

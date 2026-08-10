@@ -167,7 +167,7 @@ Allow service vulnerability-scanning-service to read compartments in tenancy
 
 ## 5. Enforcing Signed Images: OKE's Cluster Policy vs. Functions' Application Policy
 
-Scanning checked content; this section is the second control — verifying an image's *provenance*, and it splits into two genuinely different mechanisms depending on where the image runs.
+Scanning checked content; this section is the second control, verifying an image's *provenance*. It splits into two genuinely different mechanisms, depending on where the image runs.
 
 ### 5.1 Two policies, two scopes, easy to conflate
 
@@ -300,6 +300,6 @@ sequenceDiagram
 
 Cloud-native testing in this track means two strategies beyond the unit- and integration-testing baseline. Contract testing catches an interface break in CI without a live dependency; resilience testing proves a system recovers from a real, injected failure rather than just claiming to on paper. Neither replaces the other, and neither replaces the security layers that follow.
 
-Those layers stack rather than overlap. Vault protects keys and secrets through envelope encryption, a master key that never touches bulk data directly. Secrets can be injected once at deploy or fetched fresh on every call, trading rotation latency against a runtime dependency. Image security then splits into two orthogonal checks: scanning catches known vulnerabilities in an image's *content*, while signing verifies its *identity* — OKE's cluster-wide policy and Functions' application-scoped policy each enforce that independently, neither aware the other exists. Even a signed, clean image still runs under the same unprivileged container permissions Module `04` established.
+Those layers stack rather than overlap. Vault protects keys and secrets through envelope encryption, a master key that never touches bulk data directly. Secrets can be injected once at deploy or fetched fresh on every call, trading rotation latency against a runtime dependency. Image security then splits into two orthogonal checks: scanning catches known vulnerabilities in an image's *content*, while signing verifies its *identity*. OKE's cluster-wide policy and Functions' application-scoped policy each enforce that independently, neither aware the other exists. Even a signed, clean image still runs under the same unprivileged container permissions Module `04` established.
 
 The Certificates service closes the loop Module `05` left open. The custom trust store a gateway consumes for backend verification, and the stricter, explicitly-provisioned trust an mTLS deployment requires, are both just CA bundles this service issues or imports. Module `10` is where every control built here — and everything reported by Modules `03` through `08` before it — finally gets observed rather than just enforced.

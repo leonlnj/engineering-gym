@@ -1,6 +1,6 @@
 # Streaming: The Replayable Log, Serverless and Clustered
 
-OCI ships two distinct products under the streaming umbrella, and the natural assumption — that they're the same thing at different scale — is wrong. **OCI Streaming** is a serverless, partitioned append-only log with a Kafka-compatible API layered on top; **Streaming with Apache Kafka** is a separate service that provisions real Kafka broker clusters, sized and patched through Oracle's control plane rather than your own. Both durably order and replay messages, but they differ in resource model, security mechanism, and limits — and picking between them, not just describing either one, is what this lesson is actually testing.
+OCI ships two distinct products under the streaming umbrella, and the natural assumption — that they're the same thing at different scale — is wrong. **OCI Streaming** is a serverless, partitioned append-only log with a Kafka-compatible API layered on top; **Streaming with Apache Kafka** is a separate service that provisions real Kafka broker clusters, sized and patched through Oracle's control plane rather than your own. Both durably order and replay messages, but they differ in resource model, security mechanism, and limits. Picking between them, not just describing either one, is what this lesson is actually testing.
 
 ---
 
@@ -369,8 +369,8 @@ sequenceDiagram
 
 ## 10. Summary
 
-OCI Streaming is a serverless, partitioned append-only log. A stream pool groups streams under shared settings, and every message stays readable by any number of independent consumer groups until retention closes. Producing is keyed by an identity like `orderId`, so related events land in order on one partition. Consuming tracks progress through a group cursor the service manages, and replay is nothing more than a new cursor pointed at an old position — the log itself never moves.
+OCI Streaming is a serverless, partitioned append-only log. A stream pool groups streams under shared settings, and every message stays readable by any number of independent consumer groups until retention closes. Producing is keyed by an identity like `orderId`, so related events land in order on one partition. Consuming tracks progress through a group cursor the service manages. Replay is nothing more than a new cursor pointed at an old position — the log itself never moves.
 
-Streaming with Apache Kafka is a different product entirely: real, managed Kafka brokers, chosen as starter or HA at creation. It authenticates with SASL/SCRAM instead of an auth token, and it supports ACLs and mTLS that serverless Streaming's IAM-only model doesn't offer. Neither OCI service supports custom connectors or native ksqlDB, though, which is what ultimately pushes a pipeline past both toward self-managed Kafka.
+Streaming with Apache Kafka is a different product entirely: real, managed Kafka brokers, chosen as starter or HA at creation. It authenticates with SASL/SCRAM instead of an auth token, and it supports ACLs and mTLS that serverless Streaming's IAM-only model doesn't offer. Neither OCI service supports custom connectors or native ksqlDB. That's what ultimately pushes a pipeline past both toward self-managed Kafka.
 
 Choosing between the three is an operational-burden-versus-ecosystem-completeness trade-off, not a "which is bigger" question — most workloads never need to leave serverless Streaming at all. Module `08` returns to Streaming as one of several targets a rule can route an event to; Module `10` is where a stream's own metrics and logs finally get analysed rather than just produced.

@@ -83,7 +83,7 @@ Run these in order for any lesson you write, expand, or review:
      the track parameters; never guess them. This skill supplies the craft and depth bar; the
      track file supplies these domain inputs.
 2. **Draft against the craft.** Write to the structure (§1), the depth bar (§2), and the writing rules (§3–§7). Do not hard-code a section number when pointing at another part of the same file — see §7.
-3. **Final Self-Review sweep.** Run the One-Pass Test (§8) end to end, resolve every deferred cross-reference placeholder to a real number or stable anchor, and confirm currency/deprecation before declaring the lesson done.
+3. **Final Self-Review sweep.** Run `python3 .claude/skills/lesson-craft/scripts/lint_lesson.py <file>` first — fix every hard failure before anything else. Then work the judgment-based One-Pass Test (§8) end to end, including the script's advisory chain candidates. Resolve every deferred cross-reference placeholder to a real number or stable anchor, confirm currency/deprecation, **then run `lesson-eval` review mode as a genuinely separate pass** — same-context self-review has a demonstrated blind spot (a full-track sweep found 25 real chain violations, several inside earlier self-reviewed passes, that inline self-grading missed) — before declaring the lesson done.
 
 ---
 
@@ -394,7 +394,7 @@ Whenever a mechanism has a concrete form — an API call, a config, a data forma
 
 ## 8. Self-Review: The One-Pass Test
 
-Before a lesson is done, read it once *as someone seeing the topic for the first time* and confirm each item. A "no" marks a spot where the reader will stop and ask a question. Fix every "no".
+Before a lesson is done, read it once *as someone seeing the topic for the first time* and confirm each item. A "no" marks a spot where the reader will stop and ask a question. Fix every "no". This checklist is necessary but not sufficient — run it once yourself while drafting, but treat a second, independent `lesson-eval` review pass as required for a full lesson, not optional polish; the same-context self-review has a demonstrated blind spot (see Execution Workflow step 3).
 
 - [ ] **Connecting artifacts shown** (§3.2) — every "X produces Y" shows the concrete structure/key linking the two stages.
 - [ ] **Counts fully shown** (§3.2) — a stated N enumerates and labels all N; an artifact-less step says so.

@@ -1,6 +1,6 @@
 # Events: Rule-Routed Reactions to State Change
 
-The natural assumption, coming from Streaming and Queue, is that Events works the same way — something that holds occurrences for a consumer to read. It doesn't. Events is push-only: an OCI service emits an event the instant something changes, and a **rule** you define either matches it and routes it to an action *right then*, or doesn't — there's no cursor, no backlog, no consumer group, and nothing to replay. If no rule matches at the moment an event fires, that occurrence is simply gone.
+The natural assumption, coming from Streaming and Queue, is that Events works the same way — something that holds occurrences for a consumer to read. It doesn't. Events is push-only: an OCI service emits an event the instant something changes. A **rule** you define either matches it and routes it to an action *right then*, or it doesn't. There's no cursor, no backlog, no consumer group, and nothing to replay. If no rule matches at the moment an event fires, that occurrence is simply gone.
 
 ---
 

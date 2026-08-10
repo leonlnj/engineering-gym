@@ -182,7 +182,7 @@ fn deploy --app receipts-app --local
 
 ### 3.4 Image security: deferred, not skipped
 
-A function's image is a repository image like any other, so Module `02`'s digest-pinning and immutability tools apply to it directly, and Module `09` adds two more: OCIR **scanning** for known vulnerabilities, and requiring the image be **signed** before OCI Functions will deploy it. Neither gets depth here — this lesson only needs you to know both exist.
+A function's image is a repository image like any other, so Module `02`'s digest-pinning and immutability tools apply to it directly. Module `09` adds two more: OCIR **scanning** for known vulnerabilities, and requiring the image be **signed** before OCI Functions will deploy it. Neither gets depth here — this lesson only needs you to know both exist.
 
 ### 3.5 Pre-built functions: when Oracle already wrote the handler
 
@@ -366,7 +366,7 @@ Underneath that call sits a **Resource Principal Session Token (RPST)** — a si
 - A function in a subnet with a path to a **Database as a Service** instance can reach it directly.
 - Reaching Object Storage or another OCI service needs the subnet to route through a **service gateway** rather than the public internet — the standard OCI pattern for private access to Oracle-managed services from inside a VCN.
 
-> Note: Best practice is a **regional subnet** rather than one tied to a single availability domain. OCI Functions' own control and data planes are spread across availability and fault domains for resiliency, and a regional subnet lets a function keep running in another domain if one becomes unavailable — a subnet pinned to a single domain goes down with it instead (see Limits and Sources).
+> Note: Best practice is a **regional subnet** rather than one tied to a single availability domain. OCI Functions' own control and data planes are spread across availability and fault domains for resiliency. A regional subnet lets a function keep running in another domain if one becomes unavailable — a subnet pinned to a single domain goes down with it instead (see Limits and Sources).
 
 ### 5.3 Container permissions: what the process itself can do
 
@@ -434,7 +434,7 @@ Had `order-receipt-fn` been invoked with `--fn-invoke-type detached` instead, st
 | A regional subnet, not an AD-specific one, is best practice for a Functions application | Lets a function keep running in another domain if one becomes unavailable | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Concepts/functionsavailability.htm) |
 | Every function container runs as a fixed unprivileged user (`fn`, UID/GID 1000) with no Docker Linux capabilities granted | The container can't escalate privileges even if the image tries to run as root | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionsrunningasunprivileged.htm) |
 
-> Note: A resource principal grant is inert until your own code assumes it (covered inline at *The third replacement: identity*), idle-container teardown has no fixed published duration (don't design around a specific "warm for N minutes" number), and a Functions deployment-pipeline environment always releases rolling-style — the same instance-group constraint Module `01` named, since there's no standby half to switch to. **Container Instances** is a fourth point on this spectrum, not covered here: a single always-on container with no cluster and no Functions-style scale-to-zero — worth knowing it exists as the middle ground between a virtual node and a function.
+> Note: A resource principal grant is inert until your own code assumes it (covered inline at *The third replacement: identity*). Idle-container teardown has no fixed published duration — don't design around a specific "warm for N minutes" number. A Functions deployment-pipeline environment always releases rolling-style, the same instance-group constraint Module `01` named, since there's no standby half to switch to. **Container Instances** is a fourth point on this spectrum, not covered here: a single always-on container with no cluster and no Functions-style scale-to-zero — worth knowing it exists as the middle ground between a virtual node and a function.
 
 ---
 

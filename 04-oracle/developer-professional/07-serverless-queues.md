@@ -306,7 +306,7 @@ stateDiagram-v2
 
 ## 10. Summary
 
-An OCI queue never removes a message on read — `Get` only leases it behind a visibility timeout, and `Delete`, called separately with the receipt handle that lease produced, is the only operation that actually removes it. Every other mechanic follows from that gap: a lease that expires before delete makes the message reappear automatically, which is both the crash-recovery story and the reason at-least-once delivery — never exactly-once — is the only guarantee on offer.
+An OCI queue never removes a message on read — `Get` only leases it behind a visibility timeout. `Delete`, called separately with the receipt handle that lease produced, is the only operation that actually removes it. Every other mechanic follows from that gap: a lease that expires before delete makes the message reappear automatically. That's the crash-recovery story, and it's also why at-least-once delivery — never exactly-once — is the only guarantee on offer.
 
 Channels turn one queue into many addressable, auto-created-and-destroyed destinations, each carrying its own dead letter queue, so a request-reply pattern or a per-tenant routing scheme doesn't need a separate queue per conversation. A message that keeps failing to delete before its lease expires eventually crosses the configured delivery-count ceiling and lands in that DLQ — a diagnostic signal to inspect, not automatically proof of bad data, since a slow-but-working consumer produces the identical symptom.
 

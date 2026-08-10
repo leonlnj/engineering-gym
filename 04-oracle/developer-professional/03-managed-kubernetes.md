@@ -102,7 +102,7 @@ This is exactly what feeds the flags this lesson's own snippets use without dwel
 | Node cycling during upgrades (in-place path only — see *Scaling and Upgrades*) | Not available | Available |
 | Worker node ceiling | Lower | Higher, increasable on request |
 
-(As of Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengworkingwithenhancedclusters.htm).)
+(See Limits and Sources.)
 
 - **Granular add-on management is concrete, not vague**: on Enhanced, essential add-ons like CoreDNS and kube-proxy can be individually enabled, disabled, pinned to a version, or configured with custom arguments. Basic clusters run the same add-ons with sane defaults, but a hand-edited customization isn't guaranteed to survive — if it conflicts with Oracle's own reconciliation, Basic silently reverts it back to default (see Limits and Sources).
 
@@ -304,7 +304,7 @@ The generated kubeconfig does not embed a static credential — it shells out to
 
 **Cloud Shell is a browser-based terminal, pre-authenticated as your IAM identity.** No local OCI CLI install or API-key setup is needed before running the `create-kubeconfig` command above — the fastest way to reach a *public-endpoint* cluster for ad hoc `kubectl` work, exam practice, or a quick node-pool check.
 
-> Nuance: Cloud Shell does not grant any special network path into a *private*-endpoint cluster. It runs from an OCI-managed network, not inside your VCN, so reaching a private cluster from Cloud Shell still needs the same VCN connectivity (a bastion, a peering, a service gateway) any other external caller would need. Cloud Shell removes the *authentication* setup step, not the *networking* one — and it doesn't remove the credential-lifecycle risk from *Generating the kubeconfig* above, since it authenticates as the same personal IAM identity logged into the console.
+> Nuance: Cloud Shell does not grant any special network path into a *private*-endpoint cluster. It runs from an OCI-managed network, not inside your VCN, so reaching a private cluster from Cloud Shell still needs the same VCN connectivity (a bastion, a peering, a service gateway) any other external caller would need. Cloud Shell removes the *authentication* setup step, not the *networking* one. It also doesn't remove the credential-lifecycle risk from *Generating the kubeconfig* above, since it authenticates as the same personal IAM identity logged into the console.
 
 ### 4.4 Placing this back on the spine
 
@@ -380,7 +380,7 @@ spec:
       storage: 50Gi
 ```
 
-> ⚠️ A block volume is created in one specific **Availability Domain** — the same AD as whichever node the pod using it first schedules onto. The CSI driver enforces this with `volumeBindingMode: WaitForFirstConsumer`, delaying volume creation until the scheduler has already picked a node, rather than creating the volume first and hoping a node in the right AD is available. A pod backed by a block-volume PVC cannot freely reschedule across ADs the way a stateless pod can — losing that AD pins the pod's rescheduling options to nodes in the volume's AD, or to no node at all if none exist there.
+> ⚠️ A block volume is created in one specific **Availability Domain** — the same AD as whichever node the pod using it first schedules onto. The CSI driver enforces that ordering with `volumeBindingMode: WaitForFirstConsumer`: it waits for the scheduler to pick a node, then creates the volume in that node's AD, rather than creating the volume first and risking an AD with no matching node. The cost shows up on failure: a stateless pod can reschedule onto any node in any AD, but a pod backed by this PVC can only move to another node in the *same* AD as its volume. If no node is free there, the pod stays unschedulable — even if other ADs have room to spare.
 
 ---
 
@@ -411,7 +411,7 @@ The Kubernetes **skew policy** bounds how far apart the two are allowed to drift
 - **In-place upgrade** — replaces the boot volume (or the instance itself) of each existing worker node with the new Kubernetes version, node by node, keeping the same node pool resource throughout.
 - **Out-of-place upgrade** — creates a *new* node pool on the target version, drains workloads onto it, then removes the old pool entirely. Slower to set up, but leaves the previous pool intact as a rollback path until the new one is proven.
 
-> Note: The first objection lands immediately — what happens to pods running on a node mid-cycle? **Node cycling** — an Enhanced-cluster-only capability — answers it by cordoning and draining each node before replacing it, so workloads reschedule onto already-upgraded nodes rather than being cut off mid-request. Basic clusters lack node cycling and require a manual drain before each replacement. That gate is specific to *in-place* upgrades — an out-of-place upgrade drains onto a brand-new pool instead, so it isn't gated behind node cycling or Enhanced at all; a Basic cluster can run an out-of-place upgrade the same way an Enhanced one does.
+> Note: The first objection lands immediately — what happens to pods running on a node mid-cycle? **Node cycling** — an Enhanced-cluster-only capability — answers it by cordoning and draining each node before replacing it, so workloads reschedule onto already-upgraded nodes rather than being cut off mid-request. Basic clusters lack node cycling and require a manual drain before each replacement. That gate is specific to *in-place* upgrades. An out-of-place upgrade drains onto a brand-new pool instead, so it isn't gated behind node cycling or Enhanced at all. A Basic cluster can run an out-of-place upgrade the same way an Enhanced one does.
 
 ```mermaid
 stateDiagram-v2
@@ -597,7 +597,7 @@ Whichever option is chosen, the principle Module `02` named for the `ocirsecret`
 | A virtual node allows exactly one `emptyDir` volume per pod | A logging sidecar and the app container must share that single `emptyDir`, not use separate ones | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengviewingapplicationlogs-virtualnodes.htm) |
 | OSOK supports a defined resource-type list (MySQL DB System, Autonomous Database, Streaming, Queue, others) — not arbitrary OCI resources | Verify a resource type is OSOK-supported before assuming any OCI resource can become a Custom Resource | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengaddingosok.htm) |
 
-> Note: A block volume PVC pins a pod to one Availability Domain, and `ReadWriteMany` requires File Storage (FSS), not Block Volume — both covered inline above, at *Persistent storage*. The Cluster Autoscaler doesn't apply to virtual nodes (no fixed-size node to scale), Cloud Shell removes the authentication step but not the networking one for a private cluster, and OSOK needs its own scoped credential, not the cluster's — all covered inline where each applies; none is a dated fact requiring its own table row.
+> Note: A block volume PVC pins a pod to one Availability Domain — covered inline above, at *Persistent storage*. `ReadWriteMany` requires File Storage (FSS), not Block Volume — also covered there. The Cluster Autoscaler doesn't apply to virtual nodes — no fixed-size node to scale. Cloud Shell removes the authentication step but not the networking one, for a private cluster. OSOK needs its own scoped credential, not the cluster's. All three are covered inline where each applies; none is a dated fact requiring its own table row.
 
 ---
 
@@ -605,7 +605,7 @@ Whichever option is chosen, the principle Module `02` named for the `ocirsecret`
 
 OKE's core idea is a managed split, not full management. Oracle always operates the control plane — highly available, IAM-governed, patched without your involvement. Everything below that is a choice: the cluster tier, the node type, and how upgrades and scaling happen underneath a running workload.
 
-Those choices compound. Enhanced unlocks virtual nodes, self-managed nodes, workload identity, and node cycling that Basic cannot offer at any price, and the tier decision is effectively one-way once a cluster exists. Virtual nodes remove node management entirely, but only for workloads that fit a real feature ceiling; managed nodes keep full Kubernetes flexibility at the cost of patching and capacity planning you own yourself, and self-managed nodes push that ownership further still.
+Those choices compound. Enhanced unlocks virtual nodes, self-managed nodes, workload identity, and node cycling that Basic cannot offer at any price. The tier decision is also effectively one-way once a cluster exists. Virtual nodes remove node management entirely, but only for workloads that fit a real feature ceiling. Managed nodes keep full Kubernetes flexibility at the cost of patching and capacity planning you own yourself, and self-managed nodes push that ownership further still.
 
 Traffic and data reach a workload through their own layer above node choice: a `LoadBalancer` Service and a `PersistentVolumeClaim` each provision a real OCI resource by default. Protecting the cluster itself rests on two further, mostly one-time decisions — customer-managed Secrets encryption, chosen at creation, and the PodSecurity admission controller.
 

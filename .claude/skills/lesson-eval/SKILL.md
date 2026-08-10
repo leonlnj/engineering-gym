@@ -144,6 +144,8 @@ Then offer to run Mode B on the changed passages.
 
 ## Mode B — Review (One-Pass Test audit)
 
+Run the linter script (`lesson-craft/scripts/lint_lesson.py`) first and fold its hard failures directly into the findings table as Blocker-severity; treat its advisory chain candidates as Minor-or-above candidates to triage, not to ignore.
+
 Load `lesson-craft` and audit the lesson against it — **cite its items, don't copy its rules**.
 For the items `lesson-craft`'s "Format modes" section names as mode-dependent (structure, analogy,
 bullet-vs-prose), look up the track's declared mode first and audit against *that mode's* rules —
@@ -164,6 +166,8 @@ item (e.g. *"§2 depth bar — <6 snippets"*, *"§8 wrong-models-refuted"*). Sev
   lesson with a required analogy entirely absent (§3.4/Format modes) — a missing required element,
   not a style nit.
 - **Minor** — terminology nits, an analogy that is present but weak or imprecise, or formatting.
+
+A review run in the same context/turn as the authoring it's reviewing is weaker evidence than an independent run — same blind spot as `lesson-craft`'s own self-review (see that skill's Execution Workflow step 3). This isn't a hard requirement to spin up a subagent every time; that overhead isn't worth paying for small patches on a personal repo. But do run it as a genuinely separate pass for a full new-lesson review, and say so on the report when it wasn't — "reviewed inline, same session as authoring" — as an explicit caveat readers of the report should weigh.
 
 **Shape & Balance pass** (part of the same audit, same table — not a separate report): alongside
 the standard One-Pass Test items, check `lesson-craft` §3.13 (one layer per sentence; sets belong

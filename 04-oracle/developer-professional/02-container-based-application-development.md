@@ -50,6 +50,8 @@ iad.ocir.io          / ansh81vru1zp        / project01/acme-web-app  : v2.4.0
 
 > Nuance: `project01/acme-web-app` looks like a folder path, and it's tempting to read it as a directory hierarchy the way Docker Hub organizes `org/image`. It is not — the entire string, slashes included, is one flat **display name**. The proof is in the uniqueness rule: a repository name must be unique across *every* compartment in the tenancy, not just within its apparent "folder." Slashes here are a naming convention for readability, not a hierarchy the platform enforces.
 
+> Note: Flat naming doesn't put policy scoping out of reach, though. An IAM policy condition can pattern-match directly against that same flat string — `where target.repo.name = /project01-*/` covers every repository name starting with `project01-` in one statement. That's a naming-convention match against a string, not a grant against a real "project01" resource; the uniqueness rule above still holds.
+
 ### 1.3 The repository as a managed resource
 
 **A repository is created and administered like any other OCI resource** — through the CLI, Console, or Terraform, not through a `docker push` to an unfamiliar path:
@@ -99,7 +101,7 @@ Username: ansh81vru1zp/oracleidentitycloudservice/jdoe@acme.com
 Password: <auth-token-from-console>
 ```
 
-> ⚠️ A valid Auth Token is not, by itself, an all-access pass. Because OCIR is IAM-native, the token only authenticates *who you are* — an IAM policy still has to authorize the push or pull. A user with a correct token but no `repos` policy grant is denied at the registry, and that denial commonly surfaces as a **404 not found** rather than a **403 forbidden** — the same IAM-first debugging instinct Module `01` established for DevOps pipelines. A "repository not found" error after a fresh token is usually a missing policy statement, not a typo in the path.
+> ⚠️ A valid Auth Token is not, by itself, an all-access pass. Because OCIR is IAM-native, the token only authenticates *who you are* — an IAM policy still has to authorize the push or pull. A user with a correct token but no `repos` policy grant is denied at the registry. That denial commonly surfaces as a **404 not found**, not a **403 forbidden** — the same IAM-first debugging instinct Module `01` established for DevOps pipelines. A "repository not found" error after a fresh token is usually a missing policy statement, not a typo in the path.
 
 ### 2.2 Automated and federated paths: bearer tokens, security tokens, and resource principals
 
@@ -162,7 +164,7 @@ oci artifacts container repository update \
   --is-immutable true
 ```
 
-> Note: The obvious objection: what about a legitimate re-release under a floating pointer tag like `stable`? Immutability has no exception for "but this one's intentional." The fix is to stop needing floating tags at all — push every build under a unique, never-reused tag (see *One digest, many tags*, below), and if a floating pointer is genuinely required, keep it in a separate, non-immutable repository whose only job is that pointer.
+> Note: The obvious objection: what about a legitimate re-release under a floating pointer tag like `stable`? Immutability has no exception for "but this one's intentional." The fix is to stop needing floating tags at all — push every build under a unique, never-reused tag (see *One digest, many tags*, below). If a floating pointer is genuinely required, keep it in a separate, non-immutable repository whose only job is that pointer.
 
 > Nuance: immutability governs **pushes only**. Pulling from an immutable repository works exactly as it would against a mutable one — nothing about read access changes.
 
@@ -285,7 +287,7 @@ spec:
     - name: ocirsecret
 ```
 
-> ⚠️ That pull secret is only as durable as the Auth Token it was built from — an Auth Token is tied to one IAM user and stays valid until rotated or revoked (see *Auth tokens*, above). A secret built from a specific engineer's personal token quietly breaks for every workload depending on it the moment that engineer's token is rotated or the person leaves. Build `ocirsecret` from a service-oriented user's token, and rotate it deliberately rather than as a side effect of someone's offboarding.
+> ⚠️ That pull secret is only as durable as the Auth Token it was built from — an Auth Token is tied to one IAM user and stays valid until rotated or revoked (see *Auth tokens*, above). A secret built from a specific engineer's personal token quietly breaks for every workload depending on it the moment that engineer's token is rotated or the person leaves. Build `ocirsecret` from a service-oriented user's token. Rotate it deliberately, rather than as a side effect of someone's offboarding.
 
 Module `03` covers OKE's cluster and node-pool mechanics in depth; this is the one piece that belongs here, because it's a registry-side authentication fact, not a Kubernetes scheduling one.
 
@@ -378,8 +380,9 @@ Deploying by digest rather than by `stable-prod` means the deployment can never 
 | OKE never pulls implicitly, same tenancy or not | Every pod needs an explicit `imagePullSecret` built from an Auth Token | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/ContEng/Tasks/contengpullingimagesfromocir.htm) |
 | Scanning only backfills the four most recently pushed images on an existing repository | An old, unpushed-since image can carry an undetected vulnerability until something pushes to it or a target re-watches it | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Registry/Tasks/registryscanningimagesforvulnerabilities.htm) |
 | A signature binds a digest, never a tag | Trust in the signature is only as strong as trust in who could reach the signing key | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Registry/Tasks/registrysigningimages_topic.htm) |
+| IAM policies can wildcard-match repository names directly (`target.repo.name = /prefix-*/`) | A naming convention can drive policy scope in one statement, even though the name itself has no real hierarchy | Aug 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Registry/Concepts/registrypolicyrepoaccess.htm) |
 
-> Note: A pull secret is only as durable as the token behind it, and Exempt Versions only guards the pull-age criterion — both covered inline above, at *The pull side* and *Selection criteria* respectively. Short-lived credentials (Bearer/Security Tokens) trade a bounded leak-exposure window for needing a live token-exchange step instead of a static password — a real cost, but not a dated fact requiring a doc link.
+> Note: A pull secret is only as durable as the token behind it — covered inline above, at *The pull side*. Exempt Versions only guards the pull-age criterion — covered inline at *Selection criteria*. Short-lived credentials (Bearer/Security Tokens) trade a bounded leak-exposure window for needing a live token-exchange step instead of a static password — a real cost, but not a dated fact requiring a doc link.
 
 ---
 
@@ -387,6 +390,6 @@ Deploying by digest rather than by `stable-prod` means the deployment can never 
 
 OCIR behaves the way it does because it is an IAM-native OCI resource first and a container registry second. Every push and pull is authorized by ordinary compartment-scoped policy, not a separate registry account system. A repository's full path — region key, tenancy namespace, repository name, tag — is a chain of ordinary OCI identifiers wearing a familiar-looking Docker mask.
 
-Authentication branches by caller — a human, an API-key-authenticated script, a federated identity, or a resource principal — each landing on a different credential path (see *Authenticating to OCIR*). Tags and digests are not synonyms: a tag is a reassignable pointer, a digest is the content's permanent identity — which is why `:latest` is dangerous, and why an immutable repository closes that gap mechanically rather than relying on discipline alone.
+Authentication branches by caller — a human, an API-key-authenticated script, a federated identity, or a resource principal — each landing on a different credential path (see *Authenticating to OCIR*). Tags and digests are not synonyms: a tag is a reassignable pointer, a digest is the content's permanent identity. That's why `:latest` is dangerous. It's also why an immutable repository closes that gap mechanically, rather than relying on discipline alone.
 
-Retention policies default to keeping everything forever, which costs real storage quota if left unconfigured. Changing that default takes tenancy-level permission, and enforcement runs on a deliberately delayed hourly sweep, so a bad edit can be caught before it deletes anything. Everything here becomes the foundation the next modules build on: Module `03` assumes the `imagePullSecret` requirement when it covers OKE workload deployment, and Module `04` contrasts its own Functions-native pull path against the resource-principal model introduced here.
+Retention policies default to keeping everything forever, which costs real storage quota if left unconfigured. Changing that default takes tenancy-level permission. Enforcement runs on a deliberately delayed hourly sweep, so a bad edit can be caught before it deletes anything. Everything here becomes the foundation the next modules build on: Module `03` assumes the `imagePullSecret` requirement when it covers OKE workload deployment, and Module `04` contrasts its own Functions-native pull path against the resource-principal model introduced here.
