@@ -424,6 +424,15 @@ Before a lesson is done, read it once *as someone seeing the topic for the first
 - [ ] **Paragraphs are short** (§3.12 / mode) — check the Summary and `> Nuance:`/`> Note:` callouts first; that's where density hides.
 - [ ] **Citation hygiene** (§3.13) — no inline as-of/doc citation sits inside a prose sentence; it's in the Limits table or the Practical Limits section instead.
 
+**Restatement** (a cross-location check — the items above are per-passage; this is per-document. Duplication in this repo has consistently clustered at these specific junctions, not randomly, so check them first rather than rereading blind):
+
+- [ ] **Intro vs. §1's first callout** — the intro's misconception correction and the first `> Nuance:`/`> Note:` in §1 aren't the same correction stated in full twice.
+- [ ] **Prose right after a table** — check each clause on its own, not the sentence as a whole; one new clause bundled with two restated ones still reads as compliant at a glance.
+- [ ] **A callout right after the bullet list it's near** — the same fact enumerated, then flagged again in a `> Nuance:`/`> Note:` immediately following, adding nothing.
+- [ ] **Prose a citation-relocation or cross-reference fix produced** (a new Limits row, a new pointer sentence) — hold it to this same checklist; a mechanical parent task doesn't exempt its side-effect prose from craft review.
+
 **Cut pass** (the counterweight to the rest of this checklist, which is otherwise entirely additive): name the **three lowest-value passages** in the lesson and delete or compress each. A passage qualifies if it restates a table or diagram already on the page, re-teaches something the stated audience already knows, or narrates a transferable pattern without adding a mechanic specific to this lesson's subject. A lesson that passes every item above but skips this one is very likely padded.
+
+**Restatement sweep** (do this at least once for a finished lesson, as its own pass — not folded into working the checklist item-by-item): reread the file straight through asking only *"have I said this already, somewhere else in this file"* — not whether any single passage is well-formed, which the rest of this checklist already covers. Per-item checking evaluates one passage at a time and structurally can't catch this: the same fact correctly stated in two different places, each individually fine, jointly redundant. This is a cross-location judgment call, not something a script can do — the linter (`lesson-craft/scripts/lint_lesson.py`) operates per-sentence and has no concept of "stated elsewhere in this file."
 
 If a reader still has to re-read a passage to follow it, the passage — not the reader — is the problem.

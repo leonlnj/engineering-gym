@@ -1,6 +1,8 @@
 # Serverless Functions: What's Left to Configure When There's No Node
 
-**OCI Functions** is not a smaller container platform sitting next to **OCI Kubernetes Engine (OKE)** — it is what remains once the node, the last of Module `03`'s three dials, is removed entirely. There is no cluster resource, no node pool, and no pod scheduler underneath a function; the unit Oracle bills and runs is a single invocation. The most common misreading is to treat a function as "a tiny always-on service Oracle happens to manage" — it is *stopped*, not merely small, between invocations, and nearly every distinctive Functions behavior in this lesson follows from that one fact. This lesson also closes a loop Module `02` opened: its own worked walkthrough contrasted a Kubernetes pod's `imagePullSecret` against a function's OCI-principal deployment — *Identity and Reach*, below, is that contrast made concrete.
+**OCI Functions** is not a smaller container platform sitting next to **OCI Kubernetes Engine (OKE)** — it is what remains once the node, the last of Module `03`'s three dials, is removed entirely. The most common misreading is to treat a function as "a tiny always-on service Oracle happens to manage" — it is *stopped*, not merely small, between invocations, and nearly every distinctive Functions behavior in this lesson follows from that one fact.
+
+This lesson also closes a loop Module `02` opened: its own worked walkthrough contrasted a Kubernetes pod's `imagePullSecret` against a function's OCI-principal deployment — *Identity and Reach*, below, is that contrast made concrete.
 
 ---
 
@@ -35,7 +37,7 @@ A node used to answer three questions that a function still needs answered — F
 | What's its lifecycle? (always-on vs. ephemeral) | The node stays up; pods come and go on it | The **container** itself is ephemeral — cold start, warm reuse, idle teardown (*Invocation*, below) |
 | Who is it, to the rest of OCI? (identity) | An instance principal, or OKE workload identity on a pod | A **resource principal** scoped to the function (*Identity and Reach*, below) |
 
-A virtual node still has a Kubernetes pod, a node-pool-shaped identity option (workload identity), and no billed idle time only *while running* — a function has none of those three even conceptually. The rest of this lesson works through the right-hand column in order.
+The rest of this lesson works through the right-hand column in order.
 
 ### 1.3 OCI Functions use cases
 
@@ -223,8 +225,6 @@ A function rarely waits for a person to run a CLI command:
 - An **Events** rule (Module `08`) can invoke a function the moment a matching event fires; Notifications and alarms can do the same.
 - A DevOps **deployment pipeline** (Module `01`) can target a Functions *application* as an environment — but that's a **deploy**-time action, releasing a new image, not an invoke-time one. Worth remembering: a Functions environment always releases **rolling**-style, because blue-green and canary both need a standby half to switch to, and an application has none.
 - A function can declare **triggers** directly on itself, bound to an Events pattern or a time-based schedule, so it fires without an external caller at all. Scheduled functions are always invoked in **Detached** mode (*Sync vs. Detached*, below) — full mechanics in *Scheduling OCI Functions*, below.
-
-> Note: Don't conflate "what deploys this function" with "what invokes it" — a deployment pipeline releases an image; none of the invocation paths above touch what's deployed.
 
 ### 4.3 The container lifecycle: cold start, warm reuse, idle removal
 
@@ -430,9 +430,9 @@ Had `order-receipt-fn` been invoked with `--fn-invoke-type detached` instead, st
 | The RPST caches for roughly 15 minutes | A policy fix can appear to fail for up to that long after being applied | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionsaccessingociresources.htm) |
 | Resource Scheduler runs in UTC only, no daylight-saving adjustment | A schedule meant for local wall-clock time must be written in UTC from the start | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/resource-scheduler/tasks/create-manage.htm) |
 | Pre-Built Functions: configuration is yours, handler logic is fixed | The moment the task needs to differ from a catalog entry, it's back to a build path | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functions_pbf_catalog.htm) |
-| OCI Functions isolates execution across different applications | A busy function in one application cannot starve or interfere with one in another | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Concepts/functionsavailability.htm) |
-| A regional subnet, not an AD-specific one, is best practice for a Functions application | Lets a function keep running in another domain if one becomes unavailable | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Concepts/functionsavailability.htm) |
-| Every function container runs as a fixed unprivileged user (`fn`, UID/GID 1000) with no Docker Linux capabilities granted | The container can't escalate privileges even if the image tries to run as root | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionsrunningasunprivileged.htm) |
+| OCI Functions isolates execution across different applications | Don't add your own rate-limiting or separate compartments purely to stop cross-tenant interference — the isolation already exists at the application boundary | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Concepts/functionsavailability.htm) |
+| A regional subnet, not an AD-specific one, is best practice for a Functions application | Default to a regional subnet when creating a Functions application — an AD-specific choice made early is what you'd otherwise have to redo later | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Concepts/functionsavailability.htm) |
+| Every function container runs as a fixed unprivileged user (`fn`, UID/GID 1000) with no Docker Linux capabilities granted | Don't rely on running as root anywhere in your image — the platform strips that possibility regardless of what the Dockerfile requests | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionsrunningasunprivileged.htm) |
 
 > Note: A resource principal grant is inert until your own code assumes it (covered inline at *The third replacement: identity*). Idle-container teardown has no fixed published duration — don't design around a specific "warm for N minutes" number. A Functions deployment-pipeline environment always releases rolling-style, the same instance-group constraint Module `01` named, since there's no standby half to switch to. **Container Instances** is a fourth point on this spectrum, not covered here: a single always-on container with no cluster and no Functions-style scale-to-zero — worth knowing it exists as the middle ground between a virtual node and a function.
 
