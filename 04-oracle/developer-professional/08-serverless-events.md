@@ -166,15 +166,13 @@ def handler(ctx, data: io.BytesIO = None):
 
 ### 4.4 IAM: the Events service is the caller here, not your own resources
 
-**Every action needs a policy grant to *the Events service itself*, not a dynamic group of your own resources** — a genuinely different shape from the resource-principal pattern this track has used everywhere else, because here it's OCI's own Events service calling out on your behalf, not one of your resources calling another.
+**Every action needs a policy grant to *the Events service itself*, not a dynamic group of your own resources** — a genuinely different shape from the resource-principal pattern this track has used everywhere else, because here it's OCI's own Events service calling out on your behalf, not one of your resources calling another. Don't reach for a dynamic-group policy the way Module `04`'s function or Module `06`'s stream producer did — a dynamic group matches *your* resources by a rule like "all functions in this compartment," and the Events service isn't one of your resources at all; it's granted access the same way any other OCI service principal is, with `service events` as the grantee.
 
 ```text
 Allow service events to use fn-invocation in compartment orders
 Allow service events to use stream-push in compartment orders
 Allow service events to {ONS_TOPIC_PUBLISH} in compartment orders
 ```
-
-> Nuance: don't reach for a dynamic-group policy here the way Module `04`'s function or Module `06`'s stream producer did — a dynamic group matches *your* resources by a rule like "all functions in this compartment." The Events service isn't one of your resources at all; it's granted access the same way any other OCI service principal is, with `service events` as the grantee.
 
 ---
 
@@ -287,14 +285,14 @@ sequenceDiagram
 
 | Limit | What it forces | As-of + docs |
 | :--- | :--- | :--- |
-| 50 rules per tenancy, per region | Bounds how many independent filter/action pairs one tenancy can run before a limit-increase request | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Concepts/eventsoverview.htm) |
-| Exactly three action types: Functions, Streaming, Notifications | Reaching an arbitrary external endpoint always means writing a Function to make that call — there is no direct webhook action | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Concepts/eventsoverview.htm) |
-| A rule's scope cascades to child compartments | A rule in a parent compartment sees events from every child compartment too, without being redefined in each | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Concepts/eventsoverview.htm) |
-| Events are push-only with no retention or replay | A rule created after an event fired can never see that event — unlike a stream, there is no backlog to catch up on | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Concepts/eventsoverview.htm) |
+| 50 rules per tenancy, per region | Fan-out costs a rule each, so one event feeding four actions spends four of the fifty — the ceiling is reached by rule count, not traffic | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Concepts/eventsoverview.htm) |
+| Exactly three action types: Functions, Streaming, Notifications | Budget a thin pass-through Function for any third-party integration — it's a component to build, deploy, and monitor, not a field to fill in on the rule | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Concepts/eventsoverview.htm) |
+| A rule's scope cascades to child compartments | Place a rule as high in the compartment tree as its intended blast radius, and no higher — a parent-compartment rule silently picks up new child compartments as they're created | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Concepts/eventsoverview.htm) |
+| Events are push-only with no retention or replay | Enable the rule before the traffic it's meant to catch — there is no backfill, so a rule deployed late has a permanent hole behind it | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Concepts/eventsoverview.htm) |
 | Envelope is CloudEvents 0.1-based, with a fixed `com.oraclecloud.<service>.<action>` `eventType` convention | Filters written against `eventType` transfer their shape across every producing service | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Reference/eventenvelopereference.htm) |
-| Four `oci_cloudevents` metrics: `PublishedEvents`, `MatchedEvents`, `DeliverySucceedEvents`, `DeliveryFailedEvents` | Comparing adjacent stages localizes a failure to filtering, delivery, or the action's own health, without guessing | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Reference/eventsmetrics.htm) |
+| Four `oci_cloudevents` metrics: `PublishedEvents`, `MatchedEvents`, `DeliverySucceedEvents`, `DeliveryFailedEvents` | Alarm on `MatchedEvents` hitting zero, not just on `DeliveryFailedEvents` — a filter that stops matching produces no failures at all, only silence | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Reference/eventsmetrics.htm) |
 
-> Note: Events vs. Queue vs. Streaming is a trade-off, not a limit — covered inline at *Three answers to three different questions*: rule-routed reaction to state change vs. competing-consumer task distribution vs. replayable multi-reader log. `extensions.compartmentId` vs. `data.compartmentId` is the confusable-field pair worth remembering — covered inline at *The Event Envelope*.
+> Note: Events vs. Queue vs. Streaming is a trade-off, not a limit — covered inline at *Three answers to three different questions*. `extensions.compartmentId` vs. `data.compartmentId` is the confusable-field pair worth remembering — covered inline at *The Event Envelope*.
 
 ---
 

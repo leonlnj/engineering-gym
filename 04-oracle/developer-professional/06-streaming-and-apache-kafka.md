@@ -129,7 +129,7 @@ Producing put a message at a specific partition and offset; this section is how 
 
 ### 3.2 Partition cursors vs. group cursors
 
-**A partition cursor is anonymous and unmanaged** — a plain position on one partition that the caller tracks and advances by hand on every read. A **group cursor** is tied to a named consumer group instead: the service itself remembers the committed offset per partition, so a consumer that restarts resumes from its own last commit without the caller doing any bookkeeping. Don't confuse the two — a partition cursor is a one-off starting point you manage yourself; a group cursor is a durable, server-tracked position tied to an identity.
+**A partition cursor is anonymous and unmanaged** — a plain position on one partition that the caller tracks and advances by hand on every read. A **group cursor** is tied to a named consumer group instead: the service itself remembers the committed offset per partition, so a consumer that restarts resumes from its own last commit without the caller doing any bookkeeping.
 
 ### 3.3 Consumer groups and commit semantics
 
@@ -233,7 +233,7 @@ Everything above was serverless Streaming; this section is the second, separate 
 | `min.insync.replicas` | 1 | 2 |
 | Intended for | Development and testing | Production |
 
-A starter cluster's single-replica defaults mean a broker failure can lose unflushed data outright; an HA cluster's 3-way replication with `min.insync.replicas=2` tolerates one broker failure with zero data loss, at the cost of running (and paying for) at least three brokers from the start.
+A starter cluster can lose unflushed data to a single broker failure; an HA cluster tolerates one failure with zero loss, at the cost of paying for three brokers from day one.
 
 ### 6.2 Broker sizing and per-tenancy ceilings
 
@@ -292,7 +292,7 @@ Sections 1–4 and 6 each described a working system on its own; this section is
 | Streaming with Apache Kafka | Oracle patches, scales, and replicates; you size the cluster | Real Kafka brokers, but still **no custom connectors, no native ksqlDB support** (see Limits and Sources) | You need genuine Kafka semantics (ACLs, transactions, broker-level tuning) without running brokers yourself |
 | Self-managed Kafka | You patch, scale, and replicate everything | Full open-source ecosystem — any connector, ksqlDB, any Kafka version | The pipeline depends on a specific connector or ecosystem tool neither OCI service supports |
 
-> Nuance: "managed" on Streaming with Apache Kafka does not mean "full Kafka feature set." Custom connectors and native ksqlDB are unsupported on *both* OCI services — reaching for the clustered product over serverless Streaming buys real broker semantics, not those two capabilities specifically.
+> Nuance: "managed" here does not mean "full Kafka feature set" — the clustered product buys real broker semantics, not the two capabilities in that last column.
 
 ### 7.2 Matching use cases to a backend
 
@@ -352,18 +352,18 @@ sequenceDiagram
 
 | Limit | What it forces | As-of + docs |
 | :--- | :--- | :--- |
-| Partition count and retention are fixed at stream creation | Under-provisioning either means creating a new stream and migrating producers/consumers, not a config change | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Streaming/Concepts/streamingoverview_topic-Limits_on_Streaming_Resources.htm) |
-| 1 MB/s write throughput per partition | Scaling write throughput means adding partitions at creation time, not tuning an existing stream | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Streaming/Concepts/streamingoverview_topic-Limits_on_Streaming_Resources.htm) |
-| 5 `GetMessages` calls/second per consumer group per partition | Consumers must batch reads (up to 100 messages/call) rather than poll in a tight per-message loop | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Streaming/Concepts/streamingoverview_topic-Limits_on_Streaming_Resources.htm) |
-| Retention window: 24–168 hours, fixed at creation | A stream is a bounded window, not an archive — anything unread past the window is unrecoverable | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Streaming/Concepts/streamingoverview_topic-Limits_on_Streaming_Resources.htm) |
-| 200 partitions/tenancy (Universal Credits) or 50 (Pay As You Go/Promo) | Caps how many high-throughput streams a tenancy can run concurrently before a limit increase request | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Streaming/Concepts/streamingoverview_topic-Limits_on_Streaming_Resources.htm) |
-| Streaming with Apache Kafka: 5 clusters, 150 brokers/tenancy; 30 brokers/cluster max | Bounds how many independent Kafka clusters and how large any one can grow before a limit increase request | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/kafka/concepts.htm) |
-| Broker producer throttling at 97% disk, blocked at 98% | Writes are cut off before reads are, so consumers can keep draining the backlog that caused the pressure | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/kafka/concepts.htm) |
-| Kafka 3.7.0 and 3.6.x are past end of life; 4.0.0 and 3.9.1 are current | A cluster on an EOL version is unsupported and should be upgraded, not left running | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/kafka/versions.htm) |
-| Streaming with Apache Kafka doesn't support customer-managed encryption keys or OAuth | Encryption at rest always uses an Oracle-managed key regardless of tenancy-wide key policy | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/kafka/concepts.htm) |
-| Neither serverless Streaming nor Streaming with Apache Kafka supports custom Kafka Connect connectors or native ksqlDB | A pipeline needing either goes to self-managed Kafka, regardless of which OCI option it started on | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/kafka/concepts.htm) |
+| Partition count and retention are fixed at stream creation | Partition count is a capacity-planning decision made before the first message, so size it against peak throughput you'd need in a year — not today's volume | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Streaming/Concepts/streamingoverview_topic-Limits_on_Streaming_Resources.htm) |
+| 1 MB/s write throughput per partition | Divide required peak MB/s by 1 to get a partition floor before creating the stream; a 4-partition stream tops out near 345 GB/day | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Streaming/Concepts/streamingoverview_topic-Limits_on_Streaming_Resources.htm) |
+| 5 `GetMessages` calls/second per consumer group per partition | A consumer group that needs more read throughput adds partitions, not polling frequency — the cap is per group per partition, so 50 groups don't help one slow reader | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Streaming/Concepts/streamingoverview_topic-Limits_on_Streaming_Resources.htm) |
+| Retention window: 24–168 hours, fixed at creation | Any consumer expected to be offline longer than the window needs its own durable sink downstream — the stream won't hold the gap for it | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Streaming/Concepts/streamingoverview_topic-Limits_on_Streaming_Resources.htm) |
+| 200 partitions/tenancy (Universal Credits) or 50 (Pay As You Go/Promo) | The Pay As You Go ceiling of 50 is reached by roughly a dozen modest streams — check the tenancy's billing model before designing partition counts | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Streaming/Concepts/streamingoverview_topic-Limits_on_Streaming_Resources.htm) |
+| Streaming with Apache Kafka: 5 clusters, 150 brokers/tenancy; 30 brokers/cluster max | 150 brokers across at most 5 clusters means fewer, larger clusters, not one per team | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/kafka/concepts.htm) |
+| Broker producer throttling at 97% disk, blocked at 98% | Alarm on broker disk before 97% — the first symptom users see is producer throttling, not a full disk | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/kafka/concepts.htm) |
+| Kafka 3.7.0 and 3.6.x are past end of life; 4.0.0 and 3.9.1 are current | Pin new clusters to 4.0.0 or 3.9.1 — note 4.0.0 also forces KRaft, which is a coordination-mode change, not just a version bump | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/kafka/versions.htm) |
+| Streaming with Apache Kafka doesn't support customer-managed encryption keys or OAuth | A tenancy with a mandatory customer-managed-key policy can't use this service for regulated data at all — that's a service-selection constraint, not a configuration gap | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/kafka/concepts.htm) |
+| Neither serverless Streaming nor Streaming with Apache Kafka supports custom Kafka Connect connectors or native ksqlDB | Verify the specific connector or tool a pipeline depends on before choosing either OCI option — this is the constraint that sends a pipeline to self-managed Kafka | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/kafka/concepts.htm) |
 
-> Note: Serverless Streaming vs. managed Kafka clusters vs. self-managed Kafka is a trade-off, not a limit — covered inline at *Choosing a Streaming Backend*: operational burden falls as ecosystem completeness (custom connectors, ksqlDB, ACL-based authorization) rises. SASL/PLAIN-with-auth-token (serverless Streaming) vs. SASL/SCRAM (Streaming with Apache Kafka) is the authentication contrast worth remembering — covered inline at *Security: SASL/SCRAM, mTLS, and ACLs*.
+> Note: Serverless Streaming vs. managed Kafka clusters vs. self-managed Kafka is a trade-off, not a limit — covered inline at *Choosing a Streaming Backend*. The SASL/PLAIN-vs-SASL/SCRAM authentication contrast is covered inline at *Security: SASL/SCRAM, mTLS, and ACLs*.
 
 ---
 

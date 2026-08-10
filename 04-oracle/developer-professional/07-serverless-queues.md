@@ -177,7 +177,7 @@ Sections 2–4 covered one message's mechanics; this section is what those mecha
 
 ### 5.2 Ordering: best-effort within a channel, none across the queue
 
-**A channel's messages are served in roughly publish order because only one lease is outstanding on them at a time** (*Targeting a channel on consume*, above); the queue as a whole gives no ordering guarantee at all across different channels or different publishers. Don't design around strict, queue-wide ordering — if a workload genuinely needs it, that's a sign to reconsider whether a single-partition stream (Module `06`) fits better.
+**The per-channel ordering guarantee established in *Targeting a channel on consume*, above, is the only ordering this service offers — nothing holds across different channels or different publishers.** Don't design around strict, queue-wide ordering — if a workload genuinely needs it, that's a sign to reconsider whether a single-partition stream (Module `06`) fits better.
 
 ### 5.3 The in-flight ceiling as backpressure
 
@@ -185,7 +185,7 @@ Sections 2–4 covered one message's mechanics; this section is what those mecha
 
 ### 5.4 Crash mid-processing: the timeout *is* the recovery mechanism
 
-**A consumer that crashes after `Get` but before `Delete` needs no special handling** — the message's visibility timeout simply expires and it becomes available again, exactly like a slow consumer that never called `Update`. No dead-consumer detection, no heartbeat protocol: the same timeout that bounds an honest processing window is what recovers a crashed one.
+**The same timeout that bounds an honest processing window is also the entire crash-recovery mechanism — there's no separate detection step.** A consumer that crashes after `Get` but before `Delete` needs no special handling: its lease simply expires and the message becomes available again, exactly like a slow consumer that never called `Update`. No dead-consumer detection, no heartbeat protocol required.
 
 ---
 
@@ -290,17 +290,17 @@ stateDiagram-v2
 
 | Limit | What it forces | As-of + docs |
 | :--- | :--- | :--- |
-| 10 queues per tenancy per region | Bounds how many separate queue resources one tenancy can run before a limit-increase request | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm) |
+| 10 queues per tenancy per region | A design needing more than 10 logical queues should route through channels (*Channels*, above) instead of requesting a limit increase | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm) |
 | Message size 256 KB; `PutMessages` up to 512 KB / 20 messages per call; `GetMessages` up to 2 MB / 20 messages per call | Large payloads belong in object storage with a reference in the message, not inline | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm) |
-| Retention 10 seconds–7 days, default 1 day | An unconsumed message has a hard expiry — a queue is not a durable archive | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm) |
-| Visibility timeout 1 second (queue-level minimum)–12 hours, default 30 seconds | Sets how long a consumer has before a lease silently expires and the message becomes redeliverable | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm) |
-| `dead-letter-queue-delivery-count` configurable 1–20 | Caps how many redelivery attempts a message gets before it's diverted to the DLQ instead of retried again | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/deadletterqueues.htm) |
-| 100,000 in-flight messages per queue | A slow consumer pool throttles new deliveries automatically once outstanding leases hit this ceiling | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm) |
-| 256 channels per queue; 10 consumer groups per queue (separate ceilings) | Bounds how many independent routing destinations and IAM-governed consumer identities one queue supports | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm) |
-| 1,000 GET requests/second per queue; 10 MB/s ingress and egress per queue; 2 GB storage per queue (20 GB per tenancy) | Bounds sustained throughput and total backlog size before messages need to be drained faster or split across queues | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm) |
-| Polling timeout 0–30 seconds | Bounds how long a single long-poll `Get` call can block waiting for a message to arrive | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm) |
+| Retention 10 seconds–7 days, default 1 day | Retention shorter than the longest plausible consumer outage silently drops work — the queue reports nothing when it expires | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm) |
+| Visibility timeout 1 second (queue-level minimum)–12 hours, default 30 seconds | Set it from measured p99 processing time, then use `UpdateMessage` for the tail — a timeout tuned to the average guarantees redelivery on every slow run | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm) |
+| `dead-letter-queue-delivery-count` configurable 1–20 | Set it against how many transient failures are plausible, not as a retry budget — a message that fails 20 times has usually failed for a reason retrying won't fix | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/deadletterqueues.htm) |
+| 100,000 in-flight messages per queue | A queue that sits near this ceiling is reporting a consumer-capacity problem, not a queue-sizing one — scale workers, don't request a limit increase | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm) |
+| 256 channels per queue; 10 consumer groups per queue (separate ceilings) | The two ceilings are independent — a design near the channel limit still has all 10 consumer-group slots free, and vice versa | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm) |
+| 1,000 GET requests/second per queue; 10 MB/s ingress and egress per queue; 2 GB storage per queue (20 GB per tenancy) | A single queue nearing any of these needs splitting across queues before it needs a limit-increase request | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm) |
+| Polling timeout 0–30 seconds | Use the full 30 s on an idle queue; a 0-second poll is the tight-loop shape long polling exists to avoid | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm) |
 
-> Note: Queue vs. Stream is a trade-off, not a limit — covered inline at *Queue vs. Stream: competing consumers vs. replayable log*: exactly-once-per-worker task distribution vs. many independent replayable readers. A slow-but-successful consumer and a genuinely poison message both look identical to the delivery count — covered inline at *`dead-letter-queue-delivery-count`: the ceiling, 1–20* — check processing time against the visibility timeout before assuming bad data.
+> Note: Queue vs. Stream is a trade-off, not a limit — covered inline at *Queue vs. Stream: competing consumers vs. replayable log*. The slow-consumer-vs.-poison-message ambiguity is covered inline at *`dead-letter-queue-delivery-count`: the ceiling, 1–20*.
 
 ---
 
