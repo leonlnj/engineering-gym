@@ -26,20 +26,24 @@ The natural assumption is that consuming a message removes it — it doesn't. A 
 **Creating a queue and sending messages through it are two different APIs against two different endpoints.** The control-plane call that creates a queue returns an **Oracle Cloud Identifier (OCID)**, but message traffic goes to a separate *messages endpoint* — retrieved with a follow-up `GetQueue` call — the same control-plane/data-plane split Module `06` established for a stream's own messages endpoint.
 
 ```bash
-oci queue queue create \
+oci queue queue-admin queue create \
   --compartment-id "$COMPARTMENT_OCID" \
   --display-name "order-fulfillment" \
   --retention-in-seconds 86400 \
   --visibility-in-seconds 30 \
-  --dead-letter-queue-delivery-count 5
+  --dlq-delivery-count 5
 
 # The messages endpoint is a separate value, fetched after creation
-oci queue queue get --queue-id "$QUEUE_OCID" --query 'data."messages-endpoint"'
+oci queue queue-admin queue get --queue-id "$QUEUE_OCID" --query 'data."messages-endpoint"'
 ```
 
 ### 1.2 Queue-level settings are policy for every message
 
-**Settings on the queue apply to every message published to it, not per-message.** Retention (10 seconds–7 days, default 1 day) bounds how long an unconsumed message survives; the default visibility timeout (1 second–12 hours at the queue level, default 30 seconds) is what a `Get` call uses unless the caller overrides it; `dead-letter-queue-delivery-count` (1–20) is the ceiling *Dead Letter Queues*, below, is built on.
+**Settings on the queue apply to every message published to it, not per-message:**
+
+- **Retention** (10 seconds–7 days, default 1 day) — bounds how long an unconsumed message survives.
+- **Default visibility timeout** (1 second–12 hours at the queue level, default 30 seconds) — what a `Get` call uses unless the caller overrides it.
+- **`dlq-delivery-count`** (1–20) — the ceiling *Dead Letter Queues*, below, is built on.
 
 ### 1.3 The dead letter queue is a companion resource, not one you provision
 
@@ -65,7 +69,7 @@ The resource model above is static; this section is what actually happens to a m
 **A `PutMessages` call accepts up to 20 messages and 512 KB per request** (see Limits and Sources) — batching several small messages into one call is the normal path, not an edge case.
 
 ```bash
-oci queue-messages message put-messages \
+oci queue messages put-messages \
   --queue-id "$QUEUE_OCID" \
   --endpoint "$MESSAGES_ENDPOINT" \
   --messages '[{"content":"{\"orderId\":\"ORD-48213\",\"task\":\"fulfillment\"}"}]'
@@ -90,21 +94,21 @@ receipt_handle = message.receipt  # required by both Update and Delete, below
 
 ### 2.3 Update: extending (or shortening) the lease
 
-**`UpdateMessage` extends a message's visibility timeout mid-processing**, using the receipt handle `Get` returned — the connecting artifact between the two calls. A worker that expects to run long calls `Update` before the current window expires, buying more time without losing its claim on the message.
+**`UpdateMessages` extends a message's visibility timeout mid-processing**, using the receipt handle `Get` returned — the connecting artifact between the two calls. A worker that expects to run long calls `Update` before the current window expires, buying more time without losing its claim on the message.
 
 ```bash
 # Extend the lease by another 30s before the current one expires — same
-# receipt handle Get returned, required by both Update and Delete
-oci queue-messages message update-message \
+# receipt handle Get returned, required by both Update and Delete.
+# update-messages takes a batch of entries, one per message being extended.
+oci queue messages update-messages \
   --queue-id "$QUEUE_OCID" \
   --endpoint "$MESSAGES_ENDPOINT" \
-  --message-receipt "$RECEIPT_HANDLE" \
-  --visibility-in-seconds 30
+  --entries '[{"receipt":"'"$RECEIPT_HANDLE"'","visibilityInSeconds":30}]'
 ```
 
 ### 2.4 Delete: the only call that actually removes a message
 
-**`DeleteMessage` is the sole operation that permanently removes a message**, and it requires the same receipt handle `Get` produced. Skip it — whether from a crash, a bug, or a slow consumer — and the message simply reappears once its visibility timeout expires, exactly as if it had never been read.
+**`DeleteMessages` is the sole operation that permanently removes a message**, and it requires the same receipt handle `Get` produced. Skip it — whether from a crash, a bug, or a slow consumer — and the message simply reappears once its visibility timeout expires, exactly as if it had never been read.
 
 > Nuance: a receipt handle is tied to *one specific lease*, not to the message itself. If a message is re-delivered to a second consumer after the first consumer's lease expires, the first consumer's now-stale receipt handle no longer matches the current lease — its `Delete` call fails rather than silently removing a message someone else is now processing (the worked walkthrough, below, traces exactly this).
 
@@ -130,7 +134,7 @@ The message lifecycle above operates on one anonymous queue; channels are how on
 
 **Up to 256 channels can exist on one queue** (see Limits and Sources), and a queue-level *channel capacity* setting caps how much of the queue's overall throughput any single channel can consume — so one noisy channel can't starve the other 255.
 
-> Nuance: **channels** and **consumer groups** are two different, separately-capped concepts that sound alike. A channel is a message-routing destination — how a publisher addresses a subset of the queue. A **consumer group** is a distinct resource governed separately by **Identity and Access Management (IAM)** policy (its own `QUEUE_CONSUMER_GROUP_*` permissions — *IAM and Access Control*, below), capped at 10 per queue (see Limits and Sources) — don't conflate the 256-channel ceiling with the 10-consumer-group one; they bound different things.
+> Nuance: **channels** and **consumer groups** are two different, separately-capped concepts that sound alike. A channel is a message-routing destination — how a publisher addresses a subset of the queue. A **consumer group** is a distinct resource, capped at 10 per queue (see Limits and Sources), governed separately by **Identity and Access Management (IAM)** policy through its own `QUEUE_CONSUMER_GROUP_*` permissions (*IAM and Access Control*, below). Don't conflate the 256-channel ceiling with the 10-consumer-group one — they bound different things.
 
 ---
 
@@ -142,9 +146,9 @@ The message lifecycle above established that a missed `Delete` makes a message r
 
 **Every successful `Get` increments a message's delivery count** — there's no separate "failure" signal the consumer has to raise. An **unsuccessful delivery**, in the service's own terms, is simply a message whose visibility timeout expired before it was deleted; the count doesn't distinguish a consumer that crashed from one that was just slow.
 
-### 4.2 `dead-letter-queue-delivery-count`: the ceiling, 1–20
+### 4.2 `dlq-delivery-count`: the ceiling, 1–20
 
-**Once a message's delivery count exceeds the queue's configured `dead-letter-queue-delivery-count` (1–20, set at queue creation or update)**, the service automatically moves it to that channel's DLQ instead of redelivering it again.
+**Once a message's delivery count exceeds the queue's configured `dlq-delivery-count` (1–20, set at queue creation or update)**, the service automatically moves it to that channel's DLQ instead of redelivering it again.
 
 > ⚠️ A consistently slow-but-eventually-successful consumer looks *identical* to a genuinely poison message, because both simply fail to delete before the timeout — the delivery count can't tell them apart. Before assuming a DLQ arrival means bad data, check whether the visibility timeout is just too short for real processing time (*Update: extending the lease*, above, is the fix for that case).
 
@@ -154,12 +158,12 @@ The message lifecycle above established that a missed `Delete` makes a message r
 
 ```bash
 # The channel's DLQ is itself a queue OCID — consume it exactly like any other
-oci queue-messages message get-messages \
+oci queue messages get-messages \
   --queue-id "$DLQ_OCID" \
   --endpoint "$DLQ_MESSAGES_ENDPOINT" \
   --limit 20
 # Fix the payload, then republish to the original queue
-oci queue-messages message put-messages \
+oci queue messages put-messages \
   --queue-id "$QUEUE_OCID" \
   --endpoint "$MESSAGES_ENDPOINT" \
   --messages '[{"content":"{\"orderId\":\"ORD-48213\",\"task\":\"fulfillment\"}"}]'
@@ -251,7 +255,7 @@ Don't read "competing consumers" as a limitation — it's the correct model for 
 3. **Worker A runs long.** Processing takes 45 seconds — past the 30-second lease — and Worker A never calls `Update`.
 4. **The lease expires; Worker B leases the same message.** At `t=30s`, the message becomes visible again. Worker B calls `Get`, receiving a *new* receipt handle, `RH-B1`. Delivery count is now 2.
 5. **Worker A's stale delete fails.** At `t=45s`, Worker A finishes and calls `Delete` with `RH-A1` — it's rejected, because `RH-A1` no longer matches the current lease (`> Nuance` in *The Message Lifecycle*, above). Both workers may now be doing the same fulfillment work — the reason idempotent processing (*At-least-once delivery*, above) isn't optional.
-6. **The fix: extend, don't overrun.** On a second, corrected run, Worker A instead calls `UpdateMessage` with `RH-A1` at `t=20s`, extending its lease by another 30 seconds before it can expire — it finishes at `t=45s` and deletes successfully with the still-valid `RH-A1`. No second worker is ever woken.
+6. **The fix: extend, don't overrun.** On a second, corrected run, Worker A instead calls `UpdateMessages` with `RH-A1` at `t=20s`, extending its lease by another 30 seconds before it can expire — it finishes at `t=45s` and deletes successfully with the still-valid `RH-A1`. No second worker is ever woken.
 7. **A malformed message hits the DLQ.** A separate message with corrupted JSON fails parsing on every attempt; after its delivery count passes 5, the service moves it to the channel's DLQ. Ops manually consumes the DLQ, finds the malformed payload, fixes the producer, and republishes a corrected copy to `order-fulfillment`.
 
 ```mermaid
@@ -293,14 +297,14 @@ stateDiagram-v2
 | 10 queues per tenancy per region | A design needing more than 10 logical queues should route through channels (*Channels*, above) instead of requesting a limit increase | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm) |
 | Message size 256 KB; `PutMessages` up to 512 KB / 20 messages per call; `GetMessages` up to 2 MB / 20 messages per call | Large payloads belong in object storage with a reference in the message, not inline | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm) |
 | Retention 10 seconds–7 days, default 1 day | Retention shorter than the longest plausible consumer outage silently drops work — the queue reports nothing when it expires | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm) |
-| Visibility timeout 1 second (queue-level minimum)–12 hours, default 30 seconds | Set it from measured p99 processing time, then use `UpdateMessage` for the tail — a timeout tuned to the average guarantees redelivery on every slow run | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm) |
-| `dead-letter-queue-delivery-count` configurable 1–20 | Set it against how many transient failures are plausible, not as a retry budget — a message that fails 20 times has usually failed for a reason retrying won't fix | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/deadletterqueues.htm) |
+| Visibility timeout 1 second (queue-level minimum)–12 hours, default 30 seconds | Set it from measured p99 processing time, then use `UpdateMessages` for the tail — a timeout tuned to the average guarantees redelivery on every slow run | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm) |
+| `dlq-delivery-count` configurable 1–20 | Set it against how many transient failures are plausible, not as a retry budget — a message that fails 20 times has usually failed for a reason retrying won't fix | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/deadletterqueues.htm) |
 | 100,000 in-flight messages per queue | A queue that sits near this ceiling is reporting a consumer-capacity problem, not a queue-sizing one — scale workers, don't request a limit increase | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm) |
 | 256 channels per queue; 10 consumer groups per queue (separate ceilings) | The two ceilings are independent — a design near the channel limit still has all 10 consumer-group slots free, and vice versa | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm) |
 | 1,000 GET requests/second per queue; 10 MB/s ingress and egress per queue; 2 GB storage per queue (20 GB per tenancy) | A single queue nearing any of these needs splitting across queues before it needs a limit-increase request | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm) |
 | Polling timeout 0–30 seconds | Use the full 30 s on an idle queue; a 0-second poll is the tight-loop shape long polling exists to avoid | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/queue/overview.htm) |
 
-> Note: Queue vs. Stream is a trade-off, not a limit — covered inline at *Queue vs. Stream: competing consumers vs. replayable log*. The slow-consumer-vs.-poison-message ambiguity is covered inline at *`dead-letter-queue-delivery-count`: the ceiling, 1–20*.
+> Note: Queue vs. Stream is a trade-off, not a limit — covered inline at *Queue vs. Stream: competing consumers vs. replayable log*. The slow-consumer-vs.-poison-message ambiguity is covered inline at *`dlq-delivery-count`: the ceiling, 1–20*.
 
 ---
 

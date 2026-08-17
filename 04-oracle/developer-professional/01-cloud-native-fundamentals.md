@@ -7,7 +7,7 @@
 ## Contents
 
 1. [The Five Pillars, and Where They Live on OCI](#1-the-five-pillars-and-where-they-live-on-oci)
-2. [Microservice Architecture](#2-microservice-architecture)
+2. [Microservice Architecture on OCI](#2-microservice-architecture-on-oci)
 3. [The OCI DevOps Service](#3-the-oci-devops-service)
 4. [Worked Walkthrough: One Commit to OKE](#4-worked-walkthrough-one-commit-to-oke)
 5. [OCI Code Editor](#5-oci-code-editor)
@@ -80,13 +80,13 @@ graph TD
 
 ---
 
-## 2. Microservice Architecture
+## 2. Microservice Architecture on OCI
 
 ### 2.1 The monolith contrast — and when microservices lose
 
-**Microservices trade code complexity for operational complexity.** A monolith deploys as one codebase, one release, and one database — a single unit with a single failure mode: coupling. Every team queues behind one release train, and scaling means cloning the whole application even when only one hot path needs the capacity.
+**Microservices trade code complexity for operational complexity.** A monolith deploys as one codebase, one release, and one database — a single unit with a single failure mode: coupling. Every team queues behind one release train, and scaling means cloning the whole application even when only one hot path needs the capacity. On OCI, that whole-application scaling shows up concretely as one oversized OKE `Deployment` (or one Functions app doing everything) instead of the per-pillar service map from *the OCI service map*, above — the monolith has nowhere to route a scaling decision more granular than "the whole thing."
 
-A microservice architecture splits the application into services that each own a single business capability, deploy independently, and communicate only over network contracts — HTTP APIs or messages.
+A microservice architecture splits the application into services, each owning a single business capability. Every service deploys independently, and communicates with the others only over network contracts — HTTP APIs or messages.
 
 - **Gain**: independent deployability and independent scaling.
 - **Cost**: every function call you used to make in-process becomes a network call that can fail, be slow, or arrive twice.
@@ -277,15 +277,13 @@ outputArtifacts:
 **The bridge from build to deploy is an explicit artifact resource** in the project — a *pointer with placeholders*. For a container image that pointer is the OCIR path; for a Kubernetes manifest, it's an Object Storage location or an inline manifest. The path may contain `${...}` placeholders, substituted from pipeline variables at run time:
 
 ```bash
-# Register the image artifact; ${IMAGE_TAG} is filled from the build's exported variable
-oci devops deploy-artifact create \
+# Register the image artifact; ${IMAGE_TAG} is filled from the build's exported variable.
+# The source image URI is base64-encoded, per this command's own contract.
+oci devops deploy-artifact create-ocir-artifact \
   --project-id "$PROJECT_OCID" \
   --display-name "orders-image" \
-  --deploy-artifact-type DOCKER_IMAGE \
-  --deploy-artifact-source '{
-      "deployArtifactSourceType": "OCIR",
-      "imageUri": "iad.ocir.io/acme/orders-service:${IMAGE_TAG}"
-    }' \
+  --artifact-type DOCKER_IMAGE \
+  --source-image-uri "$(echo -n 'iad.ocir.io/acme/orders-service:${IMAGE_TAG}' | base64)" \
   --argument-substitution-mode SUBSTITUTE_PLACEHOLDERS
 ```
 
@@ -344,7 +342,7 @@ Blue-green and canary are not available on every target — see the Limits and S
 
 This is what turns pipelines you'd otherwise run by hand into continuous delivery: commit → trigger → build → deliver → deploy, with no human in the path except stages you deliberately gate with approvals.
 
-Pipelines are ordinary OCI resources, so they can be defined as code too — here the trigger in Terraform (OCI provider), closing the loop on factor I for the pipeline itself:
+Pipelines are ordinary OCI resources, so they can be defined as code too. Here's the trigger in Terraform (OCI provider) — closing the loop on factor I for the pipeline itself:
 
 ```hcl
 # Simplified — start the orders build pipeline on any push to main

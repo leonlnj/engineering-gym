@@ -7,7 +7,7 @@ A container image is portable by design — the same layered tarball runs on a l
 ## Contents
 
 1. [The Registry as an IAM-Native Resource](#1-the-registry-as-an-iam-native-resource)
-2. [Authenticating to OCIR: Three Ways In](#2-authenticating-to-ocir-three-ways-in)
+2. [Authenticating to OCIR: The Human Path and Three Automated Ones](#2-authenticating-to-ocir-the-human-path-and-three-automated-ones)
 3. [Tags, Digests, and the Mutable-`latest` Trap](#3-tags-digests-and-the-mutable-latest-trap)
 4. [Image Lifecycle: Retention Policies](#4-image-lifecycle-retention-policies)
 5. [OCIR in the Delivery Pipeline](#5-ocir-in-the-delivery-pipeline)
@@ -80,7 +80,7 @@ graph TD
 
 ---
 
-## 2. Authenticating to OCIR: Three Ways In
+## 2. Authenticating to OCIR: The Human Path and Three Automated Ones
 
 **Every push and pull is an ordinary IAM-authorized call** — the paths below are what that looks like from the calling side, depending on who or what is doing the calling. Not every one of them ends in a distinct registry credential (see *Automated and federated paths*, below).
 
@@ -127,6 +127,8 @@ A human isn't the only caller — a script or a workload under federated identit
 ---
 
 ## 3. Tags, Digests, and the Mutable-`latest` Trap
+
+Sections 1–2 covered who can reach a repository at all; this section is about a risk that exists once they're in — what a tag actually points to, and how that can shift under you.
 
 ### 3.1 Tags are reassignable; digests are permanent
 
@@ -307,7 +309,7 @@ Everything so far governs *who can push and pull*; scanning and signing govern *
   ```
 
   - Every new push is scanned automatically once a target is watching; for a repository that already held images, only the four most recently pushed are scanned retroactively.
-  - Results are bucketed by severity (Critical to Minor), kept for 13 months, and re-scanned automatically whenever a new CVE is published — a finding can appear weeks after a push with nothing about the image having changed.
+  - Results are **bucketed by severity** (Critical to Minor), **retained 13 months**, and **re-scanned automatically** whenever a new CVE is published — a finding can appear weeks after a push with nothing about the image having changed.
 
 - **Signing** answers a different question — not "does this image have known vulnerabilities" but "did it come from who I think, unmodified." An image **signature** binds a **Vault** master encryption key to a specific image **digest**, never a tag — only a digest is a fixed enough target to sign.
 
@@ -327,6 +329,8 @@ Everything so far governs *who can push and pull*; scanning and signing govern *
 ---
 
 ## 6. Worked Walkthrough: One Image, Commit to Pod
+
+Every mechanic above — tags, digests, retention, and the two pull paths — traces through one concrete image here, start to finish.
 
 ### 6.1 The trace
 
@@ -369,8 +373,8 @@ Deploying by digest rather than by `stable-prod` means the deployment can never 
 | Limit | What it forces | As-of + docs |
 | :--- | :--- | :--- |
 | 500 repositories and 500 GB total per enabled region; up to 100,000 images per repository | The quotas are per *enabled* region, so a tenancy live in three regions carries three separate 500 GB budgets, not one pooled figure | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Registry/Concepts/registryoverview.htm) |
-| OCIR is regional with no automatic cross-region copy | A multi-region rollout needs the region baked into the image reference at build time — one push to `<region>.ocir.io` per region | Jul 2026 |
-| Auth failures often surface as 404, not 403 | Don't re-issue the Auth Token when a push 404s — a fresh token can't close a policy gap, and rotating it burns the time the misleading error already cost | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Registry/Concepts/registryauthenticating.htm) |
+| OCIR is regional with no automatic cross-region copy | A multi-region rollout needs the region baked into the image reference at build time — one push to `<region>.ocir.io` per region | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Registry/Concepts/registryoverview.htm) |
+| Auth failures often surface as 404, not 403 | Don't re-issue the Auth Token when a push 404s — a fresh token can't close a policy gap, and rotating it burns the time the misleading error already cost | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Registry/Concepts/registryprerequisites.htm) |
 | Immutable repositories reject any tag overwrite, no exceptions | Fix is unique tags plus digest-based re-tagging, not disabling immutability | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/tools/oci-cli/latest/oci_cli_docs/cmdref/artifacts/container/repository/update.html) |
 | Retention edits are delayed: a cooling-off period, then up to 48h to reclaim storage | Don't expect an emergency cleanup to free quota within minutes | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Registry/Tasks/registrymanagingimageretention.htm) |
 | Editing a retention policy needs tenancy-level `manage`, not repository-level | A repository owner with only repo-scoped access cannot tune the rule themselves | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Registry/Tasks/registrymanagingimageretention.htm) |

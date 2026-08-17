@@ -31,7 +31,9 @@ The natural assumption, coming from Streaming and Queue, is that Events works th
 
 ### 1.3 Action: a list of 1–10, never a generic webhook
 
-**A rule carries a *list* of one to ten actions, each one of exactly three destination types — Functions, Streaming, or Notifications** (*Rule Actions*, below, covers each). A single rule can freely mix types: a Function, a Stream, and a Topic all listed on the same rule fire together off one match. There is no built-in "call an arbitrary HTTPS endpoint" action; reaching something outside these three always means writing a Function that makes the call itself.
+**A rule carries a *list* of one to ten actions, each one of exactly three destination types — Functions, Streaming, or Notifications** (*Rule Actions*, below, covers each). A single rule can freely mix types: a Function, a Stream, and a Topic all listed on the same rule fire together off one match.
+
+> ⚠️ There is no built-in "call an arbitrary HTTPS endpoint" action. Reaching something outside these three always means writing a Function that makes the call itself.
 
 ```bash
 oci events rule create \
@@ -152,7 +154,7 @@ def handler(ctx, data: io.BytesIO = None):
 
 **A Streaming action publishes the event onto a stream**, giving it everything Module `06` already covered — replay, multiple independent consumer groups, retention. This is the third target Module `06`'s own summary named without detail — Events is exactly that third router.
 
-A rule isn't limited to one action, and each action carries its own `isEnabled` separate from the rule-level `--is-enabled` flag in the CLI snippet from *The Resource Model*, above — disabling one action in the list doesn't touch the others:
+A rule isn't limited to one action, and each action carries its own `isEnabled` separate from the rule-level `--is-enabled` flag in the CLI snippet from *The Resource Model*, above. Disabling one action in the list doesn't touch the others:
 
 ```json
 {
@@ -169,12 +171,17 @@ A rule isn't limited to one action, and each action carries its own `isEnabled` 
 
 ### 4.4 IAM: the Events service is the caller here, not your own resources
 
-**Every action needs a policy grant to *the Events service itself*, not a dynamic group of your own resources** — a genuinely different shape from the resource-principal pattern this track has used everywhere else, because here it's OCI's own Events service calling out on your behalf, not one of your resources calling another. Don't reach for a dynamic-group policy the way Module `04`'s function or Module `06`'s stream producer did — a dynamic group matches *your* resources by a rule like "all functions in this compartment," and the Events service isn't one of your resources at all; it's granted access the same way any other OCI service principal is, with `service events` as the grantee.
+**Every action needs a policy grant to *the Events service itself*, not a dynamic group of your own resources** — a genuinely different shape from the resource-principal pattern this track has used everywhere else, because here it's OCI's own Events service calling out on your behalf, not one of your resources calling another.
+
+> Nuance: don't reach for a dynamic-group policy the way Module `04`'s function or Module `06`'s stream producer did. A dynamic group matches *your* resources by a rule like "all functions in this compartment," and the Events service isn't one of your resources at all — it's granted access the same way any other OCI service principal is, with `service cloudevents` as the grantee, the Events service's underlying principal name, distinct from the product name shown in the console.
 
 ```text
-Allow service events to use fn-invocation in compartment orders
-Allow service events to use stream-push in compartment orders
-Allow service events to {ONS_TOPIC_PUBLISH} in compartment orders
+# fn-invocation and stream-push are named permission bundles; ONS_TOPIC_PUBLISH has
+# no equivalent bundle, so it's granted as a single permission in braces instead —
+# both forms are ordinary IAM policy syntax, not a typo
+Allow service cloudevents to use fn-invocation in compartment orders
+Allow service cloudevents to use stream-push in compartment orders
+Allow service cloudevents to {ONS_TOPIC_PUBLISH} in compartment orders
 ```
 
 ---
@@ -189,11 +196,20 @@ The resource model above named a rule as compartment-scoped; this section is wha
 
 ### 5.2 Fan-out: two levels, one cheaper than the other
 
-**Fan-out happens two ways, and they cost differently against the 50-rule budget (*Limits and Sources*, below).** Intra-rule: one rule's action list holds several actions (*Rule Actions*, above), all firing off a single match — this is the cheap default, since it spends one rule slot no matter how many actions are listed. Inter-rule: more than one rule matches the same event, each with its own filter and action list — this earns its extra rule slot only when the *filter* itself needs to differ, not just the destination. Either way, there's no ordering between the actions that fire and no shared transaction; a Streaming action and a Notifications action triggered by the same event are two unrelated deliveries that happen to share a cause.
+**Fan-out happens two ways, and they cost differently against the 50-rule budget (*Limits and Sources*, below):**
+
+| Level | Mechanic | Cost | Earns it when |
+| :--- | :--- | :--- | :--- |
+| Intra-rule | One rule's action list holds several actions (*Rule Actions*, above), all firing off a single match | Cheap — spends one rule slot no matter how many actions are listed | The default |
+| Inter-rule | More than one rule matches the same event, each with its own filter and action list | Costs an extra rule slot | Only when the *filter* itself needs to differ, not just the destination |
+
+Either way, there's no ordering between the actions that fire and no shared transaction; a Streaming action and a Notifications action triggered by the same event are two unrelated deliveries that happen to share a cause.
 
 ### 5.3 No match, no memory
 
-**An event with zero matching rules at the moment it fires is simply gone** — there's no backlog sitting behind it and no way to write a new rule tomorrow and have it catch yesterday's event. This is the sharpest contrast with a stream (Module `06`): a stream's retention window means a *late* consumer group can still catch up; a *late* rule cannot, because the rule itself didn't exist when the event needed matching.
+**An event with zero matching rules at the moment it fires is simply gone.**
+
+> ⚠️ There's no backlog sitting behind an unmatched event, and no way to write a new rule tomorrow and have it catch yesterday's event. This is the sharpest contrast with a stream (Module `06`): a stream's retention window means a *late* consumer group can still catch up; a *late* rule cannot, because the rule itself didn't exist when the event needed matching.
 
 ### 5.4 Metrics and troubleshooting: finding *where* a rule stopped working
 
@@ -302,6 +318,6 @@ sequenceDiagram
 
 An Events rule is push-only: it matches a CloudEvents-shaped envelope the instant a service emits it and routes a match to a list of one to ten actions, each one of three types — Functions, Streaming, or Notifications. There's no cursor, no backlog, and no way to catch an event that fired before the rule existed. Filtering narrows what a rule reacts to through `eventType`, attribute matching inside `data`, or tag matching across resource types. IAM here grants the Events service itself as the caller, not a dynamic group of your own resources the way every other service in this track has.
 
-Fan-out is the default, not an edge case, and it comes two ways: cheaply, inside one rule's action list, or across separate rules when the filters themselves need to differ — each firing independently with no coordination or shared ordering between them. Routing an event into a Streaming action is the common way to gain durability and replay that Events itself deliberately doesn't provide. The worked walkthrough traced exactly that: one rule's two actions feeding both a stream and a human notification off a single receipt upload, from one Object Storage write `order-receipt-fn` never had to know about.
+Fan-out is the default, not an edge case, and it comes two ways: cheaply, inside one rule's action list, or across separate rules when the filters themselves need to differ. Either way, each action fires independently, with no coordination or shared ordering between them. Routing an event into a Streaming action is the common way to gain durability and replay that Events itself deliberately doesn't provide. The worked walkthrough traced exactly that: one rule's two actions feeding both a stream and a human notification off a single receipt upload, from one Object Storage write `order-receipt-fn` never had to know about.
 
 Choosing between Events, Queue, and Streaming comes down to what triggers the reaction and what happens when nothing is listening yet: a state change an OCI service already produced (Events), a discrete work item one worker should own (Queue), or a history multiple independent readers need their own replayable view of (Streaming). A rule that stops working localizes to one of three funnel stages — matching, delivery, or the action's own health — through the metrics this lesson already covers. Module `09` turns to securing everything this track has built so far; Module `10` is where the rest of the system's metrics and logs join those in one troubleshooting picture.
