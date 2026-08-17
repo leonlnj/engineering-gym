@@ -36,8 +36,9 @@ That rule is checkable, not just a vibe — apply these four tests while draftin
   the rule above.
 - **Where the course TOC mandates a generic topic** (the twelve-factor methodology, Docker
   fundamentals, generic messaging patterns), cover it at **reference density** — a table the reader
-  can check an answer against — never at lesson depth. It earns space proportional to the weight
-  the `STUDY-PLAN.md` entry actually gives it, not to how easy it is to write.
+  can check an answer against — never at lesson depth. It earns more rows or a longer paragraph in
+  proportion to the weight the `STUDY-PLAN.md` entry actually gives it, never a numbered section of
+  its own (the rule above still applies) — and never in proportion to how easy it is to write.
 
 ## Audience
 
