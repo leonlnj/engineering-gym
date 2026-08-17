@@ -29,9 +29,9 @@ The natural assumption, coming from Streaming and Queue, is that Events works th
 
 **A rule is the only resource this service asks you to create** — a **filter** that narrows which events it reacts to, and an **action** that names where a match gets routed. A rule is scoped to a compartment (*Compartment Scope and Fan-Out*, below, covers exactly how far that scope reaches).
 
-### 1.3 Action: exactly three destinations, never a generic webhook
+### 1.3 Action: a list of 1–10, never a generic webhook
 
-**A rule routes to exactly one of three destination types — Functions, Streaming, or Notifications** (*Rule Actions*, below, covers each). There is no built-in "call an arbitrary HTTPS endpoint" action; reaching something outside these three always means writing a Function that makes the call itself.
+**A rule carries a *list* of one to ten actions, each one of exactly three destination types — Functions, Streaming, or Notifications** (*Rule Actions*, below, covers each). A single rule can freely mix types: a Function, a Stream, and a Topic all listed on the same rule fire together off one match. There is no built-in "call an arbitrary HTTPS endpoint" action; reaching something outside these three always means writing a Function that makes the call itself.
 
 ```bash
 oci events rule create \
@@ -39,7 +39,7 @@ oci events rule create \
   --display-name "receipt-uploaded" \
   --is-enabled true \
   --condition '{"eventType":["com.oraclecloud.objectstorage.createobject"]}' \
-  --actions '{"actions":[{"actionType":"ONS","isEnabled":true,"topicId":"'"$TOPIC_OCID"'"}]}'
+  --actions '{"actions":[{"actionType":"ONS","isEnabled":true,"topicId":"'"$TOPIC_OCID"'"},{"actionType":"OSS","isEnabled":true,"streamId":"'"$STREAM_OCID"'"}]}'
 ```
 
 ```mermaid
@@ -47,13 +47,13 @@ graph TD
     OS["Object Storage"] -->|emits| EV["Event"]
     CO["Compute"] -->|emits| EV
     DB["Database"] -->|emits| EV
-    EV --> R["Rule<br/>(filter + action)"]
-    R -->|action: Functions| FN["A Function"]
-    R -->|action: Streaming| ST["A Stream"]
-    R -->|action: Notifications| NT["A Topic"]
+    EV --> R["Rule<br/>(filter + actions)"]
+    R -->|action 1: Functions| FN["A Function"]
+    R -->|action 2: Streaming| ST["A Stream"]
+    R -->|action 3: Notifications| NT["A Topic"]
 ```
 
-*Any number of services emit events into the same pool; a rule is the only piece you build, and it can only route to one of three action types.*
+*Any number of services emit events into the same pool; a rule is the only piece you build, and it can list up to ten actions, each one of three types, all firing together off one match.*
 
 ---
 
@@ -130,7 +130,7 @@ The envelope above is what exists; this section is how a rule actually picks eve
 
 ## 4. Rule Actions: Functions, Streaming, Notifications, and Their IAM Prerequisites
 
-Sections 2–3 covered matching; this section is what happens once a match fires.
+Sections 2–3 covered matching; this section is what happens once a match fires. The three subsections below are a menu to combine, not a choice of one — a single rule's action list can hold any mix of them (*The Resource Model*, above).
 
 ### 4.1 Functions: custom logic, invoked by identity
 
@@ -152,10 +152,13 @@ def handler(ctx, data: io.BytesIO = None):
 
 **A Streaming action publishes the event onto a stream**, giving it everything Module `06` already covered — replay, multiple independent consumer groups, retention. This is the third target Module `06`'s own summary named without detail — Events is exactly that third router.
 
+A rule isn't limited to one action, and each action carries its own `isEnabled` separate from the rule-level `--is-enabled` flag in the CLI snippet from *The Resource Model*, above — disabling one action in the list doesn't touch the others:
+
 ```json
 {
   "actions": [
-    { "actionType": "OSS", "isEnabled": true, "streamId": "ocid1.stream.oc1..aaaaaaaaorderevents" }
+    { "actionType": "OSS", "isEnabled": true, "streamId": "ocid1.stream.oc1..aaaaaaaaorderevents" },
+    { "actionType": "ONS", "isEnabled": true, "topicId": "ocid1.onstopic.oc1..aaaaaaaaopsteam" }
   ]
 }
 ```
@@ -184,9 +187,9 @@ The resource model above named a rule as compartment-scoped; this section is wha
 
 **A rule reacts to events from its own compartment and every child compartment beneath it** — the same downward-flowing shape Identity and Access Management (IAM) policy inheritance already established, though it's a distinct mechanism reaching the same intuition: scope broadens as you move up the compartment tree, not down.
 
-### 5.2 Fan-out: one event, many rules, no coordination
+### 5.2 Fan-out: two levels, one cheaper than the other
 
-**More than one rule can match the same event, and each fires its own action independently** — there's no ordering between them and no shared transaction; a Streaming action and a Notifications action triggered by the same event are two unrelated deliveries that happen to share a cause.
+**Fan-out happens two ways, and they cost differently against the 50-rule budget (*Limits and Sources*, below).** Intra-rule: one rule's action list holds several actions (*Rule Actions*, above), all firing off a single match — this is the cheap default, since it spends one rule slot no matter how many actions are listed. Inter-rule: more than one rule matches the same event, each with its own filter and action list — this earns its extra rule slot only when the *filter* itself needs to differ, not just the destination. Either way, there's no ordering between the actions that fire and no shared transaction; a Streaming action and a Notifications action triggered by the same event are two unrelated deliveries that happen to share a cause.
 
 ### 5.3 No match, no memory
 
@@ -216,7 +219,7 @@ Sections 1–5 built the mechanics; this section is where they map onto why a ru
 
 ### 6.2 One event, many purposes
 
-**A single upload can simultaneously feed an audit trail and trigger processing**, through two independent rules matching the same event, each with its own action — the business version of the fan-out mechanic (*Fan-out: one event, many rules, no coordination*, above).
+**A single upload can simultaneously feed an audit trail and trigger processing**, most cheaply through one rule whose action list holds both destinations, or through two independent rules if the two purposes need different filters — the business version of the fan-out mechanic (*Fan-out: two levels, one cheaper than the other*, above).
 
 ### 6.3 Replacing a poll loop or a fixed schedule
 
@@ -257,9 +260,8 @@ graph LR
 
 1. **The upload.** `order-receipt-fn` finishes and writes `receipts/ORD-48213.json` to its Object Storage bucket, exactly as Module `04`'s own walkthrough already showed.
 2. **Object Storage emits an event.** The envelope from *The Event Envelope*, above, fires with `eventType: com.oraclecloud.objectstorage.createobject` and `data.resourceName: receipts/ORD-48213.json`.
-3. **Rule A matches: Streaming action.** A rule scoped to the `orders` compartment, filtered on that `eventType` plus a `receipts/` prefix match, fires — its action publishes the event's `data` onto `order-events` (Module `06`), keyed on the order ID parsed from the object name.
-4. **`fulfillment-cg` reads it like any other message.** The consumer group from Module `06`'s own walkthrough consumes this message with zero awareness it originated from an event rather than a direct `PutMessages` call — from the stream's side, a rule action is just another producer.
-5. **Rule B matches independently: Notifications action.** A second rule in the same compartment, filtering on the same `eventType`, separately fires — its action publishes to a Topic that emails the ops distribution list. Rule A and Rule B share nothing but the event that triggered both; neither knows the other exists.
+3. **One rule matches, and both its actions fire.** A rule scoped to the `orders` compartment, filtered on that `eventType` plus a `receipts/` prefix match, fires — its action list carries a Streaming action that publishes the event's `data` onto `order-events` (Module `06`), keyed on the order ID parsed from the object name, and a Notifications action that publishes to a Topic emailing the ops distribution list. Both actions fire off the same match; neither knows the other ran (*Fan-out: two levels, one cheaper than the other*, above).
+4. **`fulfillment-cg` reads the stream side like any other message.** The consumer group from Module `06`'s own walkthrough consumes this message with zero awareness it originated from an event rather than a direct `PutMessages` call — from the stream's side, a rule action is just another producer.
 
 ```mermaid
 sequenceDiagram
@@ -272,12 +274,12 @@ sequenceDiagram
 
     FN->>OS: PUT receipts/ORD-48213.json
     OS->>EV: emit createobject event
-    EV->>ST: Rule A action: publish (keyed ORD-48213)
-    EV->>NT: Rule B action: publish to Topic
+    EV->>ST: action 1 (OSS): publish (keyed ORD-48213)
+    EV->>NT: action 2 (ONS): publish to Topic
     ST-->>CG: get-messages (group cursor)
 ```
 
-*One event, matched independently by two rules with two unrelated actions — neither rule coordinates with, or is even aware of, the other.*
+*One event, matched by one rule whose two actions fire independently — the actions don't coordinate with, or wait on, each other.*
 
 ---
 
@@ -285,8 +287,8 @@ sequenceDiagram
 
 | Limit | What it forces | As-of + docs |
 | :--- | :--- | :--- |
-| 50 rules per tenancy, per region | Fan-out costs a rule each, so one event feeding four actions spends four of the fifty — the ceiling is reached by rule count, not traffic | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Concepts/eventsoverview.htm) |
-| Exactly three action types: Functions, Streaming, Notifications | Budget a thin pass-through Function for any third-party integration — it's a component to build, deploy, and monitor, not a field to fill in on the rule | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Concepts/eventsoverview.htm) |
+| 50 rules per tenancy, per region | A rule slot is spent per distinct *filter*, not per destination — one filter with four actions still spends one of the fifty, so the ceiling is reached by how many distinct match conditions you need, not by fan-out width | Aug 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/General/Concepts/servicelimits.htm) |
+| 1–10 actions per rule, exactly three action types: Functions, Streaming, Notifications | Reach for a wider action list before reaching for a second rule; budget a thin pass-through Function for any third-party integration — it's a component to build, deploy, and monitor, not a field to fill in on the rule | Aug 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Task/managingrules.htm) |
 | A rule's scope cascades to child compartments | Place a rule as high in the compartment tree as its intended blast radius, and no higher — a parent-compartment rule silently picks up new child compartments as they're created | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Concepts/eventsoverview.htm) |
 | Events are push-only with no retention or replay | Enable the rule before the traffic it's meant to catch — there is no backfill, so a rule deployed late has a permanent hole behind it | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Concepts/eventsoverview.htm) |
 | Envelope is CloudEvents 0.1-based, with a fixed `com.oraclecloud.<service>.<action>` `eventType` convention | Filters written against `eventType` transfer their shape across every producing service | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Reference/eventenvelopereference.htm) |
@@ -298,8 +300,8 @@ sequenceDiagram
 
 ## 10. Summary
 
-An Events rule is push-only: it matches a CloudEvents-shaped envelope the instant a service emits it and routes a match to exactly one of three actions — Functions, Streaming, or Notifications. There's no cursor, no backlog, and no way to catch an event that fired before the rule existed. Filtering narrows what a rule reacts to through `eventType`, attribute matching inside `data`, or tag matching across resource types. IAM here grants the Events service itself as the caller, not a dynamic group of your own resources the way every other service in this track has.
+An Events rule is push-only: it matches a CloudEvents-shaped envelope the instant a service emits it and routes a match to a list of one to ten actions, each one of three types — Functions, Streaming, or Notifications. There's no cursor, no backlog, and no way to catch an event that fired before the rule existed. Filtering narrows what a rule reacts to through `eventType`, attribute matching inside `data`, or tag matching across resource types. IAM here grants the Events service itself as the caller, not a dynamic group of your own resources the way every other service in this track has.
 
-More than one rule can match the same event, each firing independently with no coordination or shared ordering between them — fan-out is the default, not an edge case. Routing an event into a Streaming action is the common way to gain durability and replay that Events itself deliberately doesn't provide. The worked walkthrough traced exactly that: a receipt upload event feeding both a stream and a human notification, from one Object Storage write `order-receipt-fn` never had to know about.
+Fan-out is the default, not an edge case, and it comes two ways: cheaply, inside one rule's action list, or across separate rules when the filters themselves need to differ — each firing independently with no coordination or shared ordering between them. Routing an event into a Streaming action is the common way to gain durability and replay that Events itself deliberately doesn't provide. The worked walkthrough traced exactly that: one rule's two actions feeding both a stream and a human notification off a single receipt upload, from one Object Storage write `order-receipt-fn` never had to know about.
 
 Choosing between Events, Queue, and Streaming comes down to what triggers the reaction and what happens when nothing is listening yet: a state change an OCI service already produced (Events), a discrete work item one worker should own (Queue), or a history multiple independent readers need their own replayable view of (Streaming). A rule that stops working localizes to one of three funnel stages — matching, delivery, or the action's own health — through the metrics this lesson already covers. Module `09` turns to securing everything this track has built so far; Module `10` is where the rest of the system's metrics and logs join those in one troubleshooting picture.
