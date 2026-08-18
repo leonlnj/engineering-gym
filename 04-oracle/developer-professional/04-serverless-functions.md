@@ -52,6 +52,8 @@ These are the shapes a function typically fills, not an exhaustive list — each
 
 ## 2. Applications and Functions: The Boundary That Replaces the Node
 
+This is the first replacement *What "no node" removes, and what replaces it*, above, named: network placement, now answered by the application's subnet instead of a node's.
+
 ### 2.1 The two-level resource model
 
 **An application is the umbrella resource a function is deployed into** — the same relationship a DevOps **project** has to its pipelines (Module `01`), except an application's job is narrower and entirely about *execution*, not delivery. Creating an application fixes three things for every function inside it: the **subnet** functions run in, a set of **configuration variables** every function can read, and whether **logging** is enabled.
@@ -128,7 +130,7 @@ FROM python:3.12-slim
 COPY . /function
 WORKDIR /function
 RUN pip install --no-cache-dir -r requirements.txt fdk
-ENTRYPOINT ["fdk", "handler.py", "handler"]
+ENTRYPOINT ["fdk", "func.py", "handler"]
 ```
 
 **Selection:** FDK by default — fastest to a working function. An existing image when the logic already lives in a container built for another purpose and just needs the handler contract added. A custom Dockerfile when the FDK's base image is missing a system dependency or runtime version the handler needs.
@@ -200,6 +202,8 @@ The trade is the same managed-vs-control pattern this track keeps naming: a pre-
 ---
 
 ## 4. Invocation: The Paths In and the Timeouts Behind Them
+
+This is the second replacement from that same table: a node's always-on lifecycle, replaced by the ephemeral cold-start/warm-reuse cycle this section covers.
 
 ### 4.1 Direct invoke: four doors, one authenticated call
 
@@ -440,7 +444,7 @@ Had `order-receipt-fn` been invoked with `--fn-invoke-type detached` instead, st
 
 ## 8. Summary
 
-OCI Functions removes the node entirely, and every distinctive behavior in this lesson traces back to that one fact. The **application** takes over the node's placement job — subnet, shared config, an isolation boundary between applications — while the individual function carries its own image, memory, and timeout. Where a node used to provide an always-on host, a function's container is ephemeral by design: a cold start on first demand, warm reuse while traffic keeps arriving, and removal after it stops.
+OCI Functions removes the node entirely, and every distinctive behavior in this lesson traces back to that one fact. The **application** takes over the node's placement job: subnet, shared config, and an isolation boundary between applications. The individual **function** underneath carries its own image, memory, and timeout. Where a node used to provide an always-on host, a function's container is ephemeral by design instead — a cold start on first demand, warm reuse while traffic keeps arriving, and removal after it stops.
 
 Invocation splits along two axes: *how* a call arrives — directly via CLI/SDK/HTTP, or triggered by another service — and *which type* it specifies, Sync or Detached. Concurrency and memory share one ceiling, a per-availability-domain RAM reservation that a function's own memory setting divides into. Provisioned concurrency is the deliberate, continuously-billed trade against ever paying that cold start.
 

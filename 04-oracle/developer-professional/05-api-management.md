@@ -25,6 +25,8 @@ An **Application Programming Interface (API) Gateway** is not a load balancer wi
 
 **A gateway is deliberately thin**: it owns a network identity — an **endpoint type** (public or private), a **subnet**, and optionally a **TLS certificate** — and nothing else. It carries no knowledge of your APIs at all; that job belongs entirely to the resource underneath it. Creating one is a networking decision, covered once the prerequisites it depends on are in place (see *Prerequisites and Networking*, below).
 
+That thinness is also the reason to reach for a gateway at all instead of exposing a load balancer directly: a gateway buys edge-level policy enforcement and authentication in one shared place, at the cost of one extra network hop and one more resource to operate. Worth it once a route needs authentication, transformation, or rate limiting beyond what the load balancer alone offers; skip it when none of them do.
+
 ### 1.2 Deployment: a path prefix plus a specification
 
 **A deployment attaches to a gateway at a path prefix and carries the specification** — the document that actually defines routes, backends, and policies (`/v1`, for instance). Multiple deployments can share one gateway, each at its own prefix: the same "one umbrella, many independent things underneath" pattern Module `01` established for a DevOps project holding many pipelines. A gateway with no deployments attached is a network shell with nothing to route.
@@ -228,7 +230,7 @@ Anything the authorizer returns in `context` becomes available to later policies
 
 ### 5.2 OAuth 2.0/OIDC with remote JWKS vs. static keys
 
-**The gateway also validates a JWT directly, against any OAuth 2.0/OIDC-compliant IdP**, without writing an authorizer function at all:
+**The gateway also validates a JSON Web Token (JWT) directly, against any OAuth 2.0/OpenID Connect (OIDC)-compliant IdP**, without writing an authorizer function at all:
 
 ```json
 "requestPolicies": {
@@ -248,6 +250,8 @@ The `publicKeys.type` field is the trade-off worth internalizing:
 
 - **Remote JSON Web Key Set (JWKS)** — fetches the IdP's current public verification keys live, at request time. A key rotated or revoked at the IdP takes effect on the very next request, at the cost of a live dependency and a small added latency per call.
 - **Static Keys** — pins the verification keys directly in the policy. No live IdP call, no added latency, and the gateway keeps validating tokens even if the IdP is briefly unreachable — but a key rotated at the IdP has no effect here until the static configuration is updated by hand.
+
+**Choosing between the two mechanisms** (*Authorizer functions*, above, vs. this one): reach for `JWT_AUTHENTICATION` when validation is standard OAuth 2.0/OIDC token-checking against a known IdP — no code to write or deploy. Reach for an authorizer function instead when validation needs custom logic the policy can't express on its own: a non-JWT scheme, an allowlist check, or a call out to a third system before deciding.
 
 ### 5.3 Multiple authentication servers
 
@@ -362,14 +366,18 @@ Had the client instead called `GET /orders/{orderId}` — the other route in the
 | Metrics post to `oci_apigateway` roughly once a minute | An alarm or dashboard built on it always trails live traffic by up to that interval | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/APIGateway/Reference/apigatewaymetrics.htm) |
 | A gateway's VCN needs a DHCP option set with a working DNS resolver | Usually already satisfied by a VCN's default options set — something to check on a hand-built or custom-resolver VCN, not to build fresh every time | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/APIGateway/Concepts/apigatewayprerequisites.htm) |
 
-> Note: A public gateway needs a public-IP policy grant as a *separate* grant from the VCN/subnet one (covered inline at *The IAM policy letting a group create a gateway*) — missing it blocks gateway creation, not just IP assignment. Remote JWKS and static keys trade opposite failure modes (immediate key-rotation pickup vs. no live IdP dependency) — covered inline at *OAuth 2.0/OIDC*. Rate-limit key choice changes who's grouped together: a source-IP key punishes an entire NAT'd office as one caller, a JWT-claim key isolates one tenant regardless of network. **Gateway fronting vs. direct load-balancer exposure** is a trade-off, not a limit: a gateway buys edge-level policy enforcement and authentication in one place, at the cost of one extra network hop and one more resource to operate — reach for direct load-balancer exposure only when no route needs authentication, transformation, or rate limiting beyond what the load balancer itself offers.
+> Note: Four cross-references worth keeping straight, not limits themselves:
+> - A public gateway needs a public-IP policy grant as a *separate* grant from the VCN/subnet one (covered inline at *The IAM policy letting a group create a gateway*) — missing it blocks gateway creation, not just IP assignment.
+> - Remote JWKS and static keys trade opposite failure modes (immediate key-rotation pickup vs. no live IdP dependency) — covered inline at *OAuth 2.0/OIDC*.
+> - Rate-limit key choice changes who's grouped together: a source-IP key punishes an entire NAT'd office as one caller, a JWT-claim key isolates one tenant regardless of network.
+> - **Gateway fronting vs. direct load-balancer exposure** is a trade-off, not a limit — covered inline at *Gateway: the network-facing shell*, above.
 
 ---
 
 ## 10. Summary
 
-An API Gateway is a thin, network-facing shell: a gateway resource with an endpoint type, a subnet, and a certificate. All the real API definition lives one layer down, in a deployment's specification, where each route names a path, a set of methods, and a backend. "Backend" genuinely means different things, from a plain HTTP URL to a function invoked by OCID (*Backend Types*, above, has the full comparison). Request and response policies sit between the route match and the backend call, reading from context variables rather than hard-coded values — the same policy stays reusable across callers, tenants, and versions.
+An API Gateway is a thin, network-facing shell: a gateway resource with an endpoint type, a subnet, and a certificate. All the real API definition lives one layer down, in a deployment's specification, where each route names a path, a set of methods, and a backend that can mean genuinely different things — from a plain HTTP URL to a function invoked by OCID (*Backend Types*, above, has the full comparison). Request and response policies sit between the route match and the backend call, reading from context variables rather than hard-coded values — the same policy stays reusable across callers, tenants, and versions.
 
 Two mechanisms compound to make one gateway flexible enough to front an entire system. Dynamic authentication validates a caller once, through an authorizer function or a JWT policy against remote JWKS or static keys. Dynamic routing then picks *which* backend a validated request actually reaches, from a header, a subdomain, or the very claim authentication just verified. Neither replaces the network prerequisites underneath — a regional subnet, a DNS-capable VCN, and the IAM policy letting a group stand the gateway up — nor Module `10`'s job of analysing what the gateway's own metrics and logs actually say.
 
-This lesson's own worked example is the payoff for two earlier ones. `orders-service` from Module `03` and `order-receipt-fn` from Module `04` now sit behind the same gateway, reached through completely different backend types and policy attachments — proof that everything built in this track so far was building toward one door, not several disconnected services. Module `09` returns to the Certificates service this lesson only introduced consuming; Module `10` is where its metrics and logs finally get analysed rather than just enabled.
+This lesson's own worked example is the payoff for two earlier ones: `orders-service` from Module `03` and `order-receipt-fn` from Module `04` now sit behind the same gateway, reached through completely different backend types and policy attachments — proof that everything built in this track so far was building toward one door, not several disconnected services. Module `09` returns to the Certificates service this lesson only introduced consuming; Module `10` is where its metrics and logs finally get analysed rather than just enabled.

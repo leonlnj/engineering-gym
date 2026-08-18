@@ -31,7 +31,7 @@
 
 **Three independent dials sit below the control plane**, each covered in its own section of this lesson: the cluster tier, the node type, and the upgrade strategy.
 
-> Nuance: it's tempting to assume "managed Kubernetes" means Oracle manages the whole cluster end to end. It does not. OKE's management guarantee is scoped to the control plane; the moment you add a **managed node** pool, you are back to patching an OS and sizing compute instances yourself unless you deliberately choose the tier and node type that hands that back to Oracle too.
+> Nuance: OKE's management guarantee is scoped to the control plane specifically. The moment you add a **managed node** pool, you are back to patching an OS and sizing compute instances yourself, unless you deliberately choose the tier and node type that hands that back to Oracle too.
 
 ```mermaid
 graph TD
@@ -226,7 +226,7 @@ write_files:
     content: ${cluster_ca_cert}
 ```
 
-> ⚠️ OKE's silence here cuts both ways. It never validates that the Kubernetes version baked into your image is compatible with the control plane before letting the node join — the same **skew policy** *Two upgrade surfaces, upgraded separately* covers for managed node pools still applies, but nothing enforces it for you. A self-managed node on an incompatible version joins successfully and fails in stranger ways later.
+> ⚠️ OKE's silence here cuts both ways. It never validates that the Kubernetes version baked into your image is compatible with the control plane before letting the node join. The same **skew policy** *Two upgrade surfaces, upgraded separately* covers for managed node pools still applies here — but nothing enforces it for you. A self-managed node on an incompatible version joins successfully and fails in stranger ways later.
 
 ### 3.5 Managed, virtual, and self-managed, side by side
 
@@ -251,6 +251,8 @@ write_files:
 ---
 
 ## 4. Reaching the Cluster: kubeconfig, Cloud Shell, and Endpoints
+
+Reaching the cluster is not a data-plane dial the way tier or node type are — it's orthogonal to both, which is why it gets its own section. Whichever tier and node type you chose, this is how you actually operate against the result.
 
 ### 4.1 The endpoint choice
 
@@ -305,10 +307,6 @@ The generated kubeconfig does not embed a static credential — it shells out to
 **Cloud Shell is a browser-based terminal, pre-authenticated as your IAM identity.** No local OCI CLI install or API-key setup is needed before running the `create-kubeconfig` command above — the fastest way to reach a *public-endpoint* cluster for ad hoc `kubectl` work, exam practice, or a quick node-pool check.
 
 > Nuance: Cloud Shell does not grant any special network path into a *private*-endpoint cluster. It runs from an OCI-managed network, not inside your VCN, so reaching a private cluster from Cloud Shell still needs the same VCN connectivity (a bastion, a peering, a service gateway) any other external caller would need. Cloud Shell removes the *authentication* setup step, not the *networking* one. It also doesn't remove the credential-lifecycle risk from *Generating the kubeconfig* above, since it authenticates as the same personal IAM identity logged into the console.
-
-### 4.4 Placing this back on the spine
-
-Reaching the cluster is not a data-plane dial the way tier or node type are — it's orthogonal to both, which is why it gets its own section. Whichever tier and node type you chose, this is how you actually operate against the result.
 
 ---
 
@@ -411,7 +409,9 @@ The Kubernetes **skew policy** bounds how far apart the two are allowed to drift
 - **In-place upgrade** — replaces the boot volume (or the instance itself) of each existing worker node with the new Kubernetes version, node by node, keeping the same node pool resource throughout.
 - **Out-of-place upgrade** — creates a *new* node pool on the target version, drains workloads onto it, then removes the old pool entirely. Slower to set up, but leaves the previous pool intact as a rollback path until the new one is proven.
 
-> Note: The first objection lands immediately — what happens to pods running on a node mid-cycle? **Node cycling** — an Enhanced-cluster-only capability — answers it by cordoning and draining each node before replacing it, so workloads reschedule onto already-upgraded nodes rather than being cut off mid-request. Basic clusters lack node cycling and require a manual drain before each replacement. That gate is specific to *in-place* upgrades. An out-of-place upgrade drains onto a brand-new pool instead, so it isn't gated behind node cycling or Enhanced at all. A Basic cluster can run an out-of-place upgrade the same way an Enhanced one does.
+> Note: The first objection lands immediately — what happens to pods running on a node mid-cycle? **Node cycling** — an Enhanced-cluster-only capability — answers it by cordoning and draining each node before replacing it, so workloads reschedule onto already-upgraded nodes rather than being cut off mid-request. Basic clusters lack node cycling and require a manual drain before each replacement.
+
+That gate is specific to *in-place* upgrades. An out-of-place upgrade drains onto a brand-new pool instead, so it isn't gated behind node cycling or Enhanced at all — a Basic cluster can run one the same way an Enhanced cluster does.
 
 ```mermaid
 stateDiagram-v2
@@ -443,7 +443,7 @@ oci ce addon install \
   --configurations '[{"key":"nodepools","value":"[\"'"$NODE_POOL_OCID"'\"]"}]'
 ```
 
-The **Cluster Autoscaler**, installed as a cluster **add-on**, watches for unschedulable pods and adds or removes nodes to match. As *Managed, Virtual, and Self-Managed Nodes* already established, a virtual-node pool has no Cluster Autoscaler to install at all — it scales per-pod the moment a pod is scheduled, so "how many nodes should I run" never comes up on that path.
+The **Cluster Autoscaler**, installed as a cluster **add-on**, watches for unschedulable pods and adds or removes nodes to match. As *Managed, Virtual, and Self-Managed Nodes* already established, a virtual-node pool has no Cluster Autoscaler to install at all. It scales per-pod the moment a pod is scheduled, so "how many nodes should I run" never comes up on that path.
 
 ### 6.4 Worked walkthrough: a scale-up from HPA to a running pod
 
@@ -523,8 +523,6 @@ metadata:
 ```
 
 > ⚠️ A cluster still depending on PSP has to migrate to PodSecurity — mapping each policy to the nearest of the three built-ins — *before* it reaches 1.25, not after; there is no grace period once the upgrade lands.
-
-### 7.3 What this section defers
 
 Cluster **audit logs** — who called the API server, and when — along with application log collection and cluster-level metrics, are *enabled* on the cluster covered by this lesson but *analysed* in Module `10`; this section stops at the admission and encryption mechanics that protect the cluster itself.
 

@@ -12,10 +12,9 @@ Metrics, logs, and traces are not interchangeable tools you reach for on prefere
 4. [Application Performance Monitoring: Domains, Spans, and Trace Explorer](#4-application-performance-monitoring-domains-spans-and-trace-explorer)
 5. [Instrumenting Traces: Automatic Spans, Manual Spans, and Cross-Service Propagation](#5-instrumenting-traces-automatic-spans-manual-spans-and-cross-service-propagation)
 6. [Connector Hub: Routing Observability Data Downstream](#6-connector-hub-routing-observability-data-downstream)
-7. [Choosing Between Metrics, Logs, and Traces](#7-choosing-between-metrics-logs-and-traces)
-8. [Worked Walkthrough: One Request, Correlated Across Gateway, Function, and Trace](#8-worked-walkthrough-one-request-correlated-across-gateway-function-and-trace)
-9. [Limits and Sources](#9-limits-and-sources)
-10. [Summary](#10-summary)
+7. [Worked Walkthrough: One Request, Correlated Across Gateway, Function, and Trace](#7-worked-walkthrough-one-request-correlated-across-gateway-function-and-trace)
+8. [Limits and Sources](#8-limits-and-sources)
+9. [Summary](#9-summary)
 
 ---
 
@@ -85,7 +84,14 @@ The MQL queries above are read-only until an alarm wraps one in a trigger and a 
 
 ### 2.2 Four message types, not just "fired" and "cleared"
 
-**An alarm sends one of four distinct message types, and conflating them misreads the notification stream.** `OK_TO_FIRING` is the initial transition into a firing state; `FIRING_TO_OK` is the condition clearing; `REPEAT` is sent at a configured interval *while still firing*, so an unresolved incident doesn't go silent; `RESET` fires when the underlying metric stream itself goes absent for an extended period, distinct from the condition actually clearing.
+**An alarm sends one of four distinct message types, and conflating them misreads the notification stream:**
+
+| Message type | Trigger condition |
+| :--- | :--- |
+| `OK_TO_FIRING` | Initial transition into a firing state |
+| `FIRING_TO_OK` | The condition clears |
+| `REPEAT` | Sent at a configured interval *while still firing*, so an unresolved incident doesn't go silent |
+| `RESET` | The underlying metric stream itself goes absent for an extended period — distinct from the condition actually clearing |
 
 ```mermaid
 stateDiagram-v2
@@ -102,11 +108,13 @@ stateDiagram-v2
 
 **Notifications delivers to a Topic's subscriptions — email, Slack, PagerDuty — capped at 60 messages per evaluation; Streaming delivers to a stream instead, capped at 100,000.** Choose Notifications for ordinary, human-facing alerting; choose Streaming when an alarm could legitimately fan out past 60 distinct messages in one evaluation — many resources tripping the same condition at once, for instance.
 
-> Nuance: routing a high-volume alarm into a stream doesn't bypass that stream's own limits (Module `06`) — a firehose of alarm messages can still hit the 1 MB/s-per-partition write ceiling if the destination stream is undersized for it.
+> ⚠️ Routing a high-volume alarm into a stream doesn't bypass that stream's own limits (Module `06`) — a firehose of alarm messages can still hit the 1 MB/s-per-partition write ceiling if the destination stream is undersized for it.
 
 ### 2.4 Suppression stops notifications, not evaluation
 
-**Suppression silences `OK_TO_FIRING`, `REPEAT`, and `RESET` messages for a scheduled window — the alarm keeps evaluating underneath it.** The wrong model is assuming suppression pauses the alarm itself; it doesn't. A condition that starts and clears entirely within a suppression window produces no messages at all, but the alarm's own evaluation history still shows it happened.
+**Suppression silences `OK_TO_FIRING`, `REPEAT`, and `RESET` messages for a scheduled window — the alarm keeps evaluating underneath it.**
+
+> Nuance: the wrong model is assuming suppression pauses the alarm itself. It doesn't. A condition that starts and clears entirely within a suppression window produces no messages at all, but the alarm's own evaluation history still shows it happened.
 
 ---
 
@@ -154,6 +162,8 @@ Logs answer what happened on one resource; **Application Performance Monitoring 
 ### 4.1 An APM domain, and its two data keys
 
 **An APM domain is the collection instance traces and spans are sent to, and it issues two differently-trusted keys.** The **public data key** is safe to embed in client-side code — it's what the browser/RUM agent uses. The **private data key** is for server-side collectors — OpenTelemetry, the APM Java agent, and OCI Functions tracing all authenticate with it instead, and it should never ship to a client the way the public key safely can.
+
+> ⚠️ A leaked private data key lets anyone write arbitrary spans into your domain — treat it as a credential to rotate, not just a config value.
 
 ### 4.2 Trace and span: the tree, and its nodes
 
@@ -213,17 +223,29 @@ if tracing_context.is_sampled():
 
 **The APM Java agent auto-instruments a running JVM application with no manual spans required — the choice if a workload on OKE happens to be Java-based.** The **browser/Real User Monitoring (RUM) agent** instruments client-side page loads and user sessions instead, authenticated with the *public* data key from *An APM domain, and its two data keys*, above. Raw **OpenTelemetry (OTLP)** ingest — plus Zipkin and Jaeger span formats — is the option for anything already emitting spans in an open standard, needing no Oracle-specific agent at all.
 
-**Choose the Java agent** for an unmodified JVM service; **choose OpenTelemetry ingest** when spans already exist in that format and re-instrumenting would be redundant; **choose the browser agent** only for genuinely client-side, end-user-facing visibility — the three aren't competing for the same job.
+**The three aren't competing for the same job:**
+
+| Instrumentation | Choose it when |
+| :--- | :--- |
+| Java agent | An unmodified JVM service |
+| OpenTelemetry ingest | Spans already exist in that format and re-instrumenting would be redundant |
+| Browser/RUM agent | Genuinely client-side, end-user-facing visibility only |
 
 ---
 
 ## 6. Connector Hub: Routing Observability Data Downstream
 
-> Note: Connector Hub is grounded in real OCI documentation but isn't confirmed as official course content for this module — the same "additional depth beyond the TOC" labeling Module `06` used for Streaming with Apache Kafka. It's included here because it's the literal glue connecting this lesson's own Monitoring and Logging output to Modules `06` and `08`'s Streaming and Events.
+> Note: Connector Hub is grounded in real OCI documentation but isn't confirmed as official course content for this module — the same kind of "additional depth beyond the TOC" scoping this track applies elsewhere when a topic is real and useful but not verified course wording. It's included here because it's the literal glue connecting this lesson's own Monitoring and Logging output to Modules `06` and `08`'s Streaming and Events.
 
 ### 6.1 Sources, an optional task, and a target
 
-**A connector reads from one source, optionally runs a task, and writes to one target** — Logging, Monitoring, Queue, or Streaming as a source; Functions, Streaming, Notifications, Object Storage, Monitoring, or Log Analytics as a target; an optional Functions task for custom processing, or a Logging task to filter before delivery.
+**A connector reads from one source, optionally runs a task, and writes to one target.**
+
+| Role | Options |
+| :--- | :--- |
+| Source | Logging, Monitoring, Queue, Streaming |
+| Task (optional) | Functions (custom processing), Logging (filter before delivery) |
+| Target | Functions, Streaming, Notifications, Object Storage, Monitoring, Log Analytics |
 
 ```mermaid
 graph TD
@@ -256,11 +278,9 @@ oci sch service-connector create \
 
 ---
 
-## 7. Choosing Between Metrics, Logs, and Traces
+## 7. Worked Walkthrough: One Request, Correlated Across Gateway, Function, and Trace
 
-### 7.1 Three tools, three different diagnostic questions
-
-**Each tool wins a different question, and none of the three substitutes for another.**
+**Each tool wins a different question, and none of the three substitutes for another:**
 
 | | Metrics | Logs | Traces |
 | :--- | :--- | :--- | :--- |
@@ -268,13 +288,7 @@ oci sch service-connector create \
 | Granularity | Aggregated data points | Discrete events | A causally-linked tree of spans |
 | Reach for it when | You need a threshold and an alert | You need the exact error a resource produced | You need to know *which* downstream call is actually slow or failing |
 
-### 7.2 They compose in a fixed order, not an arbitrary pick
-
-**The three compose in a fixed order rather than an arbitrary pick** — that's the order the worked walkthrough below follows, because moving alarm → log → trace narrows a problem down instead of guessing which tool to open first.
-
----
-
-## 8. Worked Walkthrough: One Request, Correlated Across Gateway, Function, and Trace
+They compose in a fixed order rather than an arbitrary pick — moving alarm → log → trace narrows a problem down instead of guessing which tool to open first, exactly the order this walkthrough follows next.
 
 A failing `POST /receipts` call, traced through every mechanism this lesson covers, closing the loop on what Modules `03`–`05` each deferred.
 
@@ -309,7 +323,7 @@ sequenceDiagram
 
 ---
 
-## 9. Limits and Sources
+## 8. Limits and Sources
 
 | Limit | What it forces | As-of + docs |
 | :--- | :--- | :--- |
@@ -317,13 +331,13 @@ sequenceDiagram
 | Notifications: 60 messages/evaluation; Streaming: 100,000 messages/evaluation | Count distinct alarming resources, not alarm count — one condition across 80 instances is 80 messages and silently truncates on Notifications | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Monitoring/Concepts/monitoringoverview.htm) |
 | Metric definitions and alarm history retained 90 days; up to 100,000 data points returned per query | Long-range trend analysis past 90 days needs the data exported elsewhere first (Connector Hub, above) | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Monitoring/Concepts/monitoringoverview.htm) |
 | Connector Hub retention: Logging and Monitoring sources 24 hours; Streaming customer-defined | A Logging-sourced connector down for more than 24 hours loses unretried data — Streaming's customer-defined window is the way to buy more slack | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/connector-hub/overview.htm) |
-| APM data keys: public (browser/RUM agent) vs. private (server-side collectors, OpenTelemetry, Functions tracing) | A leaked private data key lets anyone write arbitrary spans into your domain, so treat it as a credential to rotate, not just a config value | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/application-performance-monitoring/doc/application-performance-monitoring.html) |
+| APM data keys: public (browser/RUM agent) vs. private (server-side collectors, OpenTelemetry, Functions tracing) | Rotation and leak-exposure risk differs by key type — covered inline at *An APM domain, and its two data keys*, above | Jul 2026, [docs](https://docs.oracle.com/en-us/iaas/application-performance-monitoring/doc/application-performance-monitoring.html) |
 
-> Note: Metrics vs. logs vs. traces is a trade-off, not a limit — covered inline at *Choosing Between Metrics, Logs, and Traces*. This lesson stops at building and reading these signals within one tenancy; deeper Logging Analytics workflows, wider multi-tenancy observability patterns, and further APM configuration depth belong to the `observability-professional` sub-track.
+> Note: Metrics vs. logs vs. traces is a trade-off, not a limit — covered inline at the *Worked Walkthrough*'s opening comparison, above. This lesson stops at building and reading these signals within one tenancy; deeper Logging Analytics workflows, wider multi-tenancy observability patterns, and further APM configuration depth belong to the `observability-professional` sub-track.
 
 ---
 
-## 10. Summary
+## 9. Summary
 
 Metrics answer "is something wrong" in aggregate, through namespaces, dimensions, and the Monitoring Query Language — the same query shape whether the metric is `oci_apigateway`'s built-in `5xxErrors` or a custom one an application publishes itself. An alarm wraps that query in a trigger rule requiring sustained, not momentary, breach. It delivers one of four distinct message types to Notifications or Streaming, depending on expected volume. Suppression silences those messages without ever pausing the evaluation underneath them.
 
