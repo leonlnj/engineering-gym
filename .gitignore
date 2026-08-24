@@ -19,6 +19,10 @@ target
 # Editor/IDE
 .vscode/
 
+# Python (e.g. .claude/skills/lesson-craft/scripts/lint_lesson.py)
+__pycache__/
+*.pyc
+
 # debug logs
 minikube.log
 
@@ -26,3 +30,6 @@ minikube.log
 Cargo.lock
 
 .claude/worktrees
+.DS_Store
+
+ignore
