@@ -31,3 +31,5 @@ Cargo.lock
 
 .claude/worktrees
 .DS_Store
+
+ignore
