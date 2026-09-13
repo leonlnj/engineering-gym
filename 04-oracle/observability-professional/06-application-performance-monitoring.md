@@ -1,12 +1,12 @@
 # Application Performance Monitoring: Domains, Data Sources, and the Three Monitoring Modes
 
-`developer-professional/10` covered the trace: an **Application Performance Monitoring (APM)** domain, its two data keys, a span tree, and Trace Explorer. That is one of three things APM does. This lesson covers the other two — **Real User Monitoring (RUM)**, which watches actual browser sessions, and **Availability Monitoring** (the service Oracle renamed from *Synthetic Monitoring* in December 2024), which runs scripted probes on a schedule — plus the pieces that turn spans into alertable signal: **APDEX**, span-filter **metric groups**, and APM metric alarms. The recurring choice is RUM versus synthetic: the real user population you cannot control, against deterministic probes from vantage points you choose.
+APM does three things into one domain: distributed tracing (`developer-professional/10`), Real User Monitoring, and Availability Monitoring. **Real User Monitoring (RUM)** watches actual browser sessions. **Availability Monitoring** — the service Oracle renamed from *Synthetic Monitoring* in December 2024 — runs scripted probes on a schedule. The recurring choice is RUM versus synthetic: uncontrolled real users, against scheduled probes. The walkthrough below traces one slow checkout from a RUM alert to its root-cause span.
 
 ---
 
 ## Contents
 
-1. [What This Lesson Adds Over the Trace](#1-what-this-lesson-adds-over-the-trace)
+1. [The Three Monitoring Modes](#1-the-three-monitoring-modes)
 2. [APM Domain, Data Keys, and Setup](#2-apm-domain-data-keys-and-setup)
 3. [Data Sources](#3-data-sources)
 4. [Distributed Tracing Standards](#4-distributed-tracing-standards)
@@ -21,19 +21,17 @@
 
 ---
 
-## 1. What This Lesson Adds Over the Trace
+## 1. The Three Monitoring Modes
 
-**A trace answers "where did the time go inside one request".** `developer-professional/10` covers that end in its APM and trace-instrumentation sections: the domain, the public and private data keys, the span tree in Trace Explorer, span attributes, automatic vs. manual instrumentation, and `X-B3` context propagation. This lesson does not repeat it.
+**A trace answers "where did the time go inside one request".** `developer-professional/10` covers that end in its APM and trace-instrumentation sections: the domain, the public and private data keys, the span tree in Trace Explorer, span attributes, and automatic vs. manual instrumentation. Trace-ID propagation itself — the mechanism the hybrid-trace walkthrough below depends on — is covered directly in the *Distributed Tracing Standards* section, not deferred.
 
 **The three monitoring modes answer different questions:**
 
 | Mode | Watches | Answers |
 | :--- | :--- | :--- |
 | Distributed tracing | Instrumented server-side code | Where the latency or error is, inside a request |
-| Real User Monitoring | Real browsers loading your pages | What actual users are experiencing, right now |
-| Availability Monitoring | Scripted probes on a schedule | Is the endpoint up and fast, from where I chose to check |
-
-The rest of this lesson is the domain all three report into, the sources that feed it, and the ways a span becomes an alert.
+| Real User Monitoring | Real browsers loading production pages | What actual users are experiencing, right now |
+| Availability Monitoring | Scripted probes on a schedule | Whether the endpoint is up and fast, from a chosen vantage point |
 
 ---
 
@@ -61,11 +59,11 @@ oci apm-domain create --compartment-id "$C" --display-name "orders-prod" \
 oci apm-domain data-keys list --apm-domain-id "$DOMAIN_OCID"
 ```
 
-> ⚠️ A leaked private data key lets anyone write arbitrary spans into your domain — and spans are billed. Treat it as a credential to rotate, not a config value. The public key is designed to be exposed; the private key never ships to a client.
+> ⚠️ A leaked private data key lets anyone write arbitrary spans into the domain — and spans are billed. Treat it as a credential to rotate, not a config value. The public key is designed to be exposed; the private key never ships to a client.
 
 ### 2.3 Free-tier versus paid
 
-**A free-tier domain caps ingestion and has no support commitment; a paid domain bills by span volume.** Billing is per 100,000 spans, reported in 15-minute intervals — so a chatty tracer with no sampling is a direct cost, which is why the tracer supports a sampling rate.
+**A free-tier domain caps ingestion and has no support commitment; a paid domain bills by span volume.** Billing aggregates spans hourly, and 100,000 spans is one billing unit — so a chatty tracer with no sampling is a direct cost, which is why the tracer supports a sampling rate. A separate metric, `SpanIngestions`, reports at a finer 15-minute grain for watching cost trend in real time; it doesn't change the hourly billing cadence itself.
 
 ---
 
@@ -75,13 +73,13 @@ oci apm-domain data-keys list --apm-domain-id "$DOMAIN_OCID"
 
 **A data source is anything that produces spans or RUM/synthetic observations for a domain.**
 
-| Source | Instruments | Choose it when |
+| Source | Instruments | Reach for it when |
 | :--- | :--- | :--- |
-| APM tracer (OpenTracing/OpenTelemetry SDK) | Code you add spans to by hand | You need custom spans the auto agents cannot see |
+| APM tracer (OpenTracing/OpenTelemetry SDK) | Code annotated with spans by hand | Custom spans the auto agents cannot see are needed |
 | APM Java agent | A running JVM, no code change | The workload is an unmodified Java service |
-| Browser agent (RUM) | Client-side page loads, AJAX, JS errors | You need real end-user experience |
+| Browser agent (RUM) | Client-side page loads, AJAX, JS errors | Real end-user experience is the question |
 | OpenTelemetry ingest | Anything already emitting OTLP/Zipkin/Jaeger | Spans exist in an open format already |
-| OpenTelemetry Operator for Kubernetes | Auto-injects instrumentation into pods | A Kubernetes fleet you do not want to rebuild image-by-image |
+| OpenTelemetry Operator for Kubernetes | Auto-injects instrumentation into pods | A Kubernetes fleet should not be rebuilt image-by-image |
 
 ### 3.2 Agent hybrids
 
@@ -89,28 +87,26 @@ oci apm-domain data-keys list --apm-domain-id "$DOMAIN_OCID"
 
 ```mermaid
 flowchart LR
-    BR["Browser agent<br/>(public key)"] -->|"RUM span"| D[("APM domain: orders-prod")]
-    JA["Java agent<br/>(private key)"] -->|"server spans"| D
-    TR["APM tracer<br/>(private key)"] -->|"custom spans"| D
-    OT["OpenTelemetry<br/>collector"] -->|"OTLP spans"| D
+    BR["Browser Agent<br/>(public key)"] -->|"RUM span"| D[("APM Domain: orders-prod")]
+    JA["Java Agent<br/>(private key)"] -->|"server spans"| D
+    TR["APM Tracer<br/>(private key)"] -->|"custom spans"| D
+    OT["OpenTelemetry<br/>Collector"] -->|"OTLP spans"| D
     D --> TE["Trace Explorer"]
-    D --> DB["Dashboards + APM metrics"]
+    D --> DB["Dashboards + APM Metrics"]
 
-    linkStyle 0 stroke:#8b5cf6,stroke-width:2px
-    linkStyle 1,2 stroke:#3b82f6,stroke-width:2px
-    linkStyle 3 stroke:#06b6d4,stroke-width:2px
+    linkStyle 0,1,2,3 stroke:#06b6d4,stroke-width:2px
     linkStyle 4,5 stroke:#94a3b8,stroke-width:2px
 
-    style BR stroke:#8b5cf6,stroke-width:2px
-    style JA stroke:#3b82f6,stroke-width:2px
-    style TR stroke:#3b82f6,stroke-width:2px
-    style OT stroke:#06b6d4,stroke-width:2px
+    style BR stroke:#a855f7,stroke-width:2px
+    style JA stroke:#eab308,stroke-width:2px
+    style TR stroke:#eab308,stroke-width:2px
+    style OT stroke:#eab308,stroke-width:2px
     style D stroke:#94a3b8,stroke-width:2px
     style TE stroke:#94a3b8,stroke-width:2px
     style DB stroke:#94a3b8,stroke-width:2px
 ```
 
-*Every source writes into one domain; the key it authenticates with (violet public, blue private) is the only difference at ingest.*
+*Every source writes into one domain over the traces flow; the key it authenticates with (purple public, gold private) is an orthogonal axis, not a second flow.*
 
 ---
 
@@ -128,7 +124,14 @@ flowchart LR
 
 **Instrument → generate spans → batch to the collector endpoint → domain stores and indexes.** The collector endpoint is regional and authenticates with the private data key.
 
-> Note: context propagation — how the *same* trace ID threads every hop so the spans form one tree — is the `X-B3` / `traceparent` header mechanism covered in `developer-professional/10`'s trace-instrumentation section. This lesson assumes it.
+**A trace is one tree because every hop carries the same trace ID forward, not because the spans share a domain.** The browser agent can only inject that header into an outgoing same-domain AJAX/XHR/fetch call it instruments *after* the page has loaded — never into the initial page-navigation request, which delivers the not-yet-running agent script and so can't carry a header the agent itself adds. From that first instrumented call onward, each downstream service reads the header, opens its own span as a child of it, and forwards the *same* trace ID to whatever it calls next:
+
+```text
+traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+                \____________ trace ID ___________/\_ this hop's span ID _/
+```
+
+For one checkout request: the checkout page's own AJAX call — not the page load itself — sends `traceparent` with trace ID `4bf9…4736` to the API Gateway; the gateway's span reads that trace ID and forwards it, plus its own new span ID, to `order-receipt-fn`; the Function's span reads it again. Three spans, one trace ID, one tree — Trace Explorer groups by trace ID, not by which domain ingested a span. `developer-professional/10`'s trace-instrumentation section covers the full header format, sampling, and manual span creation.
 
 ### 4.3 Enabling tracing for OCI Functions
 
@@ -147,7 +150,7 @@ oci fn application update --application-id "$APP_OCID" \
 
 **Trace Explorer queries spans and traces with a SQL-like language over span attributes.** Attributes are of two kinds: **dimensions** (string-valued, filterable and groupable — `ServiceName`, `OperationName`, `Status`) and **metrics** (numeric — `Duration`, `SpanCount`).
 
-```sql
+```text
 show traces
 where ServiceName = 'order-receipt-fn' and Duration > 25000
 order by TraceStartTime desc
@@ -215,7 +218,7 @@ oci apm-config config create --apm-domain-id "$DOMAIN_OCID" --config-type APDEX 
 
 ### 8.1 Deriving a metric from a span filter
 
-**A span filter is a saved Trace Explorer predicate; a metric group turns that filter into a continuous metric stream in the Monitoring service.** This is how you alarm on "the p90 latency of *just* the checkout operation" without that being a metric APM ships by default.
+**A span filter is a saved Trace Explorer predicate; a metric group turns that filter into a continuous metric stream in the Monitoring service.** This is the mechanism for alarming on "the p90 latency of *just* the checkout operation" without that being a metric APM ships by default.
 
 ### 8.2 Custom span dimensions
 
@@ -231,13 +234,13 @@ oci apm-config config create --apm-domain-id "$DOMAIN_OCID" --config-type APDEX 
 
 | | Real User Monitoring | Availability Monitoring (synthetic) |
 | :--- | :--- | :--- |
-| Traffic | Actual user sessions | Scripted probes you define |
-| Coverage | Only what users actually do | Every path you script, on a schedule |
+| Traffic | Actual user sessions | Scripted probes, defined ahead of time |
+| Coverage | Only what users actually do | Every scripted path, on a schedule |
 | Timing | Only when users are active | Continuous, including 3 a.m. and pre-launch |
-| Geography | Wherever your users are | Vantage points you pick |
-| Blind spot | A page no one visited tonight | A user flow you forgot to script |
+| Geography | Wherever the real users are | Chosen vantage points |
+| Blind spot | A page no one visited tonight | A user flow no one scripted |
 
-**Run both.** RUM tells you what is happening to real people; synthetic tells you whether an endpoint is up when no one is looking and catches a regression before users hit it.
+**Run both.** RUM shows what is happening to real people; synthetic shows whether an endpoint is up when no one is looking, catching a regression before users hit it.
 
 ### 9.2 RUM: the browser agent
 
@@ -254,41 +257,37 @@ oci apm-config config create --apm-domain-id "$DOMAIN_OCID" --config-type APDEX 
 **A monitor is a script plus a schedule plus a set of vantage points.** Types include scripted REST, browser and scripted-browser (a recorded UI flow), and network checks (ping, TCP, DNS).
 
 - **Oracle public vantage points** — Oracle-run locations worldwide; the default, no setup.
-- **Dedicated Vantage Point (DVP)** — a vantage point you run in your own OCI tenancy, for probing an endpoint that is not reachable from the public internet, or from a network location Oracle does not offer.
-- **On-Premises Vantage Point (OPVP)** — a DVP packaged to run inside your own data centre, for monitoring an internal application from where your users actually sit.
+- **Dedicated Vantage Point (DVP)** — a vantage point running in the customer's own OCI tenancy, for probing an endpoint that is not reachable from the public internet, or from a network location Oracle does not offer.
+- **On-Premises Vantage Point (OPVP)** — a DVP packaged to run inside the customer's own data centre, for monitoring an internal application from where its real users actually sit.
 
 | Vantage point | Runs in | Reaches |
 | :--- | :--- | :--- |
 | Public | Oracle regions | Public internet endpoints |
-| DVP | Your OCI tenancy (a compartment/VCN) | Private OCI endpoints, a chosen region |
-| OPVP | Your own data centre | Internal apps behind the corporate firewall |
+| DVP | The customer's OCI tenancy (a compartment/VCN) | Private OCI endpoints, a chosen region |
+| OPVP | The customer's own data centre | Internal apps behind the corporate firewall |
 
 ```mermaid
 flowchart LR
-    PV["Public vantage point<br/>(Oracle region)"] -->|"probe"| APP1[["Public endpoint"]]
-    DVP["Dedicated Vantage Point<br/>(your OCI tenancy)"] -->|"probe"| APP2["Private OCI endpoint"]
-    OPVP["On-Premises Vantage Point<br/>(your data centre)"] -->|"probe"| APP3["Internal app"]
-    PV --> D[("APM domain")]
+    PV["Public Vantage Point<br/>(Oracle region)"] -->|"probe"| APP1["Public Endpoint"]
+    DVP["Dedicated Vantage Point<br/>(customer OCI tenancy)"] -->|"probe"| APP2["Private OCI Endpoint"]
+    OPVP["On-Premises Vantage Point<br/>(customer data centre)"] -->|"probe"| APP3["Internal App"]
+    PV --> D[("APM Domain")]
     DVP --> D
     OPVP --> D
 
-    linkStyle 0 stroke:#3b82f6,stroke-width:2px
-    linkStyle 1 stroke:#8b5cf6,stroke-width:2px
-    linkStyle 2 stroke:#06b6d4,stroke-width:2px
-    linkStyle 3 stroke:#3b82f6,stroke-width:2px
-    linkStyle 4 stroke:#8b5cf6,stroke-width:2px
-    linkStyle 5 stroke:#06b6d4,stroke-width:2px
+    linkStyle 0,1,2 stroke:#94a3b8,stroke-width:2px
+    linkStyle 3,4,5 stroke:#06b6d4,stroke-width:2px
 
-    style PV stroke:#3b82f6,stroke-width:2px
-    style DVP stroke:#8b5cf6,stroke-width:2px
-    style OPVP stroke:#06b6d4,stroke-width:2px
+    style PV stroke:#a855f7,stroke-width:2px
+    style DVP stroke:#0ea5e9,stroke-width:2px
+    style OPVP stroke:#eab308,stroke-width:2px
     style APP1 stroke:#94a3b8,stroke-width:2px
     style APP2 stroke:#94a3b8,stroke-width:2px
     style APP3 stroke:#94a3b8,stroke-width:2px
     style D stroke:#94a3b8,stroke-width:2px
 ```
 
-*All three probe types report results to the same domain; they differ only in where the probe runs and therefore what it can reach.*
+*All three probe types report results to the same domain over the traces flow; the vantage-point location (purple/sky/gold) is an orthogonal axis determining what each can reach.*
 
 ```text
 oci apm-synthetics monitor create --apm-domain-id "$DOMAIN_OCID" \
@@ -307,8 +306,8 @@ The `orders-web` front end (browser agent) and `order-receipt-fn` (Functions tra
 
 1. **RUM catches it first.** The browser agent reports rising page-load time on `/checkout`; the RUM APDEX for that page drops from 0.95 to 0.6. A metric-group alarm on `ApmRumPageLoadTime` for `PageUrl = /checkout` crosses 4000 ms and pages `orders-oncall` (lesson `02`).
 2. **Confirm it is real users, not one bot.** GeoMap shows the slow sessions spread across three regions and dozens of sessions — a real regression, not a single client.
-3. **Follow the hybrid trace.** Because `orders-web` and the backend share the domain, a slow `/checkout` RUM span is the root of a server-side trace. Trace Explorer: `show traces where PageUrl = '/checkout' and Duration > 4000`.
-4. **Localise the span.** Trace Details shows the waterfall: browser render 200 ms, gateway 10 ms, `order-receipt-fn` invocation span 3.8 s, and inside it a `put-receipt-object` child span holding 3.7 s.
+3. **Follow the hybrid trace.** The checkout page's AJAX submission carries the propagated trace ID (*Distributed Tracing Standards*), so that call's span roots a server-side trace. Trace Explorer: `show traces where PageUrl = '/checkout' and Duration > 4000`.
+4. **Localise the span.** Trace Details shows the waterfall: the AJAX submission span, gateway 10 ms, `order-receipt-fn` invocation span 3.8 s, and inside it a `put-receipt-object` child span holding 3.7 s.
 5. **Check the synthetic monitor.** `orders-checkout-rest` — the scripted REST monitor from a public vantage point — went red at the same minute, which rules out "only real browsers" and points at the backend dependency.
 6. **Root cause.** Object Storage latency in one region. The fix restores both the RUM APDEX and the synthetic monitor to green.
 
@@ -338,21 +337,19 @@ sequenceDiagram
 
 | Limit | What it forces | As-of + docs |
 | :--- | :--- | :--- |
-| Billing is per 100,000 spans, reported in 15-minute intervals | An unsampled tracer is a direct cost line; set a sampling rate deliberately | Sep 2026, [docs](https://docs.oracle.com/en/cloud/paas/application-performance-monitoring/oci_apm_faq/) |
+| Billing aggregates spans hourly; 100,000 spans is one billing unit | An unsampled tracer is a direct cost line; set a sampling rate deliberately | Sep 2026, [docs](https://docs.oracle.com/en/cloud/paas/application-performance-monitoring/oci_apm_faq/) |
 | A domain auto-generates one public and one private data key; the private key can write arbitrary billed spans | Never ship the private key to a client; rotate it if exposed | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/application-performance-monitoring/doc/obtain-data-upload-endpoint-and-data-keys.html) |
 | APDEX uses two domain-level thresholds; tolerating is the band up to 4× the satisfied threshold | One threshold pair per rule — set it per operation class, not one global value | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/application-performance-monitoring/doc/configure-apdex-thresholds.html) |
 | A metric group derived from a span filter inherits span-dimension cardinality | An unbounded custom span dimension explodes the derived metric; keep span dimensions bounded | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/application-performance-monitoring/doc/application-performance-monitoring-service-limits.html) |
-| Trace data retention is a bounded window, not indefinite (verify the current value for your tenancy) | Long-term trace analysis needs the data exported; APM metrics in `oracle_apm*` follow Monitoring's 90-day retention | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/application-performance-monitoring/doc/application-performance-monitoring-service-limits.html) |
+| Trace data retention is a bounded window, not indefinite (verify the current value per tenancy) | Long-term trace analysis needs the data exported; APM metrics in `oracle_apm*` follow Monitoring's 90-day retention | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/application-performance-monitoring/doc/application-performance-monitoring-service-limits.html) |
 | APM resource limits are regional | A multi-region app needs a domain (and its span budget) per region | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/application-performance-monitoring/doc/application-performance-monitoring-service-limits.html) |
-
-> Note: the trace/span model, Trace Explorer basics, and context propagation are covered in `developer-professional/10`'s APM sections. The RUM-vs-synthetic trade-off is inline at *Real User Monitoring, Availability Monitoring, and Vantage Points*. "Synthetic Monitoring" was renamed "Availability Monitoring" in December 2024.
 
 ---
 
 ## 12. Summary
 
-APM does three things into one domain. Distributed tracing shows where time went inside a request; `developer-professional/10` covers that end. Real User Monitoring watches actual browser sessions with the public-data-key browser agent, and Availability Monitoring — the service formerly called Synthetic Monitoring — runs scripted probes on a schedule from vantage points you choose. The standing trade-off is that RUM sees only what users do while synthetic covers every path you script whenever you script it, so production runs both.
+APM does three things into one domain: distributed tracing (`developer-professional/10`), Real User Monitoring through the public-data-key browser agent, and Availability Monitoring — the service formerly called Synthetic Monitoring — running scripted probes from chosen vantage points. RUM sees only what real users do; synthetic covers every scripted path on its own schedule; production runs both.
 
 A domain issues a public and a private data key. The public key is designed for client-side code. The private key authenticates the Java agent, the tracer, and OpenTelemetry collectors, and must never reach a client because it can write billed spans. Every data source converges on the same domain, Trace Explorer, and dashboards, differing only in the key it presents and the format it sends.
 
-Spans become alertable signal three ways. APM aggregates them into `oracle_apm*` metrics that lesson `02`'s alarm model consumes directly. APDEX compresses a latency distribution into a 0–1 score per operation, service, and RUM page against two domain-level thresholds. A span filter plus a metric group turns any saved Trace Explorer predicate into a continuous metric — subject to the same dimension-cardinality discipline as any custom metric.
+Spans become alertable signal three ways. APM aggregates them into `oracle_apm*` metrics that lesson `02`'s alarm model consumes directly. APDEX compresses a latency distribution into a 0–1 score per operation, service, and RUM page. A span filter plus a metric group turns any saved Trace Explorer predicate into a continuous metric.

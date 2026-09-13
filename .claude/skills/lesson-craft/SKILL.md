@@ -83,7 +83,7 @@ Run these in order for any lesson you write, expand, or review:
      the track parameters; never guess them. This skill supplies the craft and depth bar; the
      track file supplies these domain inputs.
 2. **Draft against the craft.** Write to the structure (§1), the depth bar (§2), and the writing rules (§3–§7). Do not hard-code a section number when pointing at another part of the same file — see §7.
-3. **Final Self-Review sweep.** Run `python3 .claude/skills/lesson-craft/scripts/lint_lesson.py <file>` first — fix every hard failure before anything else. Then work the judgment-based One-Pass Test (§8) end to end, including the script's advisory chain candidates. Resolve every deferred cross-reference placeholder to a real number or stable anchor, confirm currency/deprecation, **then run `lesson-eval` review mode as a genuinely separate pass** — same-context self-review has a demonstrated blind spot (a full-track sweep found 25 real chain violations, several inside earlier self-reviewed passes, that inline self-grading missed) — before declaring the lesson done.
+3. **Final Self-Review sweep.** Run `python3 .claude/skills/lesson-craft/scripts/lint_lesson.py <file>` first — fix every hard failure before anything else. When the round edits an *existing* lesson rather than drafting a fresh one, first re-read every newly-added or newly-changed sentence specifically against the standing rules the current edit wasn't about — tone/second-person, sentence density, bare section references, restating a fact already covered elsewhere, forward-referencing an undefined term — before moving on: a fix made for one reason has repeatedly broken a different, unrelated rule across past edit rounds on this track. Then work the judgment-based One-Pass Test (§8) end to end, including the script's advisory chain candidates. Resolve every deferred cross-reference placeholder to a real number or stable anchor, confirm currency/deprecation, **then run `lesson-eval` review mode as a genuinely separate pass** — same-context self-review has a demonstrated blind spot (a full-track sweep found 25 real chain violations, several inside earlier self-reviewed passes, that inline self-grading missed) — before declaring the lesson done.
 
 ---
 
@@ -137,7 +137,7 @@ modes" above).>
 ## N. Summary
 
 <2–3 short paragraphs of prose (one theme per paragraph — e.g. what it is, why it
-behaves this way, what that means for you), ~3–6 sentences total, a reader can use
+behaves this way, its practical consequence), ~3–6 sentences total, a reader can use
 as a quick recap without re-reading the whole file. One idea per sentence — never
 chain three or more clauses into one sentence. No bullet lists here, under either
 format mode — prose forces you to show how the ideas connect, but a single
@@ -152,6 +152,7 @@ rhythm*).>
 - **Decompose each major section into `### N.M` sub-sections.** A `## N.` section that is one undivided block of prose is under-developed only when the *subject* genuinely has more than one mechanical part to it — break it into the two-to-four parts it is really made of, each with its own sub-heading, explanation, and (where it helps) snippet or diagram. A short, genuinely single-mechanism topic stays undivided; don't invent sub-parts just to satisfy this rule (see §2's proportional depth bar).
 - **Open with a `## Contents` list of the top-level `## N.` sections** (not `### N.M` sub-sections), placed right after the intro's `---` and before `## 1.`. A real Markdown ordered list, number as the list marker only — don't also repeat it in the link text (e.g. `1. [Tokens: The Unit the Model Sees](#1-tokens-the-unit-the-model-sees)`, not `- [1. Tokens...]`). Generate it in the final Self-Review sweep (§8), not while drafting — see §7 for the anchor-slug rule.
 - **Never add a standalone "why this matters" section.** The why belongs inside the section where the mechanism is introduced (§3.1); the Summary is the only place for restatement.
+- **The opening whole-system diagram lands where its entities are defined, not necessarily before `## 1.`'s own first table.** A lesson whose subject introduces its cast gradually (signals before the services that own them, say) satisfies "diagram before any taxonomy table" with the first diagram able to show a true whole-system picture without forward-referencing a term the prose has not yet defined — that may be in `## 1.` or `## 2.`. Anchoring an abstraction before showing it (§3.2) always wins over moving a diagram earlier than its entities are named.
 
 ---
 
@@ -242,7 +243,7 @@ When a concept is commonly misunderstood or oversimplified, surface it with a Ma
 
 Every significant design choice has a cost. Always name both sides: what is gained and what is given up. Calling out trade-offs is what separates an engineering note from a vendor pitch. (The track's `GUIDELINES.md` lists the common trade-off pairs for its domain.)
 
-- **Placement:** weave each trade-off into the prose where the mechanism is introduced — *"The gain is X; the cost is Y."* Then consolidate the most important ones in the final limits/trade-offs section (named and shaped per the active format mode) so a skimming reader gets the full picture.
+- **Placement:** weave each trade-off into the prose where the mechanism is introduced — *"The gain is X; the cost is Y."* Then consolidate the most important ones in the final limits/trade-offs section (named and shaped per the active format mode) so a skimming reader gets the full picture. This is the sanctioned exception to "one rendering per fact," not a violation of it: the prose carries the mechanism and reasoning once, the limits/trade-offs section carries the bare figure that reasoning supports, and the Summary may name the fact again without re-deriving it. A review should flag a passage only when it adds no mechanic beyond what an earlier rendering already carries — not merely because the fact is named more than once.
 - **Pre-empt the obvious objection.** When you introduce a fix, name the *first* objection a sharp reader feels the instant they read it, and answer it on the spot — not pages later. Present a cache as "just keep recent results" and the reader instantly thinks "but stale entries return wrong answers"; address invalidation right there.
 
 ### 3.7 Worked walkthroughs

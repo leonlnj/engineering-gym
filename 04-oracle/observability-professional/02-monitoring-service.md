@@ -1,6 +1,6 @@
 # The Monitoring Service: Metrics, the Query Language, and Alarms
 
-The Monitoring service is OCI's metrics plane: it ingests numeric time series from OCI services and from your own code, stores them for 90 days, and lets you query them in the Monitoring Query Language (MQL) or wrap a query in an alarm. The one idea to hold onto is that a metric is **lossy on purpose** — every data point is already an aggregate over an interval, so the service is cheap and fast but can never hand back the individual request behind a number. `developer-professional/10` introduced the alarm-to-log-to-trace loop and the shape of an MQL query; this lesson is the service itself — the data model, the full query grammar, and the alarm lifecycle.
+The Monitoring service is OCI's metrics plane: it ingests numeric time series from OCI services and custom code, stores them for 90 days, and exposes them through the Monitoring Query Language (MQL) or an alarm. **A metric data point records a value at a timestamp**, and MQL groups stored points into query intervals, calculating a statistic for each interval. A query hands back that statistic, not the raw data point — which makes a metric cheap and fast, but unable to reconstruct the individual request behind a number. The walkthrough below turns one function's published latency values into a paged alarm.
 
 ---
 
@@ -24,7 +24,7 @@ The Monitoring service is OCI's metrics plane: it ingests numeric time series fr
 
 ### 1.1 Namespace: which service emitted the metric
 
-**Every metric belongs to a namespace naming its source.** `oci_apigateway`, `oci_faas` (Functions), `oci_objectstorage`, `oci_vcn` are service namespaces; a custom metric you publish carries a namespace you choose, conventionally prefixed to avoid collision (`orders_custom`).
+**Every metric belongs to a namespace naming its source.** `oci_apigateway`, `oci_faas` (Functions), `oci_objectstorage`, `oci_vcn` are service namespaces; a custom metric carries a chosen namespace, conventionally prefixed to avoid collision (`orders_custom`).
 
 The namespace is the first filter in every query and every IAM policy scope — it is how the service keeps one team's `Latency` metric separate from another's.
 
@@ -52,11 +52,11 @@ HttpRequests  name
 
 ### 2.1 Two windows, not one
 
-**The collection interval and the query interval are different knobs.** OCI services post most metrics once per minute (the collection interval — fixed, not yours to set). The query interval `[1m]`, `[5m]`, `[1h]` is how *you* re-bucket that stream at read time.
+**The collection interval and the query interval are different knobs.** OCI services post most metrics once per minute (the collection interval — fixed, not adjustable per query). The query interval `[1m]`, `[5m]`, `[1h]` re-buckets that stream at read time.
 
-Asking for `[5m]` does not fetch 5-minute-resolution data; it fetches the 1-minute stream and aggregates every five points into one. You can widen the query interval but never see finer than what was collected.
+Asking for `[5m]` does not fetch 5-minute-resolution data; it fetches the 1-minute stream and aggregates every five points into one. The query interval can widen but never resolve finer than what was collected.
 
-> ⚠️ Alarm queries ignore the interval you write for resolution purposes: an alarm always evaluates at 1-minute resolution regardless of the `[...]` in its query. The interval still affects which statistic window is applied, but not how often the alarm looks.
+> ⚠️ Alarm queries ignore the written interval for resolution purposes: an alarm always evaluates at 1-minute resolution regardless of the `[...]` in its query. The interval still affects which statistic window is applied, but not how often the alarm looks.
 
 ### 2.2 Statistics: how an interval collapses to one number
 
@@ -64,17 +64,16 @@ Asking for `[5m]` does not fetch 5-minute-resolution data; it fetches the 1-minu
 
 | Statistic | Returns |
 | :--- | :--- |
-| `mean()` / `avg()` | Sum divided by count |
-| `sum()` | All values added |
-| `count()` | Number of data points in the interval |
-| `max()` / `min()` | Highest / lowest value observed |
-| `percentile(p)` | The p-th percentile, `0 < p < 1` — `percentile(0.9)` is p90 |
-| `rate()` | Per-second average rate of change across the interval |
-| `first()` / `last()` | Value with the earliest / latest timestamp |
-| `increment()` | Per-interval change in value |
-| `absent(period)` | 1 if the stream had no data for the whole period, else 0 |
+| `mean()` / `avg()` | Sum divided by count — the typical value, when extremes don't matter |
+| `sum()` | All values added — total volume, not per-point size |
+| `count()` | Number of data points — confirms the metric is emitting at all |
+| `max()` / `min()` | Highest / lowest value — a worst-case spike or floor |
+| `percentile(p)` | The p-th percentile (`percentile(0.9)` is p90) — tail latency the mean hides |
+| `absent(period)` | 1 if the stream had no data for the whole period, else 0 — alarming on silence, not a bad value |
 
-### 2.3 Interval bounds the time range you can query
+Less common: `rate()` (per-second change, for a monotonically increasing counter), `first()`/`last()` (a gauge's current value), `increment()` (the per-interval delta rather than the cumulative total).
+
+### 2.3 Interval bounds the queryable time range
 
 **A finer query interval caps how far back a single query can reach**, because the service will not return more than 100,000 data points in one response.
 
@@ -105,7 +104,7 @@ Reading `5xxErrors` as a per-minute sum for one gateway deployment, alarming whe
 5xxErrors[1m]{deploymentId = "ocid1.apideployment.oc1..ordersgw"}.sum() > 10
 ```
 
-Each clause answers a distinct question, applied in order:
+Each clause answers a distinct question, applied in order. The predicate is optional in a bare read query — an alarm is what requires it:
 
 ```mermaid
 flowchart LR
@@ -125,7 +124,7 @@ flowchart LR
     style ALM stroke:#94a3b8,stroke-width:2px
 ```
 
-*The predicate clause is optional in a bare read query; an alarm requires it.*
+*Each clause transforms the previous stage's output, in this fixed order — from the raw streams a filter selects down to the true/false result an alarm evaluates.*
 
 ### 3.2 Dimension filters and fuzzy matching
 
@@ -163,7 +162,7 @@ A joined query is what the Console calls a nested or composed query: the alarm f
 
 ### 3.5 Absence detection
 
-**`absent(period)` returns 1 when a stream stops emitting** — the way you alarm on a silent producer rather than a bad value.
+**`absent(period)` returns 1 when a stream stops emitting** — the mechanism for alarming on a silent producer rather than a bad value.
 
 ```text
 HttpRequests[1m]{deploymentId = "ocid1.apideployment.oc1..ordersgw"}.groupBy(deploymentId).absent(10m)
@@ -177,7 +176,7 @@ The period defaults to 2 hours and accepts `1m` to `3d`. A short period catches 
 
 ### 4.1 The publishing call
 
-**`PostMetricData` is the single API for getting your own numbers into the Monitoring service.** Everything downstream — MQL, alarms, dashboards — then treats a custom metric exactly like a service metric.
+**`PostMetricData` is the single API for getting custom numbers into the Monitoring service.** Everything downstream — MQL, alarms, dashboards — then treats a custom metric exactly like a service metric.
 
 ```python
 import oci, datetime
@@ -186,7 +185,7 @@ client = oci.monitoring.MonitoringClient(config, signer=resource_principal_signe
 client.post_metric_data(
     oci.monitoring.models.PostMetricDataDetails(metric_data=[
         oci.monitoring.models.MetricDataDetails(
-            namespace="orders_custom",              # your chosen namespace
+            namespace="orders_custom",              # the chosen namespace
             compartment_id=compartment_ocid,        # where the metric is queryable
             name="ReceiptWriteLatencyMs",
             dimensions={"functionName": "order-receipt-fn", "result": "ok"},
@@ -203,11 +202,7 @@ client.post_metric_data(
 
 **Every distinct combination of dimension values is a separate billable metric stream, and MQL queries slow as streams multiply.** Putting `requestId` or a raw user ID in a dimension creates one stream per request — thousands of near-empty series, a large bill, and slow queries.
 
-Keep dimensions low-cardinality and bounded: `functionName`, `result`, `region` — values you could list on one hand of fingers per axis. High-cardinality identifiers belong in logs or trace attributes, not metric dimensions.
-
-### 4.3 `developer-professional/10` overlap
-
-That lesson introduced `PostMetricData` as one line in the troubleshooting loop. This section is the full contract: the endpoint split, the resource-principal signer, and the cardinality rule that governs what a dimension may hold.
+Keep dimensions low-cardinality and bounded: `functionName`, `result`, `region` — values that fit on one hand per axis. High-cardinality identifiers belong in logs or trace attributes, not metric dimensions.
 
 ---
 
@@ -226,9 +221,12 @@ That lesson introduced `PostMetricData` as one line in the troubleshooting loop.
   "severity": "CRITICAL",
   "destinations": ["ocid1.onstopic.oc1..ordersoncall"],
   "body": "5xx rate on ordersgw exceeded 10/min for 3 minutes",
+  "repeatNotificationDuration": "PT10M",
   "isEnabled": true
 }
 ```
+
+The predicate (`> 10`) is not a separate field — it lives inside `query` as the trailing comparison. `repeatNotificationDuration` sets the `REPEAT` cadence covered next.
 
 ### 5.2 It does not fire on the first breach
 
@@ -258,7 +256,7 @@ stateDiagram-v2
     Reset --> Firing: stream returns, predicate true
 ```
 
-*`REPEAT` means "still broken"; `RESET` means "the signal itself vanished" — opposite conditions, easy to confuse.*
+*The alarm cycles between three states — `OK`, `Firing`, `Reset` — with `REPEAT` and `RESET` as two different transitions out of `Firing`, not two names for the same event.*
 
 ### 5.4 Delivery caps
 
@@ -267,8 +265,6 @@ stateDiagram-v2
 ---
 
 ## 6. Notifications: Topics, Subscriptions, and Protocols
-
-This section defines the Notifications resource model once for the whole track; lesson `04` (Events) reuses it as an action destination without re-teaching it.
 
 ### 6.1 Topic and subscription
 
@@ -295,7 +291,7 @@ oci ons subscription create --topic-id "$TOPIC_OCID" --compartment-id "$COMPARTM
 
 ### 6.3 No durable mailbox
 
-**Notifications retries a failed delivery on a backoff, then drops the message — there is no queue to replay from.** A subscriber down for an hour misses everything sent in that hour. When a signal must survive a consumer outage, publish to a `STREAMING` subscription (replayable, lesson `04` cross-reference) rather than relying on `HTTPS`.
+**Notifications retries a failed delivery on a backoff, then drops the message — there is no queue to replay from.** A subscriber down for an hour misses everything sent in that hour. When a signal must survive a consumer outage, publish to a `STREAMING` subscription (replayable, `developer-professional/06` cross-reference) rather than relying on `HTTPS`.
 
 ---
 
@@ -399,7 +395,7 @@ sequenceDiagram
     AL->>NT: FIRING_TO_OK
 ```
 
-*Per-invocation data points become a per-minute mean, which becomes a sustained breach, which becomes one topic publish fanned out to two endpoints.*
+*One alarm evaluation cycle, from the raw data points arriving to the fanned-out notification.*
 
 ---
 
@@ -421,8 +417,6 @@ sequenceDiagram
 
 ## 11. Summary
 
-A metric stream is identified by a namespace, a name, and a set of dimensions; the dimensions are the axes a query filters and groups on, and keeping them low-cardinality is what keeps queries fast and the bill small. Because every data point is already an interval aggregate, a query can widen the window but never resolve finer than the collection interval, and 90 days is the far edge of what is retained.
+A metric stream is identified by a namespace, a name, and a set of dimensions; keeping dimensions low-cardinality keeps queries fast and the bill small. A data point is a raw value at a timestamp; a query is what aggregates many of them into one number per interval, so a query can widen its window but never resolve finer than the 1-minute collection interval — the underlying data is retained only 90 days. MQL has a fixed shape — metric, interval, dimension filter, optional `groupBy`, statistic, optional predicate. The statistic collapses each bucket to one number, and `absent()` alarms on silence rather than a bad value.
 
-MQL has a fixed shape: metric, interval, dimension filter, optional `groupBy`, statistic, optional predicate. The interval re-buckets the stream at read time and bounds how far back one query can reach; the statistic collapses each bucket to one number; `absent()` alarms on silence rather than on a bad value. Arithmetic and `&&` / `||` joins compose one condition from several.
-
-An alarm wraps a query in a predicate, a `pendingDuration`, and a set of destinations. It fires only after the predicate holds for consecutive evaluations. It then moves through four message types: `FIRING`, `OK`, `REPEAT` for still-broken, and `RESET` for when the signal itself vanished. Alarms deliver through Notifications topics. A topic fans out to its confirmed subscriptions and keeps no replay queue, so a signal that must survive a consumer outage goes to a Streaming subscription instead.
+An alarm wraps a query, a predicate, a `pendingDuration`, and a set of destinations. It fires only after the predicate holds for `pendingDuration` of consecutive evaluations, then moves through four message types — `FIRING`, `OK`, `REPEAT` for still-broken, `RESET` for when the signal itself vanished — delivered through a Notifications topic. A topic fans out to confirmed subscriptions and keeps no replay queue, so a signal that must survive a consumer outage needs a Streaming subscription instead.

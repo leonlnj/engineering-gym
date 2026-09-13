@@ -1,6 +1,6 @@
 # The Events Service: Reacting to Resource State Changes
 
-An event is a record that one OCI resource changed state — a bucket created, an instance stopped, a function updated, a backup finished. It is the fourth observability signal, and the one most often misread as a lightweight alarm — a confusion the *Events rule versus Monitoring alarm* section takes apart. `developer-professional/08` already covers the Events resource model, the CloudEvents envelope, and the `eventType` / attribute / tag filter grammar in full. This lesson covers what makes Events an *observability* tool: discovering event types, rule design discipline, and the rule metrics you alarm on.
+An event is a record that one OCI resource changed state — a bucket created, an instance stopped, a function updated, a backup finished. It is the fourth observability signal, and the one most often misread as a lightweight alarm. `developer-professional/08` covers the Events resource model, the CloudEvents envelope, and the `eventType` / attribute / tag filter grammar in full; the observability angle follows here. The walkthrough below shows one failed deploy matching a rule and triggering an automated annotation.
 
 ---
 
@@ -8,7 +8,7 @@ An event is a record that one OCI resource changed state — a bucket created, a
 
 1. [Events as an Observability Signal](#1-events-as-an-observability-signal)
 2. [Discovering What Emits Events](#2-discovering-what-emits-events)
-3. [Rule Actions, Briefly](#3-rule-actions-briefly)
+3. [Rule Action Types and the Events Principal](#3-rule-action-types-and-the-events-principal)
 4. [Rule Design in Practice](#4-rule-design-in-practice)
 5. [Rule Metrics as an Alarming Target](#5-rule-metrics-as-an-alarming-target)
 6. [Worked Walkthrough: A Failed Deploy Drives an Automated Annotation](#6-worked-walkthrough-a-failed-deploy-drives-an-automated-annotation)
@@ -23,11 +23,11 @@ An event is a record that one OCI resource changed state — a bucket created, a
 
 **An event marks a discrete, boolean fact: a named state change happened to a named resource.** There is no level and no rate — the object was created or it was not.
 
-**Events are push-only with no retention.** An event with no matching rule at the instant it fires is gone; a rule created tomorrow cannot catch today's event. This is the sharpest contrast with the other three signals: a metric's data points sit in Monitoring for 90 days, a log sits in Logging for its retention, an event has neither.
+**Events are push-only with no retention.** An event with no matching rule at the instant it fires is gone; a rule created tomorrow cannot catch today's event — and since no rule replays anything, the rule's own action is the only durable trace a match ever leaves. This is the sharpest contrast with the other three signals: a metric's data points sit in Monitoring for up to 90 days (depending on query resolution), a log sits in Logging for its configured retention, an event has neither.
 
 ### 1.2 Events rule versus Monitoring alarm
 
-This is the lesson's named trade-off — the two automation triggers OCI gives you, for two different shapes of condition.
+Two OCI triggers fire automation, for two different shapes of condition.
 
 | | Events rule | Monitoring alarm |
 | :--- | :--- | :--- |
@@ -36,7 +36,7 @@ This is the lesson's named trade-off — the two automation triggers OCI gives y
 | Latency | Near-real-time, no published SLA | One evaluation per minute |
 | Misses | Anything expressible only as a number | Anything with no numeric metric |
 
-> Note: the wrong model is treating a rule as a lightweight alarm. If your trigger is "a rate went up" or "a value got too high", it is an alarm — a rule has no concept of aggregation. If your trigger is "this specific thing happened to this resource", it is a rule.
+> Note: the wrong model is treating a rule as a lightweight alarm. A trigger phrased as "a rate went up" or "a value got too high" is an alarm — a rule has no concept of aggregation. A trigger phrased as "this specific thing happened to this resource" is a rule.
 
 ---
 
@@ -66,7 +66,9 @@ Two ways to get the real value:
 
 ---
 
-## 3. Rule Actions, Briefly
+## 3. Rule Action Types and the Events Principal
+
+### 3.1 The three action types
 
 **A rule routes each match to a list of 1–10 actions, each of exactly three types.** A single rule can mix them; all listed actions fire off one match with no ordering between them.
 
@@ -76,7 +78,16 @@ Two ways to get the real value:
 | Streaming | The response needs a durable, replayable hand-off | `developer-professional/06` |
 | Notifications | The response is a human notification or topic fan-out | Lesson `02` |
 
-**The IAM grant names the Events service itself as the caller** — `service cloudevents`, not a dynamic group of your own resources — because it is OCI's Events service invoking your function or publishing to your topic on your behalf. `developer-professional/08` has the policy statements and the rationale, in its *Rule Actions* section.
+### 3.2 The Events principal
+
+**The IAM grant names the Events service itself as the caller** — `service cloudevents`, not a dynamic group of resources — because it is OCI's Events service invoking the function or publishing to the topic on the rule owner's behalf:
+
+```text
+Allow service cloudevents to use fn-function in compartment orders
+Allow service cloudevents to use ons-topics    in compartment orders
+```
+
+`developer-professional/08` has the full policy statements and the rationale, in its *Rule Actions* section.
 
 ---
 
@@ -90,15 +101,9 @@ Two ways to get the real value:
 
 **A rule that reacts to `updateX` and whose action itself updates X re-emits `updateX`, matches its own rule, and loops** — burning function invocations and quota until someone notices.
 
-```json
-// The action tags its own changes; the rule excludes anything carrying that tag.
-{
-  "eventType": ["com.oraclecloud.autonomousdatabase.updateautonomousdatabase"],
-  "data": {
-    "definedTags": { "Automation": { "Source": { "not": "events-rule-remediation" } } }
-  }
-}
-```
+> Note: Events conditions support only exact-value match, wildcard, and multi-value selection — there is no "not equal to" operator, so a filter can't exclude the automation's own writes after the fact.
+
+The fix sits upstream of the filter: **the remediation action must never write back to the field the rule watches.** The walkthrough's `deploy-annotator` action below already has this shape — it publishes to `orders-oncall` and never updates `order-receipt-fn` itself, so it can never match its own rule.
 
 ### 4.3 Filter as narrowly as the use case allows
 
@@ -106,7 +111,7 @@ Two ways to get the real value:
 
 ### 4.4 The rule-builder workflow
 
-**Condition → actions → enable.** The condition is an event-type multi-select plus optional attribute and tag rules; the actions pane holds up to ten; the rule is disabled until you enable it.
+**Condition → actions → enable.** The condition is an event-type multi-select plus optional attribute and tag rules; the actions pane holds up to ten; the rule stays disabled until explicitly enabled.
 
 ```bash
 oci events rule create --compartment-id "$C" --display-name "deploy-diff" \
@@ -143,17 +148,25 @@ flowchart LR
     style DF stroke:#ef4444,stroke-width:2px
 ```
 
-*A drop between `PublishedEvents` and `MatchedEvents` is a filter problem; a drop between `MatchedEvents` and `DeliverySucceedEvents` is an action or IAM problem.*
+*A gap between `PublishedEvents` and `MatchedEvents` is the filter doing its job, not a fault — investigate only if a known eligible event should have matched and didn't. A gap between `MatchedEvents` and `DeliverySucceedEvents` is always worth investigating: an action or IAM problem.*
 
-### 5.2 Alarm on `MatchedEvents` reaching zero
+### 5.2 Alarm on `MatchedEvents` reaching zero — only for a rule with a known cadence
 
-**A filter that silently stops matching — a renamed resource, an event type changed by a service update — produces no `DeliveryFailedEvents`, only silence.** The only detector is an alarm on `MatchedEvents` itself, using lesson `02`'s model:
+**A filter that silently stops matching — a renamed resource, an event type changed by a service update — produces no `DeliveryFailedEvents`, only silence.** For a rule with a known, expected cadence (a nightly backup, a heartbeat), an alarm on `MatchedEvents` itself catches this, using lesson `02`'s model:
 
 ```text
-MatchedEvents[5m]{resourceId = "ocid1.eventrule.oc1..deploy-diff"}.sum() == 0
+MatchedEvents[1d]{resourceId = "ocid1.eventrule.oc1..nightly-backup-check"}.sum() == 0
 ```
 
-Size `pendingDuration` to the longest normal gap between matches for that rule. Group an alarm by the `ACTIONTYPE` dimension to see *which* destination is failing when `DeliveryFailedEvents` climbs.
+Size `pendingDuration` to the longest normal gap between matches for that rule.
+
+> ⚠️ A rule with no expected cadence cannot use this pattern. `deploy-diff` — the walkthrough's rule — fires only when someone deploys, so zero matches for days is normal, not a fault; alarming on it would page constantly for no reason. After changing such a rule's filter, verify it against one known event instead, and alarm on `DeliveryFailedEvents` to catch a failing action on the events that do match.
+
+Group an alarm by the `ACTIONTYPE` dimension to see *which* destination is failing when `DeliveryFailedEvents` climbs:
+
+```text
+DeliveryFailedEvents[5m]{resourceId = "ocid1.eventrule.oc1..deploy-diff"}.groupBy(ACTIONTYPE).sum() > 0
+```
 
 ---
 
@@ -193,20 +206,18 @@ sequenceDiagram
 | Limit | What it forces | As-of + docs |
 | :--- | :--- | :--- |
 | 50 rules per tenancy | A rule slot is spent per distinct *filter*, not per destination — widen an action list before adding a rule | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Concepts/eventsoverview.htm) |
-| 1–10 actions per rule; three action types only (Functions, Streaming, Notifications) | A third-party target needs a pass-through Function you build, deploy, and monitor | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Task/managingrules.htm) |
+| 1–10 actions per rule; three action types only (Functions, Streaming, Notifications) | A third-party target needs a pass-through Function, built, deployed, and monitored separately | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Task/managingrules.htm) |
 | Events are push-only with no retention or replay | Enable a rule before the traffic it must catch; a rule deployed late has a permanent hole behind it | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Concepts/eventsoverview.htm) |
 | No published matching or delivery latency; failed deliveries are retried | Treat delivery as near-real-time but neither instant nor exactly-once — make every action idempotent | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Concepts/eventsoverview.htm) |
 | A rule's scope cascades to child compartments | Place a rule no higher in the compartment tree than its intended blast radius | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Concepts/eventsoverview.htm) |
-| `oci_cloudevents` metrics: `PublishedEvents`, `MatchedEvents`, `DeliverySucceedEvents`, `DeliveryFailedEvents`; dimensions `RESOURCEID`, `EVENTTYPE`, `ACTIONTYPE`, `RESOURCEDISPLAYNAME` | Alarm on `MatchedEvents == 0`, not just on `DeliveryFailedEvents` — a broken filter produces silence, not failures | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Reference/eventsmetrics.htm) |
-
-> Note: the CloudEvents envelope, the full filter grammar, and the Events-vs-Queue-vs-Streaming choice are covered in `developer-professional/08`. The Events-rule-vs-alarm trade-off is inline at *Events rule versus Monitoring alarm*, above.
+| `oci_cloudevents` metrics: `PublishedEvents`, `MatchedEvents`, `DeliverySucceedEvents`, `DeliveryFailedEvents`; dimensions `RESOURCEID`, `EVENTTYPE`, `ACTIONTYPE`, `RESOURCEDISPLAYNAME` | Alarm on `MatchedEvents == 0` for a rule with known cadence — a broken filter produces silence, not failures; for a sporadic rule, alarm on `DeliveryFailedEvents` instead | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Events/Reference/eventsmetrics.htm) |
 
 ---
 
 ## 8. Summary
 
-An event is a discrete, boolean record that a resource changed state. It is push-only and never retained, so a rule must exist before the event fires or the occurrence is lost. This is what separates a rule from a Monitoring alarm: a rule fires on "this happened to this resource", an alarm fires on "a number crossed a line", and neither can express the other's condition.
+An event is a discrete, boolean record that a resource changed state, push-only and never retained — a rule must exist before the event fires or the occurrence is lost. This is what separates a rule from a Monitoring alarm: a rule fires on "this happened to this resource", an alarm fires on "a number crossed a line", and neither can express the other's condition.
 
-Writing a rule starts with the exact `com.oraclecloud.<service>.<action>` event-type string, taken from the Console picker or the services-that-produce-events reference rather than guessed. Good rule design is idempotent actions, a filter narrow enough to match only what the use case needs, and an exclusion condition on any rule whose action could re-trigger it.
+Writing a rule starts with the exact `com.oraclecloud.<service>.<action>` event-type string, taken from the Console picker or the services-that-produce-events reference rather than guessed. Good rule design is idempotent actions and a filter narrow enough to match only what the use case needs. A rule whose action could re-trigger it needs one more thing: that action must never write back to the field the rule watches.
 
-A rule is monitored through four `oci_cloudevents` metrics that form a funnel from published to matched to delivered. The load-bearing alarm is `MatchedEvents` reaching zero: a filter that quietly stops matching emits no delivery failures, only silence, and nothing else will catch it. The worked walkthrough showed a rule and an alarm firing off one bad deploy — one reporting the change, the other the symptom.
+A rule is monitored through four `oci_cloudevents` metrics forming a funnel from published to matched to delivered. For a rule with a known cadence, `MatchedEvents` reaching zero is the load-bearing alarm — a filter that quietly stops matching emits no delivery failures, only silence; a sporadic rule alarms on `DeliveryFailedEvents` instead. A rule and an alarm firing off one bad deploy report two different things: one the change, the other the symptom.

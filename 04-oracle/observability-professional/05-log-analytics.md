@@ -1,6 +1,6 @@
 # Log Analytics: Parse-on-Ingest, Entities, and Correlation
 
-Log Analytics is a separate service from the Logging service (lesson `03`), not a feature of it. The Logging service stores raw events and searches them with a light query language. Log Analytics **parses every log at ingest**, attaches it to a modelled **entity** (a host, a database, a load balancer), and indexes the extracted fields — so you can correlate across sources, cluster millions of lines into a handful of patterns, and stitch records into transactions with `link`. The cost of that power is an ingest-time processing step and a storage model with tiers to manage — the trade-off this lesson opens with.
+Log Analytics is a separate service from the Logging service (lesson `03`), not a feature of it. The Logging service stores raw events and searches them with a light query language. Log Analytics **parses every log at ingest**, attaches it to a modelled **entity** (a host, a database, a load balancer), and indexes the extracted fields. That parsing enables correlation, clustering, and `link` transactions, at the cost of an ingest-time processing step and a storage model with tiers to manage. The walkthrough below turns one uploaded log file into a cross-service transaction view.
 
 ---
 
@@ -8,13 +8,13 @@ Log Analytics is a separate service from the Logging service (lesson `03`), not 
 
 1. [Log Analytics Versus the Logging Service](#1-log-analytics-versus-the-logging-service)
 2. [The Data Flow](#2-the-data-flow)
-3. [Onboarding and the Default Groups](#3-onboarding-and-the-default-groups)
-4. [Entities](#4-entities)
-5. [Log Sources, Fields, Labels, and Lookups](#5-log-sources-fields-labels-and-lookups)
-6. [The Query Language](#6-the-query-language)
-7. [`cluster` and `link`](#7-cluster-and-link)
-8. [Storage: Active, Archival, and Recall](#8-storage-active-archival-and-recall)
-9. [The Three Ingestion Methods](#9-the-three-ingestion-methods)
+3. [The Three Ingestion Methods](#3-the-three-ingestion-methods)
+4. [Onboarding and the Default Groups](#4-onboarding-and-the-default-groups)
+5. [Entities](#5-entities)
+6. [Log Sources, Fields, Labels, and Lookups](#6-log-sources-fields-labels-and-lookups)
+7. [The Query Language](#7-the-query-language)
+8. [`cluster` and `link`](#8-cluster-and-link)
+9. [Storage: Active, Archival, and Recall](#9-storage-active-archival-and-recall)
 10. [Worked Walkthrough: From an Uploaded Log File to a Transaction View](#10-worked-walkthrough-from-an-uploaded-log-file-to-a-transaction-view)
 11. [Limits and Sources](#11-limits-and-sources)
 12. [Summary](#12-summary)
@@ -23,16 +23,16 @@ Log Analytics is a separate service from the Logging service (lesson `03`), not 
 
 ## 1. Log Analytics Versus the Logging Service
 
-**Both ingest logs; they differ in what happens at ingest and what you can ask afterward.**
+**Both ingest logs; they differ in what happens at ingest and what can be asked afterward.**
 
 | | Logging service (lesson `03`) | Log Analytics |
 | :--- | :--- | :--- |
 | At ingest | Stored as-is; `data` object kept whole | Parsed against a source's parser; fields extracted, entity attached, labels applied |
 | Query | `search "<scope>" \| where …` over raw events | Pipe language with `stats`, `link`, `cluster`, `classify` over indexed fields |
-| Correlation | By a shared field you filter on manually | By entity, by `link` transaction grouping, by lookup joins |
+| Correlation | By a shared field filtered on manually | By entity, by `link` transaction grouping, by lookup joins |
 | Cost model | Ingestion + retention (30–180 days) | Ingestion + parsing + active-storage GB + optional archival |
 
-**Reach for the Logging service** when you need the raw event fast and cheap, and a text or single-field filter is enough. **Reach for Log Analytics** when the question is analytical — patterns across a fleet, a transaction spanning services, a trend by entity — and worth the parse-time and storage overhead.
+**Reach for the Logging service** when the raw event needs to come back fast and cheap, and a text or single-field filter is enough. **Reach for Log Analytics** when the question is analytical — patterns across a fleet, a transaction spanning services, a trend by entity — and worth the parse-time and storage overhead.
 
 > Note: the two are not exclusive. A common setup keeps logs in the Logging service for cheap short-term search *and* forwards them to Log Analytics (via a Service Connector — see *The Three Ingestion Methods*) for analysis.
 
@@ -47,7 +47,7 @@ flowchart LR
     subgraph COLLECT["Collection method"]
         MA["Management Agent"]
         SC["Service Connector"]
-        OS["Object Storage rule"]
+        OS["Object Storage Rule"]
     end
 
     LS["Log Source<br/>(parser + labels + entity type)"]
@@ -77,13 +77,49 @@ flowchart LR
 
 ---
 
-## 3. Onboarding and the Default Groups
+## 3. The Three Ingestion Methods
 
-### 3.1 Onboarding is a one-time tenancy step
+### 3.1 The choice
 
-**Log Analytics is enabled per tenancy through an onboarding wizard that auto-creates the IAM policies the service needs** — including the policy that lets it collect OCI Audit logs. Onboarding (and off-boarding, and purging logs) is a privileged lifecycle action, not something a regular analyst can do.
+| Method | Use when | Mechanism |
+| :--- | :--- | :--- |
+| **Management Agent** | Continuous collection from Compute or on-prem hosts, databases, middleware | An agent on the host tails files and forwards to Log Analytics |
+| **Service Connector** | The logs are already in the OCI Logging service | Connector Hub (lesson `03`) routes a Logging source into a Log Analytics log group |
+| **Object Storage** | Batch or historical loads, third-party exports dropped in a bucket | An Object Collection Rule watches a bucket prefix and ingests matching objects |
 
-### 3.2 The three conventional groups
+### 3.2 Management Agent is not the Unified Monitoring Agent
+
+**The Management Agent (here) collects for Log Analytics and Stack Monitoring. The Unified Monitoring Agent (lesson `03`) collects custom logs for the Logging service.** Both are called "the agent" in Console menus — a frequent source of confusion:
+
+| | Management Agent | Unified Monitoring Agent |
+| :--- | :--- | :--- |
+| Destination | Log Analytics log group, Stack Monitoring | A Logging service Log (OCID) |
+| Also used by | Stack Monitoring (lesson `07`) | Logging service only |
+
+If the destination is a Log Analytics log group, it is the Management Agent.
+
+### 3.3 The Object Collection Rule
+
+```text
+oci log-analytics object-collection-rule create --namespace-name "$NS" \
+  --compartment-id "$C" --name "orders-archive-import" \
+  --os-bucket-name "orders-log-exports" --os-namespace "$OS_NS" \
+  --log-group-id "ocid1.loganalyticsloggroup.oc1..orders" \
+  --log-source-name "Custom Orders App Logs" \
+  --poll-since CURRENT_TIME
+```
+
+`--poll-since` controls whether the rule backfills existing objects (`BEGINNING`) or only picks up new ones (`CURRENT_TIME`).
+
+---
+
+## 4. Onboarding and the Default Groups
+
+### 4.1 Onboarding is a one-time tenancy step
+
+**Log Analytics is enabled per tenancy through an onboarding wizard that auto-creates the IAM policies the service needs** — including the policy that lets it collect Oracle Cloud Infrastructure (OCI) Audit logs. Onboarding (and off-boarding, and purging logs) is a privileged lifecycle action, not something a regular analyst can do.
+
+### 4.2 The three default groups
 
 | Group | Can |
 | :--- | :--- |
@@ -101,13 +137,13 @@ Allow group Log-Analytics-Users       to read loganalytics-resources-family in c
 
 ---
 
-## 4. Entities
+## 5. Entities
 
-### 4.1 An entity is what a log is *about*
+### 5.1 An entity is what a log is *about*
 
 **An entity is the modelled resource a log line describes — a compute host, an Autonomous Database, a load balancer.** Every parsed record is associated with one entity, which is how a query can say "errors on `orders-db`" without the log text mentioning `orders-db` at all.
 
-### 4.2 Entity type, properties, and association
+### 5.2 Entity type, properties, and association
 
 - **Entity type** — `Host (Linux)`, `Oracle Database`, `OCI Load Balancer`. The type determines which log sources and out-of-the-box parsers apply.
 - **Properties** — connection details the type needs (a database entity carries host, port, service name).
@@ -120,19 +156,19 @@ oci log-analytics entity create --namespace-name "$NS" --compartment-id "$C" \
   --cloud-resource-id "ocid1.autonomousdatabase.oc1..ordersdb"
 ```
 
-### 4.3 Why the entity model matters
+### 5.3 Why the entity model matters
 
 **Without entities, a fleet of 50 database hosts produces 50 undifferentiated log streams.** With them, every dashboard, alarm, and `link` analysis can group, filter, and roll up by the real-world resource — the same reason Stack Monitoring (lesson `07`) is built on a resource model.
 
 ---
 
-## 5. Log Sources, Fields, Labels, and Lookups
+## 6. Log Sources, Fields, Labels, and Lookups
 
-### 5.1 A log source is the parsing contract
+### 6.1 A log source is the parsing contract
 
-**A log source binds a collection pattern (a file path, a service log) to a parser, a set of labels, and an entity type.** Oracle ships hundreds of out-of-the-box sources (`OCI API Gateway Access Logs`, `Linux Secure Logs`); you define custom ones for your own applications.
+**A log source binds a collection pattern (a file path, a service log) to a parser, a set of labels, and an entity type.** Oracle ships hundreds of out-of-the-box sources (`OCI API Gateway Access Logs`, `Linux Secure Logs`); custom ones are defined for a given application.
 
-### 5.2 Fields versus labels versus lookups
+### 6.2 Fields versus labels versus lookups
 
 | Concept | Is | Example |
 | :--- | :--- | :--- |
@@ -140,7 +176,7 @@ oci log-analytics entity create --namespace-name "$NS" --compartment-id "$C" \
 | **Label** | A tag applied by a condition, not parsed from text | `Login Failure` when `Status Code = 401` |
 | **Lookup** | An external table (CSV) joined at query time | Map `Client Host` → team name |
 
-**A field comes from the log; a label is your interpretation layered on top; a lookup brings in data that was never in the log.** Confusing a label for a field is the common trap — a label exists only because you wrote a rule that assigns it.
+**A field comes from the log; a label is an interpretation layered on top; a lookup brings in data that was never in the log.** Confusing a label for a field is the common trap — a label exists only because a rule assigns it.
 
 ```text
 # A lookup joins a CSV keyed on an extracted field
@@ -151,9 +187,9 @@ oci log-analytics entity create --namespace-name "$NS" --compartment-id "$C" \
 
 ---
 
-## 6. The Query Language
+## 7. The Query Language
 
-### 6.1 The pipe structure
+### 7.1 The pipe structure
 
 **A query is a source selector piped through commands: `<selector> | command | command | …`.** Each command takes the row stream and reshapes it.
 
@@ -163,7 +199,7 @@ oci log-analytics entity create --namespace-name "$NS" --compartment-id "$C" \
   | sort -Errors
 ```
 
-### 6.2 The commands you use most
+### 7.2 The most-used commands
 
 | Command | Does |
 | :--- | :--- |
@@ -176,9 +212,9 @@ oci log-analytics entity create --namespace-name "$NS" --compartment-id "$C" \
 | `top` / `head` | The first N rows |
 | `classify` | Groups results and flags anomalous groups automatically |
 
-### 6.3 Field extraction at query time
+### 7.3 Field extraction at query time
 
-**`extract` pulls a new field from an existing one with a pattern**, for when the parser did not capture something you now need:
+**`extract` pulls a new field from an existing one with a pattern**, for when the parser did not capture something the query now needs:
 
 ```text
 'Log Source' = 'Custom Orders App Logs'
@@ -188,9 +224,11 @@ oci log-analytics entity create --namespace-name "$NS" --compartment-id "$C" \
 
 ---
 
-## 7. `cluster` and `link`
+## 8. `cluster` and `link`
 
-### 7.1 `cluster`: collapse volume into patterns
+These two commands are where the indexed, entity-tagged records the pipeline produces earn their keep — one for volume, one for correlation.
+
+### 8.1 `cluster`: collapse volume into patterns
 
 **`cluster` groups records that are structurally similar, turning millions of lines into a short list of representative patterns with counts.** It is the first command to run against an unfamiliar noisy log — it surfaces the handful of distinct things happening.
 
@@ -200,24 +238,24 @@ oci log-analytics entity create --namespace-name "$NS" --compartment-id "$C" \
 --   "ObjectStorage timeout after * ms" (12), ...
 ```
 
-### 7.2 `link`: stitch records into transactions
+### 8.2 `link`: stitch records into transactions
 
-**`link` groups records that share a value — a request ID, a session, a host — into one row per group, so a multi-line or multi-source interaction becomes a single analysable unit.** Add `stats` or `timestats` after it for per-transaction aggregates.
+**`link` groups records that share a value — a request ID, a session, a host — into one row per group, so a multi-line interaction becomes a single analysable unit.** The field named in `link` must exist under that same name in every source being grouped. Within one OOTB source it already does — the API Gateway parser calls it `'Request Id'` on every row:
 
 ```text
-'Log Source' in ('OCI API Gateway Access Logs', 'Custom Orders App Logs')
+'Log Source' = 'OCI API Gateway Access Logs'
   | link span = 5minute Time, 'Request Id'
   | stats avg(Duration) as 'Avg ms', count as 'Log Lines' by 'Request Id'
   | where 'Avg ms' > 2000
 ```
 
-*One `Request Id` value appearing in a gateway log and an application log collapses to one transaction row — the same correlation lesson `03` did by hand with two separate searches, done in one query here.*
+Add `stats` or `timestats` after `link` for per-transaction aggregates. Joining *across* two sources whose parsers name the field differently needs a normalizing step first — the *Worked Walkthrough* shows this.
 
 ---
 
-## 8. Storage: Active, Archival, and Recall
+## 9. Storage: Active, Archival, and Recall
 
-### 8.1 Two tiers
+### 9.1 Two tiers
 
 **Ingested logs land in active storage, where they are queryable and feed the machine-learning features (anomaly detection, `classify`).** After a configured age they move to lower-cost archival storage, which is not directly queryable.
 
@@ -233,7 +271,7 @@ stateDiagram-v2
 
 *Archival is by storage bucket, not by individual log: a bucket moves only when every log in it is older than the active-storage duration.*
 
-### 8.2 The numbers that shape the design
+### 9.2 The numbers that shape the design
 
 - **Minimum active-storage duration is 30 days** (from each log's own timestamp); Oracle recommends 90 so the ML features have enough history.
 - **Archiving can only be enabled once active storage holds at least 1 TB.**
@@ -242,38 +280,9 @@ stateDiagram-v2
 
 > ⚠️ A purge policy that overlaps an archive or recall window can drop data mid-operation. Review purge and archival settings together.
 
-### 8.3 Log groups are the access and retention boundary
+### 9.3 Log groups are the access and retention boundary
 
 **A Log Analytics log group is the unit that scopes access-control rules, retention, and archival settings — every ingested record is assigned to exactly one.** It is distinct from the IAM *groups* in *Onboarding and the Default Groups*: those govern *who* can act, a log group governs *which data* a rule or policy applies to. Partitioning within a log group organises records by source and time so a scoped query does not scan the whole group.
-
----
-
-## 9. The Three Ingestion Methods
-
-### 9.1 The choice
-
-| Method | Use when | Mechanism |
-| :--- | :--- | :--- |
-| **Management Agent** | Continuous collection from Compute or on-prem hosts, databases, middleware | An agent on the host tails files and forwards to Log Analytics |
-| **Service Connector** | The logs are already in the OCI Logging service | Connector Hub (lesson `03`) routes a Logging source into a Log Analytics log group |
-| **Object Storage** | Batch or historical loads, third-party exports dropped in a bucket | An Object Collection Rule watches a bucket prefix and ingests matching objects |
-
-### 9.2 Management Agent is not the Unified Monitoring Agent
-
-**The Management Agent (here) collects for Log Analytics and Stack Monitoring. The Unified Monitoring Agent (lesson `03`) collects custom logs for the Logging service.** Different binaries, different configuration models, different destinations — a frequent exam trap. If the destination is a Log Analytics log group, it is the Management Agent.
-
-### 9.3 The Object Collection Rule
-
-```text
-oci log-analytics object-collection-rule create --namespace-name "$NS" \
-  --compartment-id "$C" --name "orders-archive-import" \
-  --os-bucket-name "orders-log-exports" --os-namespace "$OS_NS" \
-  --log-group-id "ocid1.loganalyticsloggroup.oc1..orders" \
-  --log-source-name "Custom Orders App Logs" \
-  --poll-since CURRENT_TIME
-```
-
-`--poll-since` controls whether the rule backfills existing objects (`BEGINNING`) or only picks up new ones (`CURRENT_TIME`).
 
 ---
 
@@ -281,14 +290,16 @@ oci log-analytics object-collection-rule create --namespace-name "$NS" \
 
 An overnight batch job exports yesterday's `order-receipt-fn` logs to a bucket. The goal: find the slow requests and see each one's full cross-service story.
 
-1. **Land the file.** The job writes `receipt-fn/2026-08-31.jsonl` to the `orders-log-exports` bucket.
+1. **Land the file.** The job writes `receipt-fn/2026-09-01.jsonl` to the `orders-log-exports` bucket.
 2. **The Object Collection Rule ingests it.** `orders-archive-import` (the rule from *The Three Ingestion Methods*) matches the `receipt-fn/` prefix, parses each line with the `Custom Orders App Logs` source, and attributes records to the `order-receipt-fn` entity.
 3. **Cluster to see what is in the file.** `... | cluster` returns four patterns; one is `ObjectStorage timeout after * ms` with a count of 47 — the signal.
-4. **Extract the request ID.** The parser did not capture it, so `| extract field = Message 'req (?<RequestId>req-\w+)'` adds it.
-5. **Link across sources.** The gateway access logs for the same day were forwarded by a Service Connector. One query links both:
+4. **Extract the request ID.** The parser did not capture it, so `| extract field = Message 'req (?<RequestId>req-\w+)'` adds a `RequestId` field (no space) — the app log's own name for it.
+5. **Normalize the join key, then link across sources.** The gateway access logs for the same day were forwarded by a Service Connector, and their OOTB parser calls the same value `'Request Id'` (with a space) — a different name from the app log's `RequestId`. `link` needs one common field, so one query extracts the app log's ID, aligns it with the gateway's differently-named field, then links both sources:
 
    ```text
    'Log Source' in ('OCI API Gateway Access Logs', 'Custom Orders App Logs')
+     | extract field = Message 'req (?<RequestId>req-\w+)'
+     | eval RequestId = coalesce(RequestId, 'Request Id')
      | link span = 1hour Time, RequestId
      | stats max(Duration) as 'Slowest ms', count as Lines by RequestId
      | where 'Slowest ms' > 25000
@@ -304,16 +315,16 @@ sequenceDiagram
     participant LA as Log Analytics
     participant AN as Analyst
 
-    BJ->>OB: write receipt-fn/2026-08-31.jsonl
+    BJ->>OB: write receipt-fn/2026-09-01.jsonl
     OB->>OCR: object matches prefix
     OCR->>LA: parse, attach entity order-receipt-fn
     AN->>LA: | cluster
     LA-->>AN: pattern "ObjectStorage timeout" x47
-    AN->>LA: | extract RequestId | link | stats
+    AN->>LA: | extract RequestId | eval normalize | link | stats
     LA-->>AN: req-8841 : slowest 30020 ms, 4 lines
 ```
 
-*The uploaded file and the connector-forwarded gateway logs meet in one `link` query, keyed on the request ID `extract` recovered.*
+*The uploaded file and the connector-forwarded gateway logs meet in one `link` query, keyed on a request-ID field normalized to one name across both sources.*
 
 ---
 
@@ -327,14 +338,12 @@ sequenceDiagram
 | Only `Log-Analytics-SuperAdmins` can onboard, off-board, or purge | Keep purge rights out of the analyst group; onboarding is a one-time privileged action | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/log-analytics/doc/enable-access-logging-analytics-its-resources.html) |
 | Parsing happens at ingest against a fixed source/parser | A record parsed by the wrong source has wrong or missing fields and must be re-ingested to fix | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/logging-analytics/doc/logging-analytics-overview.html) |
 
-> Note: the Logging-service-vs-Log-Analytics trade-off is inline at *Log Analytics Versus the Logging Service*. Connector Hub, the mechanism behind the Service Connector ingestion path, is lesson `03`.
-
 ---
 
 ## 12. Summary
 
-Log Analytics parses each log at ingest, attaches it to an entity, and indexes the extracted fields, so its query language can aggregate and correlate in ways the Logging service's raw search cannot. The price is an ingest-time parse step bound to a log source, plus a two-tier storage model. Active storage is queryable and feeds the ML features; archival storage is cheaper and is neither. Reach for Log Analytics when the question is analytical and worth that overhead, and stay on the Logging service when a cheap single-field search is enough.
+Log Analytics parses each log at ingest, attaches it to an entity, and indexes the extracted fields. That indexing is what lets its query language aggregate and correlate in ways the Logging service's raw search cannot. The price is an ingest-time parse step bound to a log source, plus a two-tier storage model: active storage is queryable and feeds the ML features, archival storage is cheaper and is neither.
 
-The service is built on entities and log sources. An entity is the real-world resource a log describes; a log source binds a collection method to a parser, a label set, and an entity type. Parsed fields come from the log, labels are conditions you layer on top, and lookups join data that was never in the log at all. The query language pipes a source selector through commands like `stats`, `timestats`, `classify`, and field extraction. Two commands carry this lesson's weight: `cluster` collapses volume into a handful of patterns, and `link` stitches records sharing a key into one transaction row.
+The service is built on entities and log sources. An entity is the real-world resource a log describes; a log source binds a collection method to a parser, a label set, and an entity type. Two commands do the analytical work: `cluster` collapses volume into a handful of patterns, and `link` stitches records sharing a key into one transaction row.
 
-Logs arrive by one of three methods — the Management Agent for continuous host collection, a Service Connector for logs already in the Logging service, or an Object Collection Rule for batches landed in Object Storage. The Management Agent is a different binary from lesson `03`'s Unified Monitoring Agent, with a different destination; confusing the two is a common mistake. The walkthrough took an uploaded file plus connector-forwarded gateway logs and resolved them into a single `link` transaction view keyed on a request ID.
+Logs arrive by one of three methods — the Management Agent for continuous host collection, a Service Connector for logs already in the Logging service, or an Object Collection Rule for batches landed in Object Storage. The Management Agent is a different binary from lesson `03`'s Unified Monitoring Agent, with a different destination.

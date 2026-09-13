@@ -76,6 +76,21 @@ These are the inputs the skills defer to this track for. The depth bar itself (s
   Performance Monitoring), **MQL** (Monitoring Query Language), **ADB** (Autonomous Database),
   **LB** (Load Balancer). When Oracle's name differs from the generic term, give both once (e.g.
   "OCI Container Registry (OCIR)").
+- **Diagram palette and shapes** (per the `mermaid-diagrams` skill's §4 project-level reservation): a
+  component keeps the same colour and shape in every diagram it appears in, across lessons, not just
+  within one.
+  - **Signal flows** (the primary axis in most diagrams): metrics blue `#3b82f6`, logs violet
+    `#8b5cf6`, traces/spans cyan `#06b6d4`. A service on a flow (Monitoring, Logging, APM, …) takes
+    that flow's colour; shared plumbing it hands off to (Notifications, Connector Hub, dashboards,
+    boundary subgraphs) takes slate `#94a3b8`.
+  - **Success/failure pairs** (e.g. a delivery funnel) take green `#22c55e` / red `#ef4444` — reserve
+    this pair for that meaning; don't reuse green for an unrelated "all fine" diagram.
+  - **An axis orthogonal to flow** (data-key trust level, vantage-point location, resource kind) —
+    per `mermaid-diagrams` §4 — takes its own colours from the spare row (`#a855f7`, `#0ea5e9`,
+    `#eab308`, …), declared once per diagram, never overloading a flow colour with a second meaning.
+  - **Shapes by role**, not by lesson: an OCI service or process is `["Title Case"]`; a topic,
+    stream, bucket, or domain that stores something is `[("Title Case")]`; a router (Connector Hub)
+    is `{{"Title Case"}}`; an external system this track does not run is `[["Title Case"]]`.
 - **Domain trade-off pairs** to watch for and name explicitly (recurring OCI examples, not an exhaustive list):
   - Serverless Functions vs. always-on OKE workloads (cold-start latency and per-invocation cost vs. idle capacity).
   - Streaming vs. Queue vs. Events (replayable partitioned log vs. competing-consumer delivery vs. rule-routed notifications).
@@ -83,8 +98,8 @@ These are the inputs the skills defer to this track for. The depth bar itself (s
   - API Gateway fronting vs. direct load-balancer exposure (policy enforcement and authn at the edge vs. one less hop).
   - Managed service defaults vs. fine-grained control (what OCI operates for you vs. what you can still tune).
 - **Example gotcha callout** in the required style: `> ⚠️ Cold start: a scale-from-zero function
-  invocation pays image pull plus runtime boot before the first byte of your code runs — a
-  latency-sensitive request path either keeps the function warm or belongs on an always-on
+  invocation pays image pull plus runtime boot before the first byte of the function's code runs —
+  a latency-sensitive request path either keeps the function warm or belongs on an always-on
   service.` In this track, inline callouts and the Limits and Sources table centre **OCI service
   caveats, quotas, and limits** (the exam-relevant ones) over generic engineering trade-offs; reach
   for the trade-off pairs above only where a genuine OCI service choice exists.

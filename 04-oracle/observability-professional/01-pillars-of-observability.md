@@ -1,6 +1,6 @@
 # Pillars of Observability: The Four Signals and OCI's Service Family
 
-**Observability is inferring a system's internal state from the outputs it already emits** — metrics, logs, traces, and, on Oracle Cloud Infrastructure (OCI), resource-state events. Monitoring is the *subset* of that work set up in advance: a fixed set of checks against failure modes someone already predicted — CPU over 80%, HTTP 5xx rate over 10 per minute — cheap to run and unambiguous, but able to answer only the questions built into it before the incident. A novel failure has no pre-built panel: a dependency three services deep that slowed, a poison message stuck in one partition, a cache stampede right after a deploy. Observability is the property that you can compose a new question against telemetry already being collected, without shipping new instrumentation first — and the common misread is that it just means more dashboards, when the distinguishing property is answering what nobody anticipated. This lesson maps the four signals to the six OCI services that own them, and is the spine every later lesson in the track hangs off.
+**Observability is inferring a system's internal state from the outputs it already emits** — metrics, logs, traces, and, on Oracle Cloud Infrastructure (OCI), resource-state events. Monitoring is the *subset* of that work set up in advance: a fixed set of checks against failure modes someone already predicted, cheap to run and unambiguous. But it can answer only the questions built into it before the incident — a novel failure has no pre-built panel: a dependency three services deep that slowed, a poison message stuck in one partition, a cache stampede right after a deploy. Observability is the property that a new question can be composed against telemetry already being collected, without shipping new instrumentation first.
 
 ---
 
@@ -17,27 +17,28 @@
 
 ## 1. The Four Signals
 
-Monitoring covers the known set cheaply; the four signals below are what you query for everything else. That trade-off runs through the whole track:
+Monitoring covers the known set cheaply; the four signals below cover everything else. That trade-off runs through the whole track:
 
 | | Monitoring | Observability |
 | :--- | :--- | :--- |
 | Set up | Ahead of time, per known failure | Query composed at incident time |
 | Cost | Low, fixed | Higher storage and cardinality cost |
 | Answers | "Is a known thing broken?" | "What is this unknown thing?" |
+| Example | "CPU over 80%", "HTTP 5xx rate over 10/min" | "Which downstream dependency slowed?", "Why is this one partition's consumer stalled?" |
 | Failure mode | Blind to novel failures | Cost blowout; needs query skill |
 
 > Nuance: adding more dashboards does not raise the monitoring ceiling. A panel built for last week's incident just moves the boundary out by one case; the next unfamiliar failure is still on the far side of it.
 
-OCI's tooling is organised around four signal types. Each answers a structurally different question, and none substitutes for another.
+The worked example running through this lesson is a checkout that starts failing after a deploy; each signal below is introduced against that one incident. OCI's tooling is organised around four signal types. Each answers a structurally different question, and none substitutes for another.
 
 ### 1.1 Metrics — owned by the Monitoring service
 
-**A metric is a named numeric time series with dimensions, aggregated into fixed time intervals.** It is cheap to store and cheap to alarm on, and lossy by construction: you get the per-interval aggregate, never the individual request behind it.
+**A metric is a named numeric time series with dimensions, aggregated into fixed time intervals.** It is cheap to store and cheap to alarm on, and lossy by construction: a query returns the per-interval aggregate, never the individual request behind it.
 
-A metric query in the Monitoring Query Language (MQL), covered in full in lesson `02`:
+A metric query in the Monitoring Query Language (MQL), covered in full in lesson `02` — the same query that catches the checkout incident below:
 
 ```text
-HttpRequests[1m]{deploymentId = "ocid1.apideployment.oc1..ordersgw"}.sum()
+5xxErrors[1m]{deploymentId = "ocid1.apideployment.oc1..ordersgw"}.sum() > 10
 ```
 
 ### 1.2 Logs — owned by the Logging and Log Analytics services
@@ -54,10 +55,12 @@ Two OCI services cover logs: **Logging** stores and searches raw events (lesson 
 
 ### 1.3 Traces — owned by Application Performance Monitoring
 
-**A trace is the causally-linked tree of spans for one request as it crosses services.** It answers "where did the time go", which neither an aggregate metric nor a single log line can.
+**A trace is the causally-linked tree of spans for one request as it crosses services.** It answers "where did the time go", which neither an aggregate metric nor a single log line can. A trace is identified by its own trace ID, not `req-8841` — but a query still finds it by that familiar ID once the app copies it onto each span as an attribute:
 
 ```text
-trace req-8841
+show traces where RequestId = 'req-8841'
+
+trace 4bf9…4736
 └─ span  ordersgw            5 ms
    └─ span  order-receipt-fn  30,020 ms   ERROR
       └─ span  put-receipt-object  30,000 ms   ObjectStorage timeout
@@ -67,15 +70,15 @@ trace req-8841
 
 ### 1.4 Events — owned by the Events service
 
-**An event is a notification that an OCI resource changed state** — a bucket was created, an instance stopped, a database failed over. It is not a performance signal; it is a control-plane fact you can trigger automation from.
+**An event is a notification that an OCI resource changed state** — a bucket was created, an instance stopped, a database failed over. It is not a performance signal; it is a control-plane fact that automation can trigger off.
 
-The event envelope follows the CloudEvents schema:
+The event envelope follows the CloudEvents schema — the same deploy event the checkout incident's Events step reacts to below:
 
 ```json
 {
-  "eventType": "com.oraclecloud.objectstorage.createobject",
-  "source": "objectstorage",
-  "resourceId": "ocid1.bucket.oc1..ordersreceipts",
+  "eventType": "com.oraclecloud.functions.updatefunction",
+  "source": "functions",
+  "resourceId": "ocid1.fnfunc.oc1..orderreceiptfn",
   "data": { "compartmentId": "ocid1.compartment.oc1..orders" }
 }
 ```
@@ -91,13 +94,13 @@ The Events service is lesson `04`. The envelope's field-level matching mechanics
 | Which hop in the call chain is slow or failing? | Traces | APM |
 | Did a resource's state change — and run something when it does? | Events | Events |
 
-**Selection guidance:** start at metrics — cheapest and broadest — to confirm something is wrong and roughly where. Drop to logs for the exact error a resource produced. Drop to traces when the failure spans services and you need to localise the hop. Events sits orthogonal to all three: it drives automation off state changes, it does not diagnose performance.
+**Selection guidance:** start at metrics — cheapest and broadest — to confirm something is wrong and roughly where. Drop to logs for the exact error a resource produced. Drop to traces when the failure spans services and the hop needs to be localised. Events sits orthogonal to all three: it drives automation off state changes, it does not diagnose performance.
 
 ---
 
 ## 2. The Observability and Management Service Family
 
-Every section from here maps to one of the six services in the table below; this section is the whole-family map they slot into.
+The four signals are owned by six OCI services, wired together into one family.
 
 ### 2.1 The six services this track covers
 
@@ -112,11 +115,11 @@ Every section from here maps to one of the six services in the table below; this
 
 ### 2.2 The wider family, out of scope here
 
-**Oracle groups more services under "Observability and Management" than this track covers.** Database Management, Operations Insights, Java Management Service, and Fleet Application Management target database, JVM, and patch-fleet operations. The exam blueprint and this track exclude them — recognise the names in the Console, but do not study them here.
+**Oracle groups more services under "Observability and Management" than this track covers.** Database Management, Operations Insights, Java Management Service, and Fleet Application Management target database, JVM, and patch-fleet operations — distinct surfaces from the six services above, though their names still appear in the same Console menu.
 
 ### 2.3 The family as one system
 
-The services are wired to the workloads that feed them on one side and to the places their output lands on the other.
+**The services are wired to the workloads that feed them on one side and to the places their output lands on the other.**
 
 | Flow | Colour | Carries |
 | :--- | :--- | :--- |
@@ -127,20 +130,22 @@ The services are wired to the workloads that feed them on one side and to the pl
 
 ```mermaid
 flowchart LR
-    subgraph SRC["Workloads (orders-compartment)"]
+    subgraph SRC["Workloads"]
         GW["API Gateway"]
         FN["Functions"]
-        CI["Compute + on-prem hosts"]
+        CI["Compute + On-Prem Hosts"]
     end
 
     MON["Monitoring"]
     LOG["Logging"]
     APM["APM"]
     STK["Stack Monitoring"]
+    LA["Log Analytics"]
+    EV["Events"]
 
-    NTF[("Notifications topic")]
+    NTF[("Notifications Topic")]
     CH{{"Connector Hub"}}
-    DASH["Console dashboards"]
+    DASH["Console Dashboards"]
 
     %% metrics
     GW -->|"metrics"| MON
@@ -163,25 +168,36 @@ flowchart LR
     LOG --> DASH
     APM --> DASH
 
+    %% logs, continued: Connector Hub routes onward to Log Analytics
+    CH -->|"route"| LA
+
+    %% events: orthogonal to the three signal flows
+    FN -->|"state change"| EV
+    EV -->|"action"| NTF
+
     linkStyle 0,1,2,3,4 stroke:#3b82f6,stroke-width:2px
     linkStyle 5,6,7,8 stroke:#8b5cf6,stroke-width:2px
     linkStyle 9 stroke:#06b6d4,stroke-width:2px
     linkStyle 10,11,12 stroke:#94a3b8,stroke-width:2px
+    linkStyle 13 stroke:#8b5cf6,stroke-width:2px
+    linkStyle 14,15 stroke:#94a3b8,stroke-width:2px
 
     style SRC stroke:#94a3b8,stroke-dasharray:4 3
-    style GW stroke:#3b82f6,stroke-width:2px
-    style FN stroke:#3b82f6,stroke-width:2px
-    style CI stroke:#3b82f6,stroke-width:2px
+    style GW stroke:#94a3b8,stroke-width:2px
+    style FN stroke:#94a3b8,stroke-width:2px
+    style CI stroke:#94a3b8,stroke-width:2px
     style MON stroke:#3b82f6,stroke-width:2px
     style STK stroke:#3b82f6,stroke-width:2px
     style LOG stroke:#8b5cf6,stroke-width:2px
     style APM stroke:#06b6d4,stroke-width:2px
+    style LA stroke:#8b5cf6,stroke-width:2px
+    style EV stroke:#94a3b8,stroke-width:2px
     style NTF stroke:#94a3b8,stroke-width:2px
     style CH stroke:#94a3b8,stroke-width:2px
     style DASH stroke:#94a3b8,stroke-width:2px
 ```
 
-*Workloads feed metrics, logs, and spans into the services that own each signal; alarms converge on a Notifications topic and logs route onward through Connector Hub.*
+*Workloads feed metrics, logs, and spans into the services that own each signal; alarms converge on a Notifications topic, logs route onward through Connector Hub to Log Analytics, and Events sits orthogonal to the other three — its own signal is a state change, not a metric, log, or trace.*
 
 ---
 
@@ -201,25 +217,31 @@ The six services are not silos. Three wiring points let one service's output bec
 
 **An Events rule matches a resource-state change and fires a Function, a stream write, or a Notifications publish.** It is the glue that turns a state change into a response with no polling loop. Lesson `04`.
 
-### 3.4 Why this composes into one system
-
-| Wiring point | Source signal | Becomes |
-| :--- | :--- | :--- |
-| Alarm → Notifications | A metric breach | A delivered notification |
-| Log → Connector Hub | A log event | An archived object, a stream record, or a parsed row |
-| Event → rule action | A resource state change | A function invocation |
-
-You assemble these per incident rather than living inside one tool: a breach becomes a page, a log becomes an archive, a state change becomes an automated fix.
-
 ---
 
 ## 4. Worked Walkthrough: One Degraded Checkout, Across Four Services
 
 `order-receipt-fn` in `orders-compartment`, behind the `ordersgw` API Gateway deployment, starts returning `502`s minutes after a deploy. One request, `req-8841`, traced through every signal.
 
-1. **Metric breach — Monitoring.** The alarm query `5xxErrors[1m]{deploymentId = "ocid1.apideployment.oc1..ordersgw"}.sum() > 10` holds true for three consecutive one-minute evaluations. The alarm transitions to `FIRING` and publishes to the `orders-oncall` Notifications topic; the on-call engineer is paged. This says *something* is wrong — not what.
+1. **Metric breach — Monitoring.** The alarm query holds true for three consecutive one-minute evaluations:
+
+   ```text
+   5xxErrors[1m]{deploymentId = "ocid1.apideployment.oc1..ordersgw"}.sum() > 10
+   ```
+
+   The alarm transitions to `FIRING` and publishes to the `orders-oncall` Notifications topic:
+
+   ```json
+   {
+     "title": "ordersgw-5xx-high — FIRING",
+     "body": "5xx rate on ordersgw exceeded 10/min for 3 minutes",
+     "state": "FIRING"
+   }
+   ```
+
+   The on-call engineer is paged. This says *something* is wrong — not what.
 2. **Log lookup — Logging.** The engineer searches the gateway access log filtered to `/receipts`: a burst of `502`s, each carrying `data.requestId`. Searching `order-receipt-fn`'s custom log for `req-8841` returns a stack trace ending in `ObjectStorage request timed out`.
-3. **Trace localisation — APM.** Opening the trace for `req-8841` in Trace Explorer shows the span tree: the gateway span at 5 ms, the function span at 30 s and errored, and inside it a `put-receipt-object` child span holding all 30 s. Now the failing hop is known: the Object Storage write, not the function logic.
+3. **Trace localisation — APM.** Trace Explorer: `show traces where RequestId = 'req-8841'` finds the trace by the same ID the logs used. Its span tree shows the gateway span at 5 ms, the function span at 30 s and errored, and inside it a `put-receipt-object` child span holding all 30 s. Now the failing hop is known: the Object Storage write, not the function logic.
 4. **State-change automation — Events, in parallel.** The deploy also emitted `com.oraclecloud.functions.updatefunction`. A standing Events rule matched it and invoked a Function that posted the deploy diff into the incident channel — no polling, no manual lookup.
 5. **Resolution.** The engineer rolls the function back. `5xxErrors` falls below the threshold; the alarm sends `FIRING_TO_OK` to the same `orders-oncall` topic, closing the loop.
 
@@ -241,7 +263,7 @@ sequenceDiagram
     GL-->>OC: burst of 502s
     OC->>FL: search same requestId
     FL-->>OC: ObjectStorage timeout
-    OC->>TR: open trace
+    OC->>TR: show traces where RequestId=req-8841
     TR-->>OC: put-receipt-object span holds the 30s
     DP->>EV: updatefunction event
     EV->>OC: deploy diff posted
@@ -260,17 +282,12 @@ Lessons `02` through `06` each take one of these services in full.
 | Limit | What it forces | As-of + docs |
 | :--- | :--- | :--- |
 | Metric definitions and alarm history retained 90 days | Trend analysis past 90 days needs the data exported first, via Connector Hub | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Monitoring/Concepts/monitoringoverview.htm) |
-| 50 alarms per region (default, increasable) | A large tenancy consolidates conditions or files a limit-increase request | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/General/Concepts/servicelimits.htm) |
-| Alarm delivery: 60 messages/evaluation to a topic; 100,000 to a stream | A condition tripping across dozens of resources at once truncates silently on a topic — route wide fan-out to Streaming | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Monitoring/Concepts/monitoringoverview.htm) |
-| Notifications: 100 topics per tenancy, 10 subscriptions per topic | Plan a topic per team or per severity, not a topic per alarm | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/General/Concepts/servicelimits.htm) |
 | Log retention 30–180 days, 30-day steps, default 30 | Anything longer-lived is archived off Logging (Connector Hub to Object Storage) | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Logging/Task/update-logging-log.htm) |
-| Connector Hub: 20 connectors per region; Logging and Monitoring sources retain 24 h for retry | A connector failing for more than 24 h loses the gap in its source data | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/connector-hub/overview.htm) |
-| Audit log retention: default 90 days, up to 365, tenancy-wide | A compliance window beyond one year needs Audit logs exported to Object Storage | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Audit/Tasks/settingretentionperiod.htm) |
 
 ---
 
 ## 6. Summary
 
-OCI organises observability around four signals, and the split from monitoring is the recurring trade-off: pre-declared checks answer known failures cheaply, queryable signals answer the ones nobody anticipated, and real operations run both. Metrics are cheap aggregate time series, owned by the Monitoring service. Logs are per-event structured records, owned by Logging and Log Analytics. Traces are cross-service span trees, owned by APM. Events are resource state changes, owned by the Events service and used to drive automation rather than diagnosis.
+OCI organises observability around four signals. Monitoring and observability trade cost for coverage: pre-declared checks answer known failures cheaply; queryable signals answer the ones nobody anticipated. Metrics are cheap aggregate time series, owned by the Monitoring service. Logs are per-event structured records, owned by Logging and Log Analytics. Traces are cross-service span trees, owned by APM. Events are resource state changes, owned by the Events service, used to drive automation rather than diagnosis.
 
-Six services produce and consume these signals, and three wiring points join them: alarms deliver through Notifications, logs route onward through Connector Hub, and Events rules fire Functions or stream writes. A signal from one service becomes the input to another, so an incident is worked by composing them — metric to log to trace — not by staying in a single tool.
+Six services produce and consume these signals, wired together at three points: alarms deliver through Notifications, logs route onward through Connector Hub, and Events rules fire Functions or stream writes.

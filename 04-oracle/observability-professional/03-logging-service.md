@@ -1,6 +1,6 @@
 # The Logging Service: Log Types, the Query Language, and Routing
 
-The Logging service is OCI's single pane over three log categories — **service**, **custom**, and **audit** — each answering a different question and none substituting for another. A service log says what an OCI resource did; a custom log says what your code did; an audit log says who called which API. This lesson covers the resource model that holds all three, the query language that reads them, and Connector Hub, the no-code router that moves logs onward. `developer-professional/10` introduced the three types in one table; this lesson is the service itself.
+The Logging service is OCI's single pane over three log categories — **service**, **custom**, and **audit** — each answering a different question and none substituting for another. A service log says what an OCI resource did; a custom log says what a workload's own code did; an audit log says who called which API. One query language reads all three, and Connector Hub routes them onward. The walkthrough below correlates a gateway's service log with a function's custom log by one shared field.
 
 ---
 
@@ -23,9 +23,7 @@ The Logging service is OCI's single pane over three log categories — **service
 
 ### 1.1 Log group: the IAM and organisational container
 
-**A log group is a compartment-scoped container that holds logs and carries the IAM policy that governs them.** You write a policy against the log group, not against each log inside it, and moving a log group to another compartment moves every log with it.
-
-It is the same "one umbrella resource, many things underneath" shape seen elsewhere in OCI — a DevOps project holding pipelines, a stream pool holding streams.
+**A log group is a compartment-scoped container that holds logs and carries the IAM policy that governs them.** A policy targets the log group, not each log inside it, and moving a log group to another compartment moves every log with it.
 
 ### 1.2 Log: a first-class resource with a category and a retention
 
@@ -45,7 +43,7 @@ flowchart LR
         LOG["Log (OCID, category, retention)"]
     end
 
-    SVC["OCI service"] -->|"service log"| LOG
+    SVC["OCI Service"] -->|"service log"| LOG
     AGT["Unified Monitoring Agent"] -->|"custom log"| LOG
     API["PutLogs API"] -->|"custom log"| LOG
 
@@ -72,7 +70,7 @@ flowchart LR
 
 ### 2.1 What a service log is
 
-**A service log is emitted by an OCI service itself; you turn it on by creating a Log with the right category on that resource, and write nothing.** The gateway's access log, a load balancer's error log, VCN flow records — all are service logs.
+**A service log is emitted by an OCI service itself; it turns on by creating a Log with the right category on that resource, with no code to write.** The gateway's access log, a load balancer's error log, VCN flow records — all are service logs.
 
 ### 2.2 The common record shape
 
@@ -80,12 +78,12 @@ flowchart LR
 
 ```json
 {
-  "datetime": 1756725600000,
+  "datetime": 1788256980400,
   "logContent": {
     "id": "a1b2c3",
     "source": "ordersgw",
     "type": "com.oraclecloud.apigateway.access",
-    "time": "2026-09-01T10:00:00Z",
+    "time": "2026-09-01T10:03:00Z",
     "oracle": { "compartmentid": "ocid1.compartment.oc1..orders",
                 "loggroupid": "ocid1.loggroup.oc1..gwlogs" },
     "data": {
@@ -97,7 +95,7 @@ flowchart LR
 }
 ```
 
-- **`datetime`** is the ingestion time in epoch milliseconds; **`time`** inside `logContent` is when the event actually occurred. They differ under ingestion lag — filter on the one that matches your question.
+- **`datetime`** is the ingestion time in epoch milliseconds; **`time`** inside `logContent` is when the event actually occurred. They differ under ingestion lag — filter on the one matching the question being asked.
 - **`oracle`** holds OCI-injected context (compartment, log group). **`data`** is the only part whose shape depends on the emitting service.
 - **`logContent`** as a bare field name in a query refers to the entire original message text.
 
@@ -109,7 +107,7 @@ flowchart LR
 | Load Balancer | `access`, `error` | Client IP, backend chosen, backend latency, status |
 | VCN Flow Logs | `all` (with a capture filter) | Source/dest IP and port, protocol, bytes, `ACCEPT` / `REJECT` |
 
-> ⚠️ VCN Flow Logs without a capture filter record every accepted and rejected flow on the subnet — high volume, high cost. A capture filter scopes them to the traffic you actually care about (one security list rule, one CIDR) before ingestion, not after.
+> ⚠️ VCN Flow Logs without a capture filter record every accepted and rejected flow on the subnet — high volume, high cost. A capture filter scopes them to the traffic that actually matters (one security list rule, one CIDR) before ingestion, not after.
 
 ---
 
@@ -117,9 +115,9 @@ flowchart LR
 
 ### 3.1 Two ingestion paths
 
-**A custom log reaches Logging either through a direct `PutLogs` API call from your code, or through the Unified Monitoring Agent reading a file.** Managed services (a Function with its logging toggle on) use the API path for you. A workload *outside* a managed path — an application on a Compute instance, an on-prem host — needs the agent.
+**A custom log reaches Logging either through a direct `PutLogs` API call from application code, or through the Unified Monitoring Agent reading a file.** Managed services (a Function with its logging toggle on) use the API path automatically. A workload *outside* a managed path — an application on a Compute instance, an on-prem host — needs the agent.
 
-> Note: this is the service-log versus custom-log trade-off. A service log is zero-config with a fixed schema, emitted by OCI whether or not you write any code — but you get only the fields OCI chose to include. A custom log carries whatever your code emits, at the cost of an agent (or `PutLogs` client) to deploy, a parser to maintain, and a per-line ingestion charge you own.
+> Note: this is the service-log versus custom-log trade-off. A service log is zero-config with a fixed schema, emitted by OCI regardless of what code runs — but it carries only the fields OCI chose to include. A custom log carries whatever the application emits, at the cost of an agent (or `PutLogs` client) to deploy, a parser to maintain, and a per-line ingestion charge to own.
 
 ### 3.2 The agent configuration
 
@@ -127,15 +125,17 @@ flowchart LR
 
 ```yaml
 # Simplified — an agent configuration's three parts
+# order-receipt-worker: an unrelated Compute-hosted batch job in the same
+# orders-compartment, not the order-receipt-fn Function used elsewhere in this lesson
 sources:
-  - name: order-receipt-app
+  - name: order-receipt-worker
     type: LOG_TAIL
-    paths: ["/var/log/orders/receipt-*.log"]
+    paths: ["/var/log/orders/receipt-worker-*.log"]
     parser:
       type: JSON              # or GROK / REGEXP for unstructured lines
       timeKey: ts
 destination:
-  logObjectId: ocid1.log.oc1..receiptapp   # the Log this feeds
+  logObjectId: ocid1.log.oc1..receiptworker   # the Log this feeds
 ```
 
 The parser is what turns a raw line into the structured `data` object a query can filter on. An unparsed line still ingests, but every field lands in `logContent` as one string.
@@ -156,7 +156,7 @@ The host also needs egress to two regional endpoints — `auth.<region>.oraclecl
 
 ### 3.4 This is not the Management Agent
 
-**The Unified Monitoring Agent ships custom logs to the Logging service. The Management Agent (lesson `05`) ships logs to Log Analytics and metrics to Stack Monitoring.** They are different binaries with different configuration models — a common exam trap. If the destination is a Log with an OCID, it is the Unified Monitoring Agent.
+**The Unified Monitoring Agent ships custom logs to the Logging service. The Management Agent (lesson `05`) ships logs to Log Analytics and metrics to Stack Monitoring.** They are different binaries with different configuration models, and Console menus refer to both simply as "the agent". If the destination is a Log with an OCID, it is the Unified Monitoring Agent.
 
 ---
 
@@ -164,11 +164,11 @@ The host also needs egress to two regional endpoints — `auth.<region>.oraclecl
 
 ### 4.1 Search scope
 
-**A search targets a single log, a whole log group, or an entire compartment — widening the scope is how you correlate across logs that were filled by different services.** The Console's Log Search page and the `SearchLogs` API take the same scope identifier.
+**A search targets a single log, a whole log group, or an entire compartment — widening the scope is how logs filled by different services get correlated.** The Console's Log Search page and the `SearchLogs` API take the same scope identifier.
 
 ### 4.2 Viewing a record
 
-**Each result row shows the outer fields inline and expands to the full JSON.** The expanded view is where you read the service-specific `data` object; the collapsed view is tuned for scanning `time`, `source`, and a summary of `data`.
+**Each result row shows the outer fields inline and expands to the full JSON.** The expanded view is where the service-specific `data` object is read; the collapsed view is tuned for scanning `time`, `source`, and a summary of `data`.
 
 ---
 
@@ -208,7 +208,7 @@ A log stream identifier is `"<compartment> [ /<log group> [ /<log> ] ]"` — omi
 
 ### 5.4 Aggregation
 
-**`summarize` groups and aggregates; `rounddown` buckets a timestamp so you can aggregate over time.**
+**`summarize` groups and aggregates; `rounddown` buckets a timestamp so results can be aggregated over time.**
 
 ```text
 search "ocid1.compartment.oc1..orders/gwlogs"
@@ -227,7 +227,9 @@ Aggregate functions: `count`, `sum`, `avg`, `min`, `max`, `first`, `last`. Scala
 
 ## 6. Connector Hub
 
-> Note: `developer-professional/10` previewed Connector Hub as cross-module glue and flagged it as unverified for *that* course module. It is confirmed content for this track's Module 3; this section is the fuller treatment — the support matrix, failure behaviour, and operational limits that section did not cover.
+Once a log has been found and searched, Connector Hub is where it hands off outside Logging entirely — to archive, to another service, or onward for parsing.
+
+> Note: Connector Hub is introduced in `developer-professional/10` as cross-module glue.
 
 ### 6.1 Source, optional task, target
 
@@ -241,29 +243,31 @@ Aggregate functions: `count`, `sum`, `avg`, `min`, `max`, `first`, `last`. Scala
 
 ```mermaid
 flowchart LR
-    LOG[("Logging")] --> CH{{"Connector"}}
+    LGS[("Logging")] --> CH{{"Connector Hub"}}
     MON[("Monitoring")] --> CH
     QUE[("Queue")] --> CH
     STR[("Streaming")] --> CH
 
-    CH -.->|"optional"| TASK["Functions / Logging task"]
+    CH -->|"optional"| TASK["Functions / Logging task"]
     TASK --> TGT
     CH --> TGT["Functions / Log Analytics / Monitoring /<br/>Notifications / Object Storage / Streaming"]
 
-    linkStyle 0,1,2,3 stroke:#8b5cf6,stroke-width:2px
+    linkStyle 0 stroke:#8b5cf6,stroke-width:2px
+    linkStyle 1 stroke:#3b82f6,stroke-width:2px
+    linkStyle 2,3 stroke:#94a3b8,stroke-width:2px
     linkStyle 4,5 stroke:#14b8a6,stroke-width:2px
     linkStyle 6 stroke:#94a3b8,stroke-width:2px
 
-    style LOG stroke:#8b5cf6,stroke-width:2px
-    style MON stroke:#8b5cf6,stroke-width:2px
-    style QUE stroke:#8b5cf6,stroke-width:2px
-    style STR stroke:#8b5cf6,stroke-width:2px
+    style LGS stroke:#8b5cf6,stroke-width:2px
+    style MON stroke:#3b82f6,stroke-width:2px
+    style QUE stroke:#94a3b8,stroke-width:2px
+    style STR stroke:#94a3b8,stroke-width:2px
     style CH stroke:#94a3b8,stroke-width:2px
     style TASK stroke:#14b8a6,stroke-width:2px
     style TGT stroke:#94a3b8,stroke-width:2px
 ```
 
-*Not every source–target pair is valid: a Monitoring source can only reach Functions, Object Storage, or Streaming, and the Logging filter task exists for the Logging source alone.*
+*The task and target boxes group every option in one place for compactness; not every source reaches every target — see the table above for the valid pairs.*
 
 ### 6.2 Creating one, and the policy it needs
 
@@ -286,7 +290,7 @@ Allow any-user to manage objects in compartment orders where all {
 ### 6.3 Delivery semantics and failure behaviour
 
 - **At-least-once, sequential batches.** A failed batch is retried and blocks every later batch until it succeeds — a stuck target stalls the whole connector, it does not skip ahead.
-- **Retry is bounded by the source's retention.** Logging and Monitoring sources retain 24 hours; a connector down longer than that loses the gap and resumes from the latest data. A Streaming source's customer-defined retention is how you buy more slack.
+- **Retry is bounded by the source's own retry window** — a different limit from the log's own configured retention. Logging and Monitoring sources give a connector 24 hours to catch up; down longer than that loses the gap and it resumes from the latest data. A Streaming source's customer-defined retention buys more slack.
 - **Auto-deactivation.** After 4 consecutive days of failure OCI posts a warning; after 7 it deactivates the connector.
 - **An update resets the offset.** Editing a connector's source, task, or target internally resets it — it may re-deliver recently processed data, so downstream targets must tolerate duplicates.
 - **Notifications target caps at 128 KB per message**; a larger payload is dropped, not truncated.
@@ -338,11 +342,11 @@ The `ordersgw` deployment returns `502`s on `POST /receipts`. Two logs, one shar
      | sort by datetime desc
    ```
 
-   Every row carries `data.requestId` — `req-8841` appears 40 times in two minutes.
+   40 distinct requests fail in two minutes, each with its own `data.requestId`; `req-8841` is picked as one representative row to drill into.
 
-2. **Confirm it is the backend, not the gateway.** `data.responseTimeSec` on those rows is ~30 s, and the gateway's route timeout is 30 s — the gateway is timing out waiting on the function, not rejecting the request itself.
+2. **Confirm it is the backend, not the gateway.** `data.responseTimeSec` on that row is ~30 s, and the gateway's route timeout is 30 s — the gateway is timing out waiting on the function, not rejecting the request itself.
 
-3. **Jump to the custom log by the same field.** `order-receipt-fn`'s custom log (Unified Monitoring Agent, JSON parser) shares the `requestId` field because the function copies the incoming header into every log line:
+3. **Jump to the custom log by the same field.** `order-receipt-fn`'s custom log — ingested via the same managed `PutLogs` path Functions logging uses automatically (the *Custom Logs* section) — shares the `requestId` field because the function copies the incoming header into every log line:
 
    ```text
    search "ocid1.compartment.oc1..orders/fnlogs/order-receipt-fn"
@@ -371,7 +375,7 @@ sequenceDiagram
     participant OS as Object Storage archive
 
     OC->>GA: where path=/receipts and status=502
-    GA-->>OC: 40 rows, requestId req-8841, ~30s each
+    GA-->>OC: 40 distinct failing requests, ~30s each; req-8841 picked as one example
     OC->>FL: where requestId = req-8841
     FL-->>OC: ObjectStorage timeout stack trace
     OC->>GA: summarize by minute
@@ -390,7 +394,7 @@ sequenceDiagram
 | Log retention 30–180 days, 30-day steps, default 30 | Longer-lived logs must be routed to Object Storage via Connector Hub | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/Logging/Task/update-logging-log.htm) |
 | 100 log groups and 500 log objects per region | Group by team or system, not per micro-source; file a limit increase for a large estate | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/General/Concepts/servicelimits.htm) |
 | 100 Unified Agent configurations per region | Reuse one configuration across a fleet rather than one per host | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/General/Concepts/servicelimits.htm) |
-| Log Search: 100 queries/minute, 5 concurrent per tenancy | A dashboard of many log widgets can exhaust the budget; prefer routed metrics for always-on panels | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/General/Concepts/servicelimits.htm) |
+| Log Search: 100 queries/minute, 5 concurrent per region | A dashboard of many log widgets can exhaust the budget; prefer routed metrics for always-on panels | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/General/Concepts/servicelimits.htm) |
 | Connector Hub: 20 connectors/region; Logging and Monitoring sources retain 24 h for retry | A connector failing over 24 h loses the gap; auto-deactivates after 7 days of failure | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/connector-hub/overview.htm) |
 | Connector Hub latency: minutes for a plain move, up to 17 minutes through a Functions task | Do not put alarming on a routed log path; keep it on Monitoring | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/connector-hub/overview.htm) |
 | Connector Hub Notifications target: 128 KB per message, larger dropped | A verbose log event routed to a topic can vanish silently; filter or reshape first | Sep 2026, [docs](https://docs.oracle.com/en-us/iaas/Content/connector-hub/overview.htm) |
@@ -400,8 +404,8 @@ sequenceDiagram
 
 ## 10. Summary
 
-The Logging service holds three log categories in one resource model. A log group is the compartment-scoped IAM and organisational container; a log is a first-class resource inside it with a category, a retention between 30 and 180 days, and an enabled state. Service logs are emitted by OCI and turned on by creating a log; custom logs come from your code through `PutLogs` or the Unified Monitoring Agent; audit logs are always on.
+The Logging service holds three log categories in one resource model. A log group is the compartment-scoped IAM container; a log inside it carries a category, a retention between 30 and 180 days, and an enabled state. Service logs are emitted by OCI and turned on by creating a log; custom logs come from application code through `PutLogs` or the Unified Monitoring Agent; audit logs are always on.
 
-Every event shares an outer envelope — `datetime`, `time`, `source`, `type`, `oracle` context — with a service-specific `data` object inside, reached in queries by dotted paths. A query is a `search` over one or more log streams piped through operators: tabular operators reshape the row stream, and `summarize` with `rounddown` aggregates it over time.
+Every event shares an outer envelope — `datetime`, `time`, `source`, `type`, `oracle` context — with a service-specific `data` object inside, reached in queries by dotted paths. A query is a `search` over one or more log streams piped through operators, and `summarize` with `rounddown` aggregates it over time.
 
-Connector Hub routes logs onward with no code, along the valid source–target pairs only. Delivery is at-least-once and sequential, and retry is bounded by the 24-hour source retention. Its multi-minute latency keeps it off any alerting path. It is how a log outlives its 30-day retention, and how audit events reach an archive before the 365-day tenancy ceiling.
+Connector Hub routes logs onward with no code, along the valid source–target pairs only, at-least-once and sequential, with retry bounded by the 24-hour source retention. It is how a log outlives its 30-day retention and how audit events reach an archive before the 365-day tenancy ceiling.

@@ -263,9 +263,9 @@ spec for that lesson — add bullets as you study. File names follow `../GUIDELI
       - Log Analytics Data Flow — collection method → log source → parser → log group → Log Explorer
       - Source Types & Collection Methods — agent, service connector, Object Storage, on-demand
         upload
-      - Logging-Analytics-Users and Logging-Analytics-Admins — the two default IAM groups and what
+      - Log-Analytics-Users and Log-Analytics-Admins — the two default IAM groups and what
         each can do
-      - Logging-Analytics-Super-Admins — the tenancy-wide administrative role and when it is needed
+      - Log-Analytics-SuperAdmins — the tenancy-wide administrative role and when it is needed
       - Demo: Log Analytics Onboarding — mechanics
     - Log Data Management
       - Data Governance and Access Controls — compartment scoping, group-based access, data-access
