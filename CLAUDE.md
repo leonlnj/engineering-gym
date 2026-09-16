@@ -71,6 +71,9 @@ uninvited.**
   self-review alone is a demonstrated blind spot, not a formality to skip.
 - "Improve a lesson" → run `lesson-eval`, present the report, and **stop for approval** before
   editing — the skills' report-then-approve gate is the contract, not a formality.
+- Editing an *existing* lesson also runs the newly-changed-passage re-check from `lesson-craft`'s
+  Execution Workflow step 3 — a fix for one issue has repeatedly broken an unrelated standing rule
+  across past edit rounds.
 - Volatile facts (versions, prices, model names, exam topics) are verified against a current
   source, never written from memory.
 - For multi-step work, state a brief plan with a verify step per item.
